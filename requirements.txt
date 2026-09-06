@@ -1,0 +1,2 @@
+# Solo Leveling Fitness & Nutrition System
+# Powered by Python 3 Standard Library - Zero external dependencies required.

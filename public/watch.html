@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Garmin Venu 4 | Solo Leveling Watch Mode</title>
+  <style>
+    :root {
+      --watch-bg: #000000;
+      --cyan: #00f0ff;
+      --blue: #3b82f6;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --green: #10b981;
+      --text: #ffffff;
+      --text-dim: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: #0b0f19;
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .watch-case {
+      width: 440px;
+      height: 440px;
+      background: radial-gradient(circle, #2d3748 0%, #1a202c 70%, #0d1117 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(255, 255, 255, 0.1);
+      border: 4px solid #4a5568;
+      position: relative;
+    }
+
+    /* Exact Garmin Venu 4 Screen Size (416x416 AMOLED) */
+    .watch-screen {
+      width: 416px;
+      height: 416px;
+      background: var(--watch-bg);
+      border-radius: 50%;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px;
+      border: 2px solid #111;
+    }
+
+    /* Circular SVG Gauge for Watch */
+    .watch-gauge-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 416px;
+      height: 416px;
+      transform: rotate(-90deg);
+      pointer-events: none;
+    }
+
+    .watch-track {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.08);
+      stroke-width: 14;
+    }
+
+    .watch-fill {
+      fill: none;
+      stroke: var(--cyan);
+      stroke-width: 14;
+      stroke-linecap: round;
+      stroke-dasharray: 1200;
+      stroke-dashoffset: 1200;
+      transition: stroke-dashoffset 0.6s ease;
+      filter: drop-shadow(0 0 8px var(--cyan));
+    }
+
+    .watch-content {
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      text-align: center;
+    }
+
+    .watch-rank-badge {
+      background: rgba(0, 240, 255, 0.2);
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      font-size: 11px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 12px;
+      letter-spacing: 1px;
+    }
+
+    .watch-cal-large {
+      font-size: 38px;
+      font-weight: 900;
+      font-family: 'SF Mono', Menlo, monospace;
+      color: #ffffff;
+      line-height: 1;
+      margin-top: 4px;
+    }
+
+    .watch-cal-label {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Mini Macro Triad */
+    .watch-macros {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .macro-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-size: 10px;
+    }
+
+    .macro-tag {
+      font-weight: 800;
+      font-size: 9px;
+    }
+
+    .macro-tag.p { color: var(--red); }
+    .macro-tag.c { color: var(--blue); }
+    .macro-tag.f { color: var(--yellow); }
+
+    .macro-num {
+      font-family: 'SF Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    /* Water Quick Add Button on Watch */
+    .watch-water-btn {
+      margin-top: 10px;
+      background: rgba(0, 240, 255, 0.15);
+      border: 1px solid var(--cyan);
+      color: #ffffff;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: transform 0.15s, background 0.15s;
+    }
+
+    .watch-water-btn:active {
+      transform: scale(0.92);
+      background: rgba(0, 240, 255, 0.35);
+    }
+
+    .watch-footer-info {
+      margin-top: 20px;
+      text-align: center;
+      max-width: 440px;
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="watch-case">
+    <div class="watch-screen">
+      <!-- 416x416 Circular Calorie Ring -->
+      <svg class="watch-gauge-svg" viewBox="0 0 416 416">
+        <circle class="watch-track" cx="208" cy="208" r="190" />
+        <circle id="watch-fill" class="watch-fill" cx="208" cy="208" r="190" />
+      </svg>
+
+      <div class="watch-content">
+        <div id="w-attent" style="display:none; font-size:9px; color:#f3e8ff; font-weight:800; background:rgba(168,85,247,0.3); border:1px solid #c084fc; border-radius:10px; padding:2px 8px; margin-bottom:2px; font-family:'SF Mono',monospace;">
+          💊 ATTENT ACTIVE
+        </div>
+        <div id="w-rank" class="watch-rank-badge">E-RANK [LV. 1]</div>
+        <div id="w-cals" class="watch-cal-large">0</div>
+        <div class="watch-cal-label">קלוריות שנצרכו / <span id="w-tgt">2180</span></div>
+
+        <div class="watch-macros">
+          <div class="macro-col">
+            <span class="macro-tag p">P</span>
+            <span id="w-p" class="macro-num">0g</span>
+          </div>
+          <div class="macro-col">
+            <span class="macro-tag c">C</span>
+            <span id="w-c" class="macro-num">0g</span>
+          </div>
+          <div class="macro-col">
+            <span class="macro-tag f">F</span>
+            <span id="w-f" class="macro-num">0g</span>
+          </div>
+        </div>
+
+        <!-- Biometrics Row -->
+        <div id="w-biometrics" style="display:flex; gap:10px; font-size:10px; font-family:'SF Mono', monospace; color:#94a3b8; margin-top:6px; background:rgba(0,0,0,0.4); padding:3px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.06);">
+          <span>❤️ <span id="w-hr" style="color:#f87171; font-weight:700;">68</span></span>
+          <span>⚡ <span id="w-stress" style="color:#67e8f9; font-weight:700;">28</span></span>
+          <span>🔋 <span id="w-bb" style="color:#6ee7b7; font-weight:700;">75%</span></span>
+        </div>
+
+        <button class="watch-water-btn" onclick="addWaterWatch()">
+          <span>💧</span> <span id="w-water">0 / 3000 ml</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="watch-footer-info">
+    <strong>Garmin Venu 4 AMOLED Simulator (416x416)</strong><br>
+    הקש על כפתור המים בשעון להוספת 250ml מים בזמן אמת.
+  </div>
+
+  <script>
+    // Circumference = 2 * PI * 190 ≈ 1193.8
+    const CIRCUMFERENCE = 1193.8;
+
+    async function updateWatch() {
+      try {
+        const res = await fetch('/api/garmin/status');
+        const d = await res.json();
+
+        document.getElementById('w-rank').innerText = `${d.rank.toUpperCase()} [LV. ${d.lvl}]`;
+        document.getElementById('w-cals').innerText = d.cal;
+        document.getElementById('w-tgt').innerText = d.cal_tgt;
+        document.getElementById('w-p').innerText = `${Math.round(d.p)}g`;
+        document.getElementById('w-c').innerText = `${Math.round(d.c)}g`;
+        document.getElementById('w-f').innerText = `${Math.round(d.f)}g`;
+        document.getElementById('w-water').innerText = `${d.w} / ${d.w_tgt} ml`;
+
+        const pct = Math.min(1, d.cal / Math.max(1, d.cal_tgt));
+        const offset = CIRCUMFERENCE - (pct * CIRCUMFERENCE);
+        document.getElementById('watch-fill').style.strokeDashoffset = offset;
+
+        // Attent Buff indicator
+        const attEl = document.getElementById('w-attent');
+        if (d.attent && d.attent.is_active) {
+          attEl.style.display = 'block';
+          attEl.innerText = `💊 ATTENT ${d.attent.dose_mg}mg (${d.attent.remaining_hours.toFixed(1)}h)`;
+        } else {
+          attEl.style.display = 'none';
+        }
+
+        // Biometrics
+        if (d.biometrics) {
+          document.getElementById('w-hr').innerText = d.biometrics.heart_rate || 68;
+          document.getElementById('w-stress').innerText = d.biometrics.stress_level || 28;
+          document.getElementById('w-bb').innerText = `${d.biometrics.body_battery || 75}%`;
+        }
+      } catch (e) {
+        console.warn('Watch poll error:', e);
+      }
+    }
+
+    async function addWaterWatch() {
+      try {
+        await fetch('/api/garmin/quick-water', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount_ml: 250 })
+        });
+        updateWatch();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    setInterval(updateWatch, 3000);
+    updateWatch();
+  </script>
+</body>
+</html>

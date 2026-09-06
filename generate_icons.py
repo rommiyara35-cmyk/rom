@@ -1,0 +1,56 @@
+import os
+
+# Create an SVG icon for Solo Leveling Hunter System
+svg_content = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050811" />
+      <stop offset="50%" stop-color="#0a152e" />
+      <stop offset="100%" stop-color="#020408" />
+    </linearGradient>
+    <linearGradient id="neonBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f0ff" />
+      <stop offset="100%" stop-color="#0072ff" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Outer Rounded Shield -->
+  <rect x="16" y="16" width="480" height="480" rx="100" fill="url(#bgGrad)" stroke="#00f0ff" stroke-width="6" />
+  
+  <!-- Cybernetic Corner Accents -->
+  <path d="M 60 120 L 60 60 L 120 60" fill="none" stroke="#00f0ff" stroke-width="4" filter="url(#glow)" />
+  <path d="M 392 60 L 452 60 L 452 120" fill="none" stroke="#00f0ff" stroke-width="4" filter="url(#glow)" />
+  <path d="M 60 392 L 60 452 L 120 452" fill="none" stroke="#00f0ff" stroke-width="4" filter="url(#glow)" />
+  <path d="M 392 452 L 452 452 L 452 392" fill="none" stroke="#00f0ff" stroke-width="4" filter="url(#glow)" />
+  
+  <!-- Solo Leveling Monogram / Shadow Monarch Blade Symbol -->
+  <g filter="url(#glow)">
+    <!-- Glowing Hexagon Ring -->
+    <polygon points="256,70 390,148 390,302 256,380 122,302 122,148" fill="none" stroke="#00f0ff" stroke-width="8" opacity="0.8" />
+    
+    <!-- Central S Letter / Blade -->
+    <path d="M 300 150 Q 210 150 210 210 Q 210 270 300 290 Q 310 340 220 345" fill="none" stroke="url(#neonBlue)" stroke-width="26" stroke-linecap="round" />
+    <circle cx="300" cy="150" r="10" fill="#ffffff" />
+    <circle cx="220" cy="345" r="10" fill="#00f0ff" />
+    
+    <!-- Dagger / Leveling Arrow -->
+    <polygon points="256,395 240,440 256,430 272,440" fill="#00f0ff" />
+  </g>
+  
+  <!-- Text Label -->
+  <text x="256" y="475" text-anchor="middle" fill="#00f0ff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="28" font-weight="900" letter-spacing="6">SYSTEM</text>
+</svg>
+"""
+
+with open("/Users/rommiyara/.gemini/antigravity/scratch/solo-leveling-fitness/public/icons/icon.svg", "w") as f:
+    f.write(svg_content)
+with open("/Users/rommiyara/.gemini/antigravity/scratch/solo-leveling-fitness/public/icons/apple-touch-icon.svg", "w") as f:
+    f.write(svg_content)
+print("Icons generated!")

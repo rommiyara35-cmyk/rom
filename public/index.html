@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="System">
+  <meta name="theme-color" content="#050811">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.svg">
+  <title>Solo Leveling | The System</title>
+  <link rel="stylesheet" href="/styles.css?v=7">
+</head>
+<body>
+  <!-- Scanlines Effect -->
+  <div class="scanlines"></div>
+
+  <!-- SVG Gradients Definition -->
+  <svg width="0" height="0" style="position: absolute;">
+    <defs>
+      <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#00f0ff" />
+        <stop offset="100%" stop-color="#2563eb" />
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <div class="system-container">
+    
+    <!-- SYSTEM HEADER -->
+    <header class="system-header">
+      <div class="header-top">
+        <div class="hunter-identity">
+          <div id="rank-badge" class="rank-badge">E-Rank</div>
+          <div class="hunter-name-title">
+            <span class="hunter-name">
+              <span id="hunter-name">צייד רום</span>
+              <span style="font-size:12px; color:var(--hud-cyan); font-family:var(--font-mono);">[LV.<span id="hunter-level">1</span>]</span>
+            </span>
+            <span id="hunter-title" class="hunter-title">Awakened Hunter</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button id="shift-toggle-btn" class="hud-btn-icon" onclick="AppState.toggleShiftMode()" title="החלף בין משמרת יום למשמרת לילה">☀️</button>
+          <button id="sound-toggle-btn" class="hud-btn-icon" title="השתק/הפעל סאונד">🔊</button>
+          <button class="hud-btn-icon" onclick="AppState.openModal('awakening-modal')" title="מבדק התעוררות מדעי">⚡</button>
+          <button class="hud-btn-icon" onclick="AppState.openModal('settings-modal')" title="הגדרות וסנכרון">⚙️</button>
+        </div>
+      </div>
+
+      <!-- EXP Progress Bar -->
+      <div class="exp-container">
+        <div class="exp-label">
+          <span>PROGRESSION</span>
+          <span id="exp-text">0 / 300 EXP (0%)</span>
+        </div>
+        <div class="exp-bar-bg">
+          <div id="exp-bar-fill" class="exp-bar-fill"></div>
+        </div>
+      </div>
+
+      <!-- STATUS ATTRIBUTES -->
+      <div class="status-grid">
+        <div class="stat-item" title="Strength - מונע ע&quot;י צריכת חלבון">
+          <span class="stat-key">STR</span>
+          <span id="stat-str" class="stat-val">10</span>
+          <span class="stat-sub">כוח (חלבון)</span>
+        </div>
+        <div class="stat-item" title="Agility - מונע ע&quot;י דיוק קלורי">
+          <span class="stat-key">AGI</span>
+          <span id="stat-agi" class="stat-val">10</span>
+          <span class="stat-sub">זריזות (קלוריות)</span>
+        </div>
+        <div class="stat-item" title="Vitality - מונע ע&quot;י מים ומיקרו-נוטריאנטים">
+          <span class="stat-key">VIT</span>
+          <span id="stat-vit" class="stat-val">10</span>
+          <span class="stat-sub">חיוניות (מיקרו)</span>
+        </div>
+        <div class="stat-item" title="Intelligence - מונע ע&quot;י רצף רישום ואיזון">
+          <span class="stat-key">INT</span>
+          <span id="stat-int" class="stat-val">10</span>
+          <span class="stat-sub">תבונה (רצף)</span>
+        </div>
+        <div class="stat-item" title="Perception - מונע ע&quot;י פירוט וגיוון">
+          <span class="stat-key">PER</span>
+          <span id="stat-per" class="stat-val">10</span>
+          <span class="stat-sub">תפיסה (גיוון)</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- PROMINENT SHIFT WORKER CONTROL BANNER -->
+    <div id="shift-banner" class="shift-control-banner" onclick="AppState.toggleShiftMode()" title="לחץ להחלפת משמרת">
+      <div class="shift-banner-info">
+        <span id="shift-banner-icon" class="shift-banner-icon">☀️</span>
+        <div class="shift-banner-text">
+          <div class="shift-banner-title" id="shift-banner-title">משמרת יום רגילה (איפוס בחצות)</div>
+          <div class="shift-banner-sub" id="shift-banner-sub">עובד הלילה? לחץ כאן להפעלת משמרת לילה 🌙 (היום לא יתאפס בחצות!)</div>
+        </div>
+      </div>
+      <button class="shift-toggle-action-btn" id="shift-action-text-btn">הפעל משמרת לילה 🌙</button>
+    </div>
+
+    <!-- ATTENT BUFF / MEDICATION CONTAINER -->
+    <div id="attent-container" class="attent-container">
+      <!-- Injected dynamically by AppState.renderAttentBanner() -->
+    </div>
+
+    <!-- GARMIN VENU 4 BIOMETRICS HUD COCKPIT -->
+    <section class="garmin-hud-card" id="garmin-hud-card">
+      <div class="garmin-hud-header">
+        <div class="garmin-hud-title-wrap">
+          <span class="garmin-pulse-dot" title="Garmin Venu 4 מחובר"></span>
+          <span class="garmin-hud-title">GARMIN VENU 4 • BIOMETRICS HUD</span>
+        </div>
+        <button class="garmin-sync-btn" onclick="AppState.openGarminModal()" title="עדכן מדדי שעון">
+          <span>⚡ סנכרן שעון</span>
+        </button>
+      </div>
+
+      <!-- 4 Core Biometrics Grid -->
+      <div class="garmin-metrics-grid">
+        <!-- 1. Heart Rate -->
+        <div class="biometric-tile hr" onclick="AppState.openGarminModal()" title="לחץ לעדכון דופק">
+          <div class="bio-top">
+            <span class="bio-icon">❤️</span>
+            <span class="bio-name">דופק</span>
+          </div>
+          <div class="bio-value-row">
+            <span id="garmin-hr-val" class="bio-main-val">68</span>
+            <span class="bio-unit">bpm</span>
+          </div>
+          <div class="bio-sub" id="garmin-resting-hr">מנוחה: 58 bpm</div>
+        </div>
+
+        <!-- 2. Sleep Quality -->
+        <div class="biometric-tile sleep" onclick="AppState.openGarminModal()" title="לחץ לעדכון שינה">
+          <div class="bio-top">
+            <span class="bio-icon">💤</span>
+            <span class="bio-name">איכות שינה</span>
+          </div>
+          <div class="bio-value-row">
+            <span id="garmin-sleep-val" class="bio-main-val">82</span>
+            <span class="bio-unit">/100</span>
+          </div>
+          <div class="bio-sub" id="garmin-sleep-hours">7.2 שעות שינה</div>
+        </div>
+
+        <!-- 3. Stress Level -->
+        <div class="biometric-tile stress" onclick="AppState.openGarminModal()" title="לחץ לעדכון סטרס">
+          <div class="bio-top">
+            <span class="bio-icon">⚡</span>
+            <span class="bio-name">מדד סטרס</span>
+          </div>
+          <div class="bio-value-row">
+            <span id="garmin-stress-val" class="bio-main-val">28</span>
+            <span class="bio-unit">/100</span>
+          </div>
+          <div class="bio-sub" id="garmin-stress-status">נמוך (מנוחה)</div>
+        </div>
+
+        <!-- 4. Body Battery -->
+        <div class="biometric-tile battery" onclick="AppState.openGarminModal()" title="לחץ לעדכון סוללת גוף">
+          <div class="bio-top">
+            <span class="bio-icon">🔋</span>
+            <span class="bio-name">Body Battery</span>
+          </div>
+          <div class="bio-value-row">
+            <span id="garmin-battery-val" class="bio-main-val">75%</span>
+          </div>
+          <div class="bio-sub" id="garmin-battery-status">אנרגיה טעונה</div>
+        </div>
+      </div>
+
+      <!-- Secondary Biometrics Bar -->
+      <div class="garmin-footer-bar">
+        <div class="garmin-footer-item">
+          <span>👟</span>
+          <span id="garmin-steps-val">8,500</span>
+          <span style="color:var(--text-secondary);">צעדים</span>
+        </div>
+        <div class="garmin-footer-separator">•</div>
+        <div class="garmin-footer-item">
+          <span>🔥</span>
+          <span id="garmin-active-cals-val">+450</span>
+          <span style="color:var(--text-secondary);">שריפה אקטיבית</span>
+        </div>
+        <div class="garmin-footer-separator">•</div>
+        <div class="garmin-footer-item">
+          <span style="color:#10b981;">SpO2:</span>
+          <span id="garmin-spo2-val">98%</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SYSTEM AI PHYSIOLOGICAL ADVISOR -->
+    <section class="ai-advisor-section" id="ai-advisor-section">
+      <div class="ai-advisor-header">
+        <div class="ai-advisor-tag">
+          <span class="ai-tag-icon">🧠</span>
+          <span class="ai-tag-text">SYSTEM AI PHYSIOLOGICAL ADVISOR</span>
+        </div>
+        <span class="ai-advisor-badge">EVIDENCE-BASED</span>
+      </div>
+      <div class="ai-advisor-subtitle">
+        הצלבת מדדי Garmin Venu 4, תזונה יומית והשפעת אטנט בזמן אמת:
+      </div>
+      <div id="ai-insights-list" class="ai-insights-list">
+        <!-- Injected dynamically via AppState.renderAIInsights() -->
+      </div>
+    </section>
+
+    <!-- DAILY QUEST BOX -->
+    <section class="quest-box">
+      <div class="quest-header">
+        <div class="quest-title-tag">
+          <span class="quest-tag">QUEST</span>
+          <span class="quest-main-title">The Daily Preparation to Become Strong</span>
+        </div>
+        <span id="shift-badge" class="quest-tag" style="background:rgba(59,130,246,0.15); border-color:#3b82f6; font-size:10px;">☀️ משמרת יום</span>
+      </div>
+
+      <div class="penalty-warning">
+        <span>⚠️</span>
+        <span id="penalty-warning-text">אזהרת מערכת: אי השלמת המשימות עד סיום המשמרת תפעיל את ה-Penalty Zone!</span>
+      </div>
+
+      <div id="quest-list" class="quest-list">
+        <!-- Injected via JavaScript -->
+      </div>
+    </section>
+
+    <!-- CALORIE COCKPIT -->
+    <section class="nutrition-cockpit">
+      <div class="calorie-circle-wrap">
+        <!-- Circular SVG Gauge -->
+        <div class="calorie-gauge-container">
+          <svg class="calorie-gauge-svg" viewBox="0 0 140 140">
+            <circle class="calorie-gauge-track" cx="70" cy="70" r="60" />
+            <circle id="calorie-gauge-bar" class="calorie-gauge-bar" cx="70" cy="70" r="60" />
+          </svg>
+          <div class="calorie-center-text">
+            <span id="cal-current" class="cal-number">0</span>
+            <span class="cal-subtext">נצרכו היום</span>
+          </div>
+        </div>
+
+        <!-- Breakdown Info -->
+        <div class="cal-breakdown">
+          <div class="breakdown-row">
+            <span class="breakdown-label">יעד קלורי מדעי</span>
+            <span id="cal-target" class="breakdown-val">0 kcal</span>
+          </div>
+          <div class="breakdown-row">
+            <span class="breakdown-label">נותר לצריכה</span>
+            <span id="cal-remaining" class="breakdown-val" style="color:var(--hud-cyan);">0 kcal</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- MACRO TRIPLE BARS -->
+      <div class="macro-bars-grid">
+        <!-- Protein -->
+        <div class="macro-card protein">
+          <div class="macro-card-header">
+            <span class="macro-title">חלבון</span>
+            <span class="macro-badge">STR</span>
+          </div>
+          <div class="macro-gram-info">
+            <span id="macro-protein-cur">0g</span>
+            <span id="macro-protein-tgt" class="macro-gram-target">/ 0g</span>
+          </div>
+          <div class="macro-mini-track">
+            <div id="macro-protein-bar" class="macro-mini-fill"></div>
+          </div>
+        </div>
+
+        <!-- Carbs -->
+        <div class="macro-card carbs">
+          <div class="macro-card-header">
+            <span class="macro-title">פחמימות</span>
+            <span class="macro-badge">MP</span>
+          </div>
+          <div class="macro-gram-info">
+            <span id="macro-carbs-cur">0g</span>
+            <span id="macro-carbs-tgt" class="macro-gram-target">/ 0g</span>
+          </div>
+          <div class="macro-mini-track">
+            <div id="macro-carbs-bar" class="macro-mini-fill"></div>
+          </div>
+        </div>
+
+        <!-- Fats -->
+        <div class="macro-card fats">
+          <div class="macro-card-header">
+            <span class="macro-title">שומנים</span>
+            <span class="macro-badge">SHIELD</span>
+          </div>
+          <div class="macro-gram-info">
+            <span id="macro-fats-cur">0g</span>
+            <span id="macro-fats-tgt" class="macro-gram-target">/ 0g</span>
+          </div>
+          <div class="macro-mini-track">
+            <div id="macro-fats-bar" class="macro-mini-fill"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- QUICK POTIONS / INVENTORY -->
+    <section class="inventory-section">
+      <div class="section-title-wrap">
+        <span class="section-title">🎒 אינוונטר ושיקויים מהירים (Quick Potions)</span>
+      </div>
+      <div class="potion-grid">
+        <div class="potion-btn" onclick="AppState.logQuickPotion('water_250')">
+          <span class="potion-icon">💧</span>
+          <span class="potion-title">שיקוי חיים</span>
+          <span class="potion-effect">+250ml מים</span>
+        </div>
+        <div class="potion-btn" onclick="AppState.logQuickPotion('water_500')">
+          <span class="potion-icon">🧪</span>
+          <span class="potion-title">חיים מוגבר</span>
+          <span class="potion-effect">+500ml מים</span>
+        </div>
+        <div class="potion-btn" onclick="AppState.logQuickPotion('protein_shake')">
+          <span class="potion-icon">⚡</span>
+          <span class="potion-title">שיקוי כוח</span>
+          <span class="potion-effect">+27g חלבון</span>
+        </div>
+        <div class="potion-btn" onclick="AppState.logQuickPotion('multivitamin')">
+          <span class="potion-icon">✨</span>
+          <span class="potion-title">חיוניות</span>
+          <span class="potion-effect">+מולטי ויטמין</span>
+        </div>
+        <div class="potion-btn attent" onclick="AppState.openAttentModal()">
+          <span class="potion-icon">💊</span>
+          <span class="potion-title">שיקוי ריכוז</span>
+          <span class="potion-effect">אטנט (Attent)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- MICRONUTRIENT MATRIX -->
+    <section class="micro-section">
+      <div class="section-title-wrap">
+        <span class="section-title">🛡️ מטריצת מיקרו-נוטריאנטים (Vitality Matrix)</span>
+        <span style="font-size:11px; color:var(--hud-cyan); font-family:var(--font-mono);">RDA STANDARDS</span>
+      </div>
+      <div id="micro-grid" class="micro-grid">
+        <!-- Injected via JavaScript -->
+      </div>
+    </section>
+
+    <!-- MEAL LOGGER & SEARCH -->
+    <section class="log-section">
+      <div class="section-title-wrap">
+        <span class="section-title">⚔️ רישום ארוחות ומאגר מזונות (Meal Registry)</span>
+      </div>
+
+      <!-- Prominent Barcode Hero Button -->
+      <button class="barcode-big-hero-btn" onclick="AppState.openBarcodeScanner()" title="סרוק מוצר במצלמת האייפון">
+        <span class="barcode-btn-icon">📷</span>
+        <div class="barcode-btn-content">
+          <span class="barcode-btn-title">סריקת ברקוד מוצר (Scanner)</span>
+          <span class="barcode-btn-sub">פתח מצלמה לסריקה מיידית של מוצרים ישראליים ובינלאומיים</span>
+        </div>
+        <span class="barcode-btn-arrow">⚡</span>
+      </button>
+
+      <div style="display:flex; gap:8px; align-items:center;">
+        <div class="search-input-wrap" style="flex:1;">
+          <span class="search-icon-inside">🔍</span>
+          <input type="text" id="food-search-input" class="search-input" placeholder="או חפש לפי שם (חזה עוף, ביצים, קוטג'...)">
+        </div>
+      </div>
+
+      <!-- Search Autocomplete Dropdown -->
+      <div id="food-search-results" class="food-search-results"></div>
+
+      <!-- Food Selection Staging Card -->
+      <div id="staging-card" class="staging-card">
+        <div class="staging-top">
+          <span id="staging-name" class="staging-title">חזה עוף</span>
+          <span style="font-size:11px; color:var(--hud-cyan); font-family:var(--font-mono);">הזן כמות בגרמים</span>
+        </div>
+        <div class="portion-controls">
+          <input type="number" id="portion-grams-input" class="portion-input" value="100" min="1" step="5">
+          <span style="font-size:12px; color:var(--text-secondary);">גרם</span>
+          <select id="meal-type-select" class="meal-type-select">
+            <option value="breakfast">ארוחת בוקר</option>
+            <option value="lunch" selected>ארוחת צהריים</option>
+            <option value="dinner">ארוחת ערב</option>
+            <option value="snack">נשנוש / אימון</option>
+          </select>
+        </div>
+        <button class="action-btn-primary" onclick="AppState.logSelectedFood()">
+          <span>✓</span> רשום ארוחה וקבל EXP
+        </button>
+      </div>
+
+      <!-- Today's Meals History -->
+      <div class="section-title-wrap" style="margin-top: 8px;">
+        <span style="font-size:12px; color:var(--text-secondary); font-weight:700;">ארוחות שנרשמו היום</span>
+      </div>
+      <div id="meals-history-list" class="meals-history-list"></div>
+    </section>
+
+    <div class="safe-spacer"></div>
+  </div>
+
+  <!-- AWAKENING EVALUATION MODAL -->
+  <div id="awakening-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="modal-title">⚡ מבדק התעוררות צייד מדעי (Awakening)</span>
+        <button class="close-modal-btn" onclick="AppState.closeModal('awakening-modal')">✕</button>
+      </div>
+
+      <p style="font-size:12px; color:var(--text-secondary); line-height:1.5;">
+        המערכת מחשבת בדיוק מדעי לפי נוסחאות <strong>Mifflin-St Jeor</strong>, מקדמי פעילות (PAL), ועמדת ארגון תזונת הספורט הבינלאומי (ISSN).
+      </p>
+
+      <div class="form-group">
+        <label class="form-label">שם הצייד</label>
+        <input type="text" id="awakening-name" class="form-input" value="צייד רום">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">משקל (ק"ג)</label>
+          <input type="number" id="awakening-weight" class="form-input" value="78" step="0.5">
+        </div>
+        <div class="form-group">
+          <label class="form-label">גובה (ס"מ)</label>
+          <input type="number" id="awakening-height" class="form-input" value="178">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">גיל</label>
+          <input type="number" id="awakening-age" class="form-input" value="25">
+        </div>
+        <div class="form-group">
+          <label class="form-label">מין ביולוגי</label>
+          <select id="awakening-sex" class="form-select">
+            <option value="male" selected>גבר</option>
+            <option value="female">אישה</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">רמת פעילות ואורח חיים (PAL)</label>
+        <select id="awakening-activity" class="form-select">
+          <option value="sedentary">יושבני - עבודה משרדית, מעט מאוד פעילות (x1.2)</option>
+          <option value="light">פעילות קלה - הליכות, 1-3 אימונים קלים בשבוע (x1.375)</option>
+          <option value="moderate" selected>פעילות בינונית - 3-5 אימוני כוח/עצימות בשבוע (x1.55)</option>
+          <option value="very_active">פעילות גבוהה - 6-7 אימונים אינטנסיביים בשבוע (x1.725)</option>
+          <option value="extra_active">ספורטאי עלית / עבודה פיזית מאומצת ביותר (x1.9)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">נתיב היעד (Hunter's Path)</label>
+        <select id="awakening-goal" class="form-select">
+          <option value="cut" selected>חיטוב ושריפת שומן (גרעון מדעי 20% + שמירת שריר)</option>
+          <option value="maintain">שמירה על משקל וביצועי שיא (Maintenance)</option>
+          <option value="bulk">מסה נקייה (עודף מבוקר של 8-10% לבניית שריר)</option>
+        </select>
+      </div>
+
+      <!-- Realtime Scientific Preview Box -->
+      <div class="science-preview-box">
+        <div class="science-preview-row">
+          <span>קצב חילוף חומרים (BMR):</span>
+          <span id="prev-bmr">1760 kcal</span>
+        </div>
+        <div class="science-preview-row">
+          <span>הוצאה אנרגטית יומית (TDEE):</span>
+          <span id="prev-tdee">2728 kcal</span>
+        </div>
+        <div class="science-preview-row" style="border-top:1px dashed rgba(0,240,255,0.2); padding-top:4px;">
+          <span style="font-weight:700; color:var(--hud-cyan);">יעד קלורי מותאם אישית:</span>
+          <span id="prev-target-cals" style="font-weight:700; color:var(--hud-cyan);">2182 kcal</span>
+        </div>
+        <div class="science-preview-row">
+          <span>חלבון מומלץ (ISSN):</span>
+          <span id="prev-protein">172g</span>
+        </div>
+        <div class="science-preview-row">
+          <span>פחמימות (דלק ומאנה):</span>
+          <span id="prev-carbs">224g</span>
+        </div>
+        <div class="science-preview-row">
+          <span>שומן (רצפה הורמונלית):</span>
+          <span id="prev-fats">66g</span>
+        </div>
+        <div class="science-preview-row">
+          <span>יעד מים יומי:</span>
+          <span id="prev-water">3464 ml</span>
+        </div>
+      </div>
+
+      <button class="action-btn-primary" onclick="AppState.submitAwakening()">
+        ⚡ התעורר והחל יעדים אלו
+      </button>
+    </div>
+  </div>
+
+  <!-- SETTINGS & GARMIN MODAL -->
+  <div id="settings-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="modal-title">⚙️ הגדרות, סנכרון ו-Garmin</span>
+        <button class="close-modal-btn" onclick="AppState.closeModal('settings-modal')">✕</button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">כתובת ה-LAN לפתיחה באייפון (אותה רשת WiFi)</label>
+        <div style="background:rgba(6,14,28,0.9); border:1px solid var(--hud-border); border-radius:8px; padding:10px; font-family:var(--font-mono); font-size:13px; color:var(--hud-cyan); word-break:break-all;" id="lan-ip-display">
+          http://127.0.0.1:8080
+        </div>
+        <span style="font-size:11px; color:var(--text-dim); margin-top:2px;">
+          פתח את הקישור הזה בספארי באייפון ולחץ על "הוסף למסך הבית" (Add to Home Screen) לחוויית אפליקציה מלאה!
+        </span>
+      </div>
+
+      <div class="form-group" style="margin-top:8px;">
+        <label class="form-label">שעון Garmin Venu 4</label>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button class="action-btn-primary" onclick="AppState.openWatchSimulator()" style="background:linear-gradient(90deg, #0284c7, #0369a1);">
+            ⌚ פתח סימולטור שעון גרמין Venu 4
+          </button>
+          <div style="font-size:11px; color:var(--text-secondary);">
+            כתובת API של השעון: <span id="watch-url-display" style="color:var(--hud-cyan); font-family:var(--font-mono);">http://127.0.0.1:8080/api/garmin/status</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shift Worker Configuration -->
+      <div class="form-group" style="margin-top:8px; border-top:1px solid rgba(0,240,255,0.15); padding-top:10px;">
+        <label class="form-label">🕒 מצב עובד משמרות (Shift Worker Schedule)</label>
+        <div style="display:flex; gap:8px;">
+          <select id="settings-shift-mode" class="form-select" style="flex:1;" onchange="AppState.handleSettingsShiftChange()">
+            <option value="standard">משמרת יום רגילה (איפוס בחצות 00:00)</option>
+            <option value="night">משמרת לילה (איפוס ב-08:00 בבוקר)</option>
+            <option value="custom">שעת איפוס מותאמת אישית</option>
+          </select>
+          <input type="number" id="settings-reset-hour" class="form-input" style="width:70px; text-align:center; display:none;" min="0" max="23" placeholder="שעה" title="שעת איפוס (0-23)">
+        </div>
+        <span style="font-size:11px; color:var(--text-dim); margin-top:3px;">
+          במשמרת לילה, המערכת לא מתאפסת בחצות – כל הארוחות מרוכזות כיום רציף אחד עד שהמשמרת מסתיימת בבוקר!
+        </span>
+      </div>
+
+      <div class="form-group" style="margin-top:8px; border-top:1px solid rgba(0,240,255,0.15); padding-top:12px;">
+        <label class="form-label">גיבוי ואבטחת נתונים (Dual-Layer Backup)</label>
+        <button class="action-btn-primary" onclick="AppState.exportBackup()" style="background:linear-gradient(90deg, #059669, #10b981);">
+          💾 הורד קובץ גיבוי מלא (JSON)
+        </button>
+        <span style="font-size:11px; color:var(--text-dim); margin-top:4px;">
+          כל הנתונים שמורים באופן אוטומטי במכשיר ובשרת SQLite.
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- BARCODE SCANNER MODAL -->
+  <div id="barcode-modal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 440px;">
+      <div class="modal-header">
+        <span class="modal-title">📷 סורק ברקודים (Hunter Artifact Scan)</span>
+        <button class="close-modal-btn" onclick="AppState.closeBarcodeScanner()">✕</button>
+      </div>
+
+      <!-- Live Video Viewport with Laser Reticle -->
+      <div class="scanner-camera-container">
+        <video id="scanner-video" class="scanner-video" playsinline autoplay muted></video>
+        <div class="scanner-reticle">
+          <div class="laser-beam"></div>
+          <div class="corner-bracket tl"></div>
+          <div class="corner-bracket tr"></div>
+          <div class="corner-bracket bl"></div>
+          <div class="corner-bracket br"></div>
+        </div>
+      </div>
+
+      <!-- Hidden Native Camera File Input for iOS/Android Safari & Chrome -->
+      <input type="file" id="barcode-camera-input" accept="image/*" capture="environment" style="display:none;" onchange="AppState.handleCameraPhoto(this)">
+
+      <!-- Direct iPhone Camera Trigger Button -->
+      <button type="button" id="iphone-camera-direct-btn" class="action-btn-primary" onclick="document.getElementById('barcode-camera-input').click()" style="width:100%; margin:8px 0; background:linear-gradient(90deg, #0284c7, #00f0ff); color:#030712; font-weight:900; font-size:14px; padding:12px; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 0 15px rgba(0,240,255,0.4);">
+        📸 פתח מצלמת אייפון לצילום ברקוד
+      </button>
+
+      <div id="scanner-status" class="scanner-status-text">
+        [SYSTEM: כוון את מצלמת האייפון אל ברקוד המוצר...]
+      </div>
+
+      <div id="https-live-video-hint" style="font-size:10px; color:#94a3b8; text-align:center; margin-bottom:8px; line-height:1.4;">
+        💡 באייפון ניתן לצלם כל מוצר ישירות בלחיצה על הכפתור הכחול. <br>
+        לסריקת וידאו חיה רציפה: <a id="https-link" href="#" onclick="window.location.href='https://' + window.location.hostname + ':8443'; return false;" style="color:#00f0ff; text-decoration:underline;">הפעל חיבור מאובטח (HTTPS:8443)</a>
+      </div>
+
+      <!-- Manual Barcode Input & Test Pills -->
+      <div style="display:flex; flex-direction:column; gap:8px; border-top:1px solid rgba(0,240,255,0.15); padding-top:10px;">
+        <span style="font-size:11px; color:var(--text-secondary);">או הזן מספר ברקוד ידנית:</span>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="manual-barcode-input" class="form-input" style="flex:1; padding:8px 10px; font-family:var(--font-mono); font-size:13px;" placeholder="לדוגמה: 7290000045579">
+          <button class="action-btn-primary" onclick="AppState.submitManualBarcode()" style="padding:8px 14px; font-size:12px;">
+            חפש
+          </button>
+        </div>
+
+        <span style="font-size:10px; color:var(--text-dim); margin-top:2px;">מוצרים לבדיקה מהירה:</span>
+        <div class="quick-barcode-tags">
+          <button class="barcode-pill" onclick="AppState.lookupBarcode('7290000045579')">קוטג' 5%</button>
+          <button class="barcode-pill" onclick="AppState.lookupBarcode('7290000067656')">GO שוקו 27g</button>
+          <button class="barcode-pill" onclick="AppState.lookupBarcode('7290000088996')">חטיף חלבון</button>
+          <button class="barcode-pill" onclick="AppState.lookupBarcode('7290000066062')">במבה</button>
+        </div>
+
+        <!-- Dynamic button if barcode is unknown -->
+        <div id="unknown-barcode-section" style="display:none; margin-top:6px;">
+          <button class="action-btn-primary" onclick="AppState.openNewProductModal()" style="width:100%; background:linear-gradient(90deg, #10b981, #059669); font-size:12px; padding:10px;">
+            ⚡ הגדר מוצר זה ושמור אותו לתמיד במערכת
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW PRODUCT / BARCODE QUICK-LEARN MODAL -->
+  <div id="new-product-modal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 440px;">
+      <div class="modal-header">
+        <span class="modal-title">💾 לימוד מוצר חדש (Hunter Food Registry)</span>
+        <button class="close-modal-btn" onclick="AppState.closeModal('new-product-modal')">✕</button>
+      </div>
+      <p style="font-size:12px; color:var(--text-secondary);">
+        הזן את ערכי המוצר (ל-100 גרם). המערכת תשמור אותו לתמיד ותזהה אותו אוטומטית בכל סריקה עתידית!
+      </p>
+
+      <div class="form-group">
+        <label class="form-label">מספר ברקוד</label>
+        <input type="text" id="new-prod-barcode" class="form-input" readonly style="color:var(--hud-cyan); font-family:var(--font-mono);">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">שם המוצר בעברית</label>
+        <input type="text" id="new-prod-name" class="form-input" placeholder="לדוגמה: יוגורט דנונה פרו 20g">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">קלוריות (ל-100g)</label>
+          <input type="number" id="new-prod-cal" class="form-input" placeholder="120">
+        </div>
+        <div class="form-group">
+          <label class="form-label">חלבון (ל-100g)</label>
+          <input type="number" id="new-prod-protein" class="form-input" placeholder="15" step="0.1">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">פחמימות (ל-100g)</label>
+          <input type="number" id="new-prod-carbs" class="form-input" placeholder="5" step="0.1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">שומנים (ל-100g)</label>
+          <input type="number" id="new-prod-fats" class="form-input" placeholder="2" step="0.1">
+        </div>
+      </div>
+
+      <button class="action-btn-primary" onclick="AppState.saveNewScannedProduct()" style="background:linear-gradient(90deg, #10b981, #059669);">
+        ✓ שמור מוצר והכנס ליומן
+      </button>
+    </div>
+  </div>
+
+  <!-- GARMIN BIOMETRICS MODAL -->
+  <div id="garmin-modal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <span class="modal-title">⌚ סנכרון מדדי בריאות Garmin Venu 4</span>
+        <button class="close-modal-btn" onclick="AppState.closeModal('garmin-modal')">✕</button>
+      </div>
+      <p style="font-size:12px; color:var(--text-secondary); line-height:1.5;">
+        מדדי השעון מוזנים אוטומטית דרך חיבור ה-Connect IQ API, או שתוכל לעדכן אותם ידנית כאן בכל רגע:
+      </p>
+
+      <!-- Quick Presets -->
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
+        <button type="button" onclick="AppState.setGarminPreset('rest')" style="font-size:11px; padding:5px 10px; background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#a7f3d0; border-radius:6px; cursor:pointer;">
+          🌿 יום מנוחה
+        </button>
+        <button type="button" onclick="AppState.setGarminPreset('workout')" style="font-size:11px; padding:5px 10px; background:rgba(239,68,68,0.15); border:1px solid #ef4444; color:#fca5a5; border-radius:6px; cursor:pointer;">
+          🔥 אימון כוח עצים
+        </button>
+        <button type="button" onclick="AppState.setGarminPreset('deficit')" style="font-size:11px; padding:5px 10px; background:rgba(245,158,11,0.15); border:1px solid #f59e0b; color:#fde68a; border-radius:6px; cursor:pointer;">
+          🌙 עייפות / לילה עמוס
+        </button>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">❤️ דופק חי (bpm)</label>
+          <input type="number" id="garmin-input-hr" class="form-input" value="68">
+        </div>
+        <div class="form-group">
+          <label class="form-label">💓 דופק מנוחה (Resting)</label>
+          <input type="number" id="garmin-input-rhr" class="form-input" value="58">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">💤 ציון שינה (0-100)</label>
+          <input type="number" id="garmin-input-sleep-score" class="form-input" value="82" min="0" max="100">
+        </div>
+        <div class="form-group">
+          <label class="form-label">⏱️ שעות שינה</label>
+          <input type="number" id="garmin-input-sleep-hours" class="form-input" value="7.2" step="0.1">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">⚡ מדד סטרס (0-100)</label>
+          <input type="number" id="garmin-input-stress" class="form-input" value="28" min="0" max="100">
+        </div>
+        <div class="form-group">
+          <label class="form-label">🔋 Body Battery (%)</label>
+          <input type="number" id="garmin-input-bb" class="form-input" value="75" min="0" max="100">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">👟 צעדים</label>
+          <input type="number" id="garmin-input-steps" class="form-input" value="8500" step="500">
+        </div>
+        <div class="form-group">
+          <label class="form-label">🔥 שריפה אקטיבית (קק"ל)</label>
+          <input type="number" id="garmin-input-active-cals" class="form-input" value="450" step="50">
+        </div>
+      </div>
+
+      <button class="action-btn-primary" onclick="AppState.saveGarminHealth()" style="background:linear-gradient(90deg, #0284c7, #00f0ff); color:#030712; font-weight:900;">
+        ⚡ סנכרן מדדים והפק תובנות AI
+      </button>
+    </div>
+  </div>
+
+  <!-- ATTENT / CONCENTRATION POTION MODAL -->
+  <div id="attent-modal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 440px;">
+      <div class="modal-header">
+        <span class="modal-title">💊 שיקוי ריכוז והיפר-פוקוס (אטנט / Attent)</span>
+        <button class="close-modal-btn" onclick="AppState.closeModal('attent-modal')">✕</button>
+      </div>
+      <p style="font-size:12px; color:var(--text-secondary); line-height:1.5;">
+        מעקב חכם אחר נטילת אטנט: המערכת תנטרל עליית סטרס שגויה ב-Garmin, תתריע על צורך חיוני בחלבון כשהתיאבון מדוכא, ותכין אותך מראש לחלון הדעיכה (Crash Buffer).
+      </p>
+
+      <label class="form-label" style="margin-top:10px;">בחר מינון מנה שנלקחה:</label>
+      <div class="dose-pills-row">
+        <div class="dose-pill-btn" onclick="AppState.selectAttentDose(10)" id="dose-pill-10">10mg</div>
+        <div class="dose-pill-btn" onclick="AppState.selectAttentDose(15)" id="dose-pill-15">15mg</div>
+        <div class="dose-pill-btn selected" onclick="AppState.selectAttentDose(20)" id="dose-pill-20">20mg</div>
+        <div class="dose-pill-btn" onclick="AppState.selectAttentDose(30)" id="dose-pill-30">30mg</div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">שעת נטילה</label>
+          <input type="time" id="attent-input-time" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">משך השפעה צפוי</label>
+          <select id="attent-input-duration" class="meal-type-select" style="width:100%;">
+            <option value="6.0">6 שעות</option>
+            <option value="7.0" selected>7 שעות (סטנדרט)</option>
+            <option value="8.0">8 שעות</option>
+            <option value="10.0">10 שעות (XR / ארוך)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">הערות / הקשר (לפני משמרת, אימון, לימודים)</label>
+        <input type="text" id="attent-input-notes" class="form-input" placeholder="לדוגמה: נלקח בתחילת משמרת לילה">
+      </div>
+
+      <button class="action-btn-primary" onclick="AppState.saveAttentLog()" style="background:linear-gradient(90deg, #7c3aed, #a855f7); color:#ffffff; font-weight:900;">
+        ✨ הפעל BUFF שיקוי ריכוז (רשום נטילה)
+      </button>
+
+      <div id="attent-active-cancel-wrap" style="display:none; margin-top:10px;">
+        <button type="button" class="attent-cancel-btn" onclick="AppState.cancelAttent()" style="width:100%; padding:10px; font-size:12px;">
+          ✕ בטל רישום אטנט פעיל להיום
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEVEL UP POPUP OVERLAY -->
+  <div id="levelup-overlay" class="levelup-overlay">
+    <div class="levelup-card">
+      <div class="levelup-banner">[ LEVEL UP ]</div>
+      <div class="levelup-sub">הצייד עלה לרמה <span id="levelup-level-val" style="color:var(--hud-cyan); font-weight:900;">2</span>!</div>
+      <div id="levelup-rank-val" class="rank-badge" style="display:inline-block; margin-top:4px;">E-Rank</div>
+      <p style="font-size:12px; color:var(--text-secondary); margin-top:8px;">כל התכונות (STR, AGI, VIT, INT, PER) עלו ב-1+!</p>
+    </div>
+  </div>
+
+  <script src="/app.js?v=7"></script>
+</body>
+</html>
