@@ -18,7 +18,8 @@ class SoloLevelingDelegate extends WatchUi.BehaviorDelegate {
             logWater();
             return true;
         }
-        // If tapped in center, force refresh
+        // If tapped in center or top, force bidirectional sync (push sensors & pull hunter status)
+        _view.pushBiometrics();
         _view.fetchStatus();
         return true;
     }

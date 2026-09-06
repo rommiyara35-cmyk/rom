@@ -499,6 +499,27 @@
             </button>
           </div>
 
+          <!-- GARMIN REAL-TIME STATUS & ACTION STRIP -->
+          <div class="garmin-hud-status-strip" id="garmin-hud-status-strip">
+            <div class="garmin-status-left">
+              <span class="garmin-status-indicator online" id="garmin-status-indicator">●</span>
+              <span class="garmin-status-label" id="garmin-status-text">Garmin Venu 4: מקושר</span>
+              <span class="garmin-sync-time-badge" id="garmin-sync-time-badge">סונכרן היום</span>
+              <span class="garmin-source-badge" id="garmin-source-badge">CONNECT IQ</span>
+            </div>
+            <div class="garmin-status-actions">
+              <button class="garmin-strip-btn smart-btn" onclick="AppState.triggerSmartGarminSync()" title="סנכרון חכם בזמן אמת לפי שעת היום">
+                <span class="spin-icon">🔄</span> סנכרן עכשיו
+              </button>
+              <button class="garmin-strip-btn" onclick="AppState.openGarminModal('file')" title="ייבא קובץ Garmin FIT/CSV/JSON">
+                📁 ייבא קובץ
+              </button>
+              <button class="garmin-strip-btn" onclick="AppState.openGarminModal('webhook')" title="חיבור אוטומטי / קיצור לאייפון">
+                🔗 Webhook
+              </button>
+            </div>
+          </div>
+
           <!-- 4 Core Biometrics Grid -->
           <div class="garmin-metrics-grid">
             <div class="biometric-tile hr" onclick="AppState.openGarminModal()" title="לחץ לעדכון דופק">
@@ -1026,77 +1047,154 @@
     </div>
   </div>
 
-  <!-- GARMIN BIOMETRICS MODAL -->
+  <!-- GARMIN BIOMETRICS MODAL (MULTI-CHANNEL) -->
   <div id="garmin-modal" class="modal-overlay">
-    <div class="modal-content" style="max-width: 480px;">
+    <div class="modal-content" style="max-width: 520px;">
       <div class="modal-header">
         <span class="modal-title">⌚ סנכרון מדדי בריאות Garmin Venu 4</span>
         <button class="close-modal-btn" onclick="AppState.closeModal('garmin-modal')">✕</button>
       </div>
-      <p style="font-size:12px; color:var(--text-secondary); line-height:1.5;">
-        מדדי השעון מוזנים אוטומטית דרך חיבור ה-Connect IQ API, או שתוכל לעדכן אותם ידנית כאן בכל רגע:
-      </p>
 
-      <!-- Quick Presets -->
-      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
-        <button type="button" onclick="AppState.setGarminPreset('rest')" style="font-size:11px; padding:5px 10px; background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#a7f3d0; border-radius:6px; cursor:pointer;">
-          🌿 יום מנוחה
+      <!-- Modal Tab Switcher -->
+      <div class="garmin-modal-tabs">
+        <button type="button" class="garmin-tab-btn active" id="btn-tab-garmin-quick" onclick="AppState.switchGarminTab('quick')">
+          ⚡ סנכרון מהיר וחכם
         </button>
-        <button type="button" onclick="AppState.setGarminPreset('workout')" style="font-size:11px; padding:5px 10px; background:rgba(239,68,68,0.15); border:1px solid #ef4444; color:#fca5a5; border-radius:6px; cursor:pointer;">
-          🔥 אימון כוח עצים
+        <button type="button" class="garmin-tab-btn" id="btn-tab-garmin-file" onclick="AppState.switchGarminTab('file')">
+          📁 העלאת קובץ Garmin
         </button>
-        <button type="button" onclick="AppState.setGarminPreset('deficit')" style="font-size:11px; padding:5px 10px; background:rgba(245,158,11,0.15); border:1px solid #f59e0b; color:#fde68a; border-radius:6px; cursor:pointer;">
-          🌙 עייפות / לילה עמוס
+        <button type="button" class="garmin-tab-btn" id="btn-tab-garmin-webhook" onclick="AppState.switchGarminTab('webhook')">
+          🔗 אוטומציה ו-Webhook
         </button>
       </div>
 
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">❤️ דופק חי (bpm)</label>
-          <input type="number" id="garmin-input-hr" class="form-input" value="68">
+      <!-- TAB 1: QUICK & SMART SYNC -->
+      <div id="garmin-pane-quick" class="garmin-pane active">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <span style="font-size:12px; color:var(--text-secondary);">בחר תרחיש מוכן או סנכרן לפי שעת היום:</span>
+          <button type="button" onclick="AppState.triggerSmartGarminSync()" class="garmin-smart-btn" title="מחשב מדדים ביולוגיים לפי שעת היממה ונוכחות אטנט">
+            ⏱️ סנכרון חכם מיידי
+          </button>
         </div>
-        <div class="form-group">
-          <label class="form-label">💓 דופק מנוחה (Resting)</label>
-          <input type="number" id="garmin-input-rhr" class="form-input" value="58">
+
+        <!-- Quick Presets -->
+        <div class="garmin-presets-grid">
+          <button type="button" onclick="AppState.setGarminPreset('rest')" class="preset-pill preset-rest">
+            🌿 יום מנוחה
+          </button>
+          <button type="button" onclick="AppState.setGarminPreset('normal')" class="preset-pill preset-normal">
+            ⚡ שגרה ועבודה
+          </button>
+          <button type="button" onclick="AppState.setGarminPreset('workout')" class="preset-pill preset-workout">
+            🔥 אימון עצים
+          </button>
+          <button type="button" onclick="AppState.setGarminPreset('deficit')" class="preset-pill preset-deficit">
+            🌙 משמרת לילה / גירעון
+          </button>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">❤️ דופק חי (bpm)</label>
+            <input type="number" id="garmin-input-hr" class="form-input" value="68">
+          </div>
+          <div class="form-group">
+            <label class="form-label">💓 דופק מנוחה (Resting)</label>
+            <input type="number" id="garmin-input-rhr" class="form-input" value="58">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">💤 ציון שינה (0-100)</label>
+            <input type="number" id="garmin-input-sleep-score" class="form-input" value="82" min="0" max="100">
+          </div>
+          <div class="form-group">
+            <label class="form-label">⏱️ שעות שינה</label>
+            <input type="number" id="garmin-input-sleep-hours" class="form-input" value="7.2" step="0.1">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">⚡ מדד סטרס (0-100)</label>
+            <input type="number" id="garmin-input-stress" class="form-input" value="28" min="0" max="100">
+          </div>
+          <div class="form-group">
+            <label class="form-label">🔋 Body Battery (%)</label>
+            <input type="number" id="garmin-input-bb" class="form-input" value="75" min="0" max="100">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">👟 צעדים</label>
+            <input type="number" id="garmin-input-steps" class="form-input" value="8500" step="500">
+          </div>
+          <div class="form-group">
+            <label class="form-label">🔥 שריפה אקטיבית (קק"ל)</label>
+            <input type="number" id="garmin-input-active-cals" class="form-input" value="450" step="50">
+          </div>
+        </div>
+
+        <button class="action-btn-primary" onclick="AppState.saveGarminHealth()" style="background:linear-gradient(90deg, #0284c7, #00f0ff); color:#030712; font-weight:900; margin-top:8px;">
+          ⚡ סנכרן מדדים והפק תובנות AI
+        </button>
+      </div>
+
+      <!-- TAB 2: FILE IMPORT (FIT / CSV / JSON) -->
+      <div id="garmin-pane-file" class="garmin-pane" style="display:none;">
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.5; margin-bottom:12px;">
+          הורד קובץ סיכום יומי או אימון מ-Garmin Connect Web וגרור אותו לכאן לסנכרון מיידי של כל המדדים:
+        </p>
+
+        <div class="garmin-dropzone" id="garmin-dropzone" onclick="document.getElementById('garmin-file-input').click()">
+          <div class="dropzone-icon">📁</div>
+          <div class="dropzone-title">גרור לכאן קובץ Garmin או לחץ לבחירה</div>
+          <div class="dropzone-sub">תומך בקבצי <strong>.csv</strong> (Daily Summary / Activities), <strong>.json</strong>, <strong>.fit</strong></div>
+          <input type="file" id="garmin-file-input" accept=".csv,.json,.fit" style="display:none;" onchange="AppState.handleGarminFileSelected(event)">
+        </div>
+
+        <div id="garmin-file-status" class="garmin-file-status" style="display:none;"></div>
+
+        <div class="garmin-export-tips">
+          <div class="tip-title">💡 איך מורידים מ-Garmin Connect?</div>
+          <ol style="padding-right:18px; margin-top:6px; font-size:11px; color:var(--text-dim); line-height:1.6;">
+            <li>היכנס לאתר <a href="https://connect.garmin.com" target="_blank" style="color:var(--hud-cyan);">connect.garmin.com</a></li>
+            <li>עבור ל-<strong>דוחות (Reports)</strong> או <strong>פעילויות (Activities)</strong></li>
+            <li>לחץ על סמל ההגדרות ⚙️ -> <strong>ייצא ל-CSV (Export to CSV)</strong></li>
+            <li>גרור את הקובץ לכאן — והמדדים יתעדכנו תוך חצי שנייה!</li>
+          </ol>
         </div>
       </div>
 
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">💤 ציון שינה (0-100)</label>
-          <input type="number" id="garmin-input-sleep-score" class="form-input" value="82" min="0" max="100">
+      <!-- TAB 3: AUTOMATION & WEBHOOK -->
+      <div id="garmin-pane-webhook" class="garmin-pane" style="display:none;">
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.5; margin-bottom:12px;">
+          סנכרון אוטומטי מלא ברקע ללא מגע יד: אפליקציית Garmin Connect מסנכרנת ל-Apple Health, וקיצור דרך באייפון שולח את הנתונים ישירות לכאן!
+        </p>
+
+        <label class="form-label">כתובת ה-Webhook האישית שלך:</label>
+        <div class="webhook-url-box">
+          <input type="text" id="garmin-webhook-url-display" class="form-input" readonly value="" style="font-family:var(--font-mono); font-size:11px; direction:ltr;">
+          <button type="button" class="copy-url-btn" onclick="AppState.copyWebhookUrl()">📋 העתק</button>
         </div>
-        <div class="form-group">
-          <label class="form-label">⏱️ שעות שינה</label>
-          <input type="number" id="garmin-input-sleep-hours" class="form-input" value="7.2" step="0.1">
+
+        <div style="margin-top:10px; display:flex; gap:8px;">
+          <button type="button" class="action-btn-primary" onclick="AppState.testGarminWebhook()" style="background:rgba(0,240,255,0.15); border:1px solid var(--hud-cyan); color:var(--hud-cyan); font-size:12px; padding:8px 14px;">
+            ⚡ שלח דגימת בדיקה עכשיו (Test Ping)
+          </button>
+        </div>
+
+        <div class="garmin-export-tips" style="margin-top:14px;">
+          <div class="tip-title">📱 הגדרת אוטומציה באייפון ב-3 שלבים:</div>
+          <ol style="padding-right:18px; margin-top:6px; font-size:11px; color:var(--text-dim); line-height:1.6;">
+            <li>פתח באייפון את אפליקציית <strong>'קיצורי דרך' (Shortcuts)</strong> -> לשונית <strong>אוטומציה</strong>.</li>
+            <li>צור אוטומציה חדשה לשעה <strong>07:30 בבוקר</strong> (או בכיבוי שעון מעורר).</li>
+            <li>הוסף פעולת <strong>'קבל תוכן מכתובת URL'</strong> עם שיטת <strong>POST</strong> והכתובת למעלה!</li>
+          </ol>
         </div>
       </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">⚡ מדד סטרס (0-100)</label>
-          <input type="number" id="garmin-input-stress" class="form-input" value="28" min="0" max="100">
-        </div>
-        <div class="form-group">
-          <label class="form-label">🔋 Body Battery (%)</label>
-          <input type="number" id="garmin-input-bb" class="form-input" value="75" min="0" max="100">
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">👟 צעדים</label>
-          <input type="number" id="garmin-input-steps" class="form-input" value="8500" step="500">
-        </div>
-        <div class="form-group">
-          <label class="form-label">🔥 שריפה אקטיבית (קק"ל)</label>
-          <input type="number" id="garmin-input-active-cals" class="form-input" value="450" step="50">
-        </div>
-      </div>
-
-      <button class="action-btn-primary" onclick="AppState.saveGarminHealth()" style="background:linear-gradient(90deg, #0284c7, #00f0ff); color:#030712; font-weight:900;">
-        ⚡ סנכרן מדדים והפק תובנות AI
-      </button>
     </div>
   </div>
 

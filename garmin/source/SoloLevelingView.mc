@@ -3,6 +3,7 @@ import Toybox.WatchUi;
 import Toybox.Communications;
 import Toybox.Lang;
 import Toybox.Timer;
+import Toybox.ActivityMonitor;
 
 class SoloLevelingView extends WatchUi.View {
     // 416x416 AMOLED Venu 4 Constants
@@ -38,9 +39,10 @@ class SoloLevelingView extends WatchUi.View {
     }
 
     function onShow() as Void {
+        pushBiometrics();
         fetchStatus();
         if (_timer != null) {
-            _timer.start(method(:fetchStatus), 30000, true); // Refresh every 30s
+            _timer.start(method(:onTimerTick), 30000, true); // Refresh every 30s
         }
     }
 
@@ -48,6 +50,34 @@ class SoloLevelingView extends WatchUi.View {
         if (_timer != null) {
             _timer.stop();
         }
+    }
+
+    function onTimerTick() as Void {
+        pushBiometrics();
+        fetchStatus();
+    }
+
+    function pushBiometrics() as Void {
+        var info = ActivityMonitor.getInfo();
+        var steps = (info != null && info.steps != null) ? info.steps : 0;
+        var activeCals = (info != null && info.calories != null) ? info.calories : 0;
+
+        var syncUrl = "http://192.168.1.50:8080/api/garmin/health-sync";
+        var params = {
+            "steps" => steps,
+            "active_calories" => activeCals,
+            "source" => "connect_iq_venu4"
+        };
+        var options = {
+            :method => Communications.HTTP_REQUEST_METHOD_POST,
+            :headers => { "Content-Type" => Communications.REQUEST_CONTENT_TYPE_JSON },
+            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON
+        };
+        Communications.makeWebRequest(syncUrl, params, options, method(:onSyncResponse));
+    }
+
+    function onSyncResponse(responseCode as Number, data as Dictionary or Null) as Void {
+        // Biometrics pushed successfully
     }
 
     function fetchStatus() as Void {

@@ -1630,6 +1630,277 @@ body {
 }
 
 /* ========================================================
+   GARMIN MULTI-CHANNEL SYNC & HUD STRIP
+   ======================================================== */
+.garmin-hud-status-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: rgba(4, 9, 18, 0.7);
+  border: 1px solid rgba(0, 240, 255, 0.15);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.garmin-status-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.garmin-status-indicator {
+  font-size: 10px;
+  color: #10b981;
+  text-shadow: 0 0 8px #10b981;
+}
+
+.garmin-status-indicator.offline {
+  color: #94a3b8;
+  text-shadow: none;
+}
+
+.garmin-status-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.garmin-sync-time-badge {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #94a3b8;
+  font-family: var(--font-mono);
+}
+
+.garmin-source-badge {
+  font-size: 9px;
+  font-weight: 800;
+  background: rgba(0, 240, 255, 0.15);
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  color: var(--hud-cyan);
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.garmin-status-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.garmin-strip-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+  font-family: var(--font-system);
+}
+
+.garmin-strip-btn:hover {
+  background: rgba(0, 240, 255, 0.15);
+  border-color: var(--hud-cyan);
+  color: #ffffff;
+}
+
+.garmin-strip-btn.smart-btn {
+  background: rgba(0, 240, 255, 0.12);
+  border-color: rgba(0, 240, 255, 0.35);
+  color: var(--hud-cyan);
+  font-weight: 800;
+}
+
+.garmin-strip-btn.smart-btn:hover {
+  background: rgba(0, 240, 255, 0.25);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+}
+
+/* Garmin Modal Multi-Channel Tabs */
+.garmin-modal-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(6, 11, 20, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 12px;
+}
+
+.garmin-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.garmin-tab-btn.active {
+  background: rgba(0, 240, 255, 0.18);
+  color: #00f0ff;
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.15);
+}
+
+.garmin-smart-btn {
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  color: var(--hud-cyan);
+  font-size: 10px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.garmin-smart-btn:hover {
+  background: rgba(0, 240, 255, 0.25);
+}
+
+/* Presets Grid */
+.garmin-presets-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 480px) {
+  .garmin-presets-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.preset-pill {
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+  font-weight: 700;
+}
+
+.preset-rest {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid #10b981;
+  color: #a7f3d0;
+}
+
+.preset-normal {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid #3b82f6;
+  color: #bfdbfe;
+}
+
+.preset-workout {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid #ef4444;
+  color: #fca5a5;
+}
+
+.preset-deficit {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid #f59e0b;
+  color: #fde68a;
+}
+
+/* Dropzone */
+.garmin-dropzone {
+  border: 2px dashed rgba(0, 240, 255, 0.35);
+  background: rgba(0, 240, 255, 0.03);
+  border-radius: 12px;
+  padding: 24px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s;
+  margin-bottom: 12px;
+}
+
+.garmin-dropzone:hover, .garmin-dropzone.dragover {
+  border-color: #00f0ff;
+  background: rgba(0, 240, 255, 0.1);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
+}
+
+.dropzone-icon {
+  font-size: 32px;
+  margin-bottom: 6px;
+}
+
+.dropzone-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.dropzone-sub {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+.garmin-file-status {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid #10b981;
+  color: #a7f3d0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.garmin-export-tips {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.tip-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #cbd5e1;
+}
+
+.webhook-url-box {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.copy-url-btn {
+  background: rgba(0, 240, 255, 0.15);
+  border: 1px solid var(--hud-cyan);
+  color: var(--hud-cyan);
+  border-radius: 6px;
+  padding: 0 12px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* ========================================================
    SYSTEM AI PHYSIOLOGICAL ADVISOR STYLES
    ======================================================== */
 .ai-advisor-section {

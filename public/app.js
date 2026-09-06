@@ -155,10 +155,35 @@ const AppState = {
     this.saveLocalSnapshot();
     this.updateBackupUI();
 
+    // Start Garmin Auto-Sync background heartbeat
+    this.startGarminHeartbeat();
+
     // System chime on launch
     setTimeout(() => {
       sfx.playSystemNotification();
     }, 400);
+  },
+
+  startGarminHeartbeat() {
+    if (this._garminHeartbeatInterval) return;
+    this._garminHeartbeatInterval = setInterval(async () => {
+      if (document.hidden) return;
+      try {
+        const res = await fetch('/api/garmin/health');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.biometrics) {
+            const oldSync = this.healthAdvisor?.biometrics?.sync_timestamp;
+            const newSync = data.biometrics.sync_timestamp;
+            this.healthAdvisor = data;
+            this.renderGarminBiometrics();
+            if (oldSync && newSync && oldSync !== newSync) {
+              sfx.playTone(880, 0.1, 'sine', 0.08);
+            }
+          }
+        }
+      } catch (e) {}
+    }, 45000);
   },
 
   async fetchNetworkInfo() {
@@ -1737,6 +1762,36 @@ const AppState = {
     if (activeEl) activeEl.innerText = `+${b.active_calories || 450}`;
     const spo2El = document.getElementById('garmin-spo2-val');
     if (spo2El) spo2El.innerText = `${b.spo2_pct || 98}%`;
+
+    // 5. Update Real-Time Status Strip
+    const timeEl = document.getElementById('garmin-sync-time-badge');
+    if (timeEl) {
+      timeEl.innerText = b.sync_timestamp ? `סונכרן: היום ב-${b.sync_timestamp}` : 'סונכרן היום';
+    }
+    const sourceEl = document.getElementById('garmin-source-badge');
+    if (sourceEl) {
+      const srcMap = {
+        'connect_iq': 'CONNECT IQ',
+        'connect_iq_venu4': 'CONNECT IQ',
+        'ios_shortcuts': 'SHORTCUTS',
+        'ios_shortcuts_test': 'SHORTCUTS',
+        'csv_file': 'CSV FILE',
+        'fit_file': 'FIT FILE',
+        'webhook': 'WEBHOOK',
+        'smart_diurnal': 'SMART AUTO',
+        'manual': 'MANUAL'
+      };
+      const rawSrc = (b.sync_source || 'connect_iq').toLowerCase();
+      sourceEl.innerText = srcMap[rawSrc] || rawSrc.toUpperCase();
+    }
+    const statusTextEl = document.getElementById('garmin-status-text');
+    if (statusTextEl) {
+      statusTextEl.innerText = 'Garmin Venu 4: מקושר ומסונכרן';
+    }
+    const statusInd = document.getElementById('garmin-status-indicator');
+    if (statusInd) {
+      statusInd.className = 'garmin-status-indicator online';
+    }
   },
 
   openAttentNormModal() {
@@ -1850,51 +1905,266 @@ const AppState = {
     `).join('');
   },
 
-  openGarminModal() {
+  openGarminModal(tab = 'quick') {
     sfx.playClick();
     if (this.healthAdvisor && this.healthAdvisor.biometrics) {
       const b = this.healthAdvisor.biometrics;
-      document.getElementById('garmin-input-hr').value = b.heart_rate || 68;
-      document.getElementById('garmin-input-rhr').value = b.resting_hr || 58;
-      document.getElementById('garmin-input-sleep-score').value = b.sleep_score || 82;
-      document.getElementById('garmin-input-sleep-hours').value = b.sleep_hours || 7.2;
-      document.getElementById('garmin-input-stress').value = b.stress_level || 28;
-      document.getElementById('garmin-input-bb').value = b.body_battery || 75;
-      document.getElementById('garmin-input-steps').value = b.steps || 8500;
-      document.getElementById('garmin-input-active-cals').value = b.active_calories || 450;
+      const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.value = val;
+      };
+      setVal('garmin-input-hr', b.heart_rate || 68);
+      setVal('garmin-input-rhr', b.resting_hr || 58);
+      setVal('garmin-input-sleep-score', b.sleep_score || 82);
+      setVal('garmin-input-sleep-hours', b.sleep_hours || 7.2);
+      setVal('garmin-input-stress', b.stress_level || 28);
+      setVal('garmin-input-bb', b.body_battery || 75);
+      setVal('garmin-input-steps', b.steps || 8500);
+      setVal('garmin-input-active-cals', b.active_calories || 450);
     }
+    this.switchGarminTab(tab);
+    this.setupGarminDropzone();
+    this.fetchGarminWebhookInfo();
     document.getElementById('garmin-modal').classList.add('active');
+  },
+
+  switchGarminTab(tab) {
+    ['quick', 'file', 'webhook'].forEach(t => {
+      const btn = document.getElementById(`btn-tab-garmin-${t}`);
+      const pane = document.getElementById(`garmin-pane-${t}`);
+      if (btn) btn.classList.toggle('active', t === tab);
+      if (pane) {
+        pane.style.display = (t === tab) ? 'block' : 'none';
+        if (t === tab) pane.classList.add('active');
+        else pane.classList.remove('active');
+      }
+    });
+  },
+
+  async fetchGarminWebhookInfo() {
+    try {
+      const res = await fetch('/api/garmin/webhook-info');
+      const data = await res.json();
+      const input = document.getElementById('garmin-webhook-url-display');
+      if (input && data.webhook_url) {
+        input.value = data.webhook_url;
+      }
+    } catch (e) {
+      const input = document.getElementById('garmin-webhook-url-display');
+      if (input) input.value = `${window.location.origin}/api/garmin/webhook`;
+    }
+  },
+
+  copyWebhookUrl() {
+    const input = document.getElementById('garmin-webhook-url-display');
+    if (input && input.value) {
+      navigator.clipboard.writeText(input.value).then(() => {
+        const btn = document.querySelector('.copy-url-btn');
+        if (btn) {
+          const prev = btn.innerText;
+          btn.innerText = '✓ הועתק!';
+          setTimeout(() => btn.innerText = prev, 2000);
+        }
+        sfx.playSystemNotification();
+      }).catch(() => {
+        input.select();
+        document.execCommand('copy');
+      });
+    }
+  },
+
+  async testGarminWebhook() {
+    sfx.playClick();
+    const testPayload = {
+      steps: 9450,
+      active_calories: 520,
+      heart_rate: 68,
+      resting_hr: 56,
+      sleep_score: 85,
+      sleep_hours: 7.6,
+      stress_level: 24,
+      body_battery: 80,
+      source: "ios_shortcuts_test"
+    };
+    try {
+      const res = await fetch('/api/garmin/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(testPayload)
+      });
+      const data = await res.json();
+      if (data.data) {
+        this.healthAdvisor = data.data;
+        this.renderAll();
+        sfx.playLevelUp();
+        alert('✓ דגימת Webhook התקבלה בהצלחה בשרת! המדדים ב-HUD עודכנו.');
+        this.closeModal('garmin-modal');
+      }
+    } catch (e) {
+      alert('שגיאה בבדיקת Webhook: ' + e.message);
+    }
+  },
+
+  setupGarminDropzone() {
+    const dropzone = document.getElementById('garmin-dropzone');
+    if (!dropzone || dropzone.dataset.initialized) return;
+    dropzone.dataset.initialized = 'true';
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add('dragover');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('dragover');
+      });
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files && files.length > 0) {
+        this.processGarminFile(files[0]);
+      }
+    });
+  },
+
+  handleGarminFileSelected(event) {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      this.processGarminFile(files[0]);
+    }
+  },
+
+  async processGarminFile(file) {
+    sfx.playClick();
+    const statusEl = document.getElementById('garmin-file-status');
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.innerText = `⏳ מפענח קובץ ${file.name}...`;
+    }
+
+    const reader = new FileReader();
+    const isFit = file.name.toLowerCase().endsWith('.fit');
+
+    reader.onload = async (e) => {
+      try {
+        let payload = { filename: file.name };
+        if (isFit) {
+          const base64Data = e.target.result.split(',')[1] || e.target.result;
+          payload.base64 = base64Data;
+        } else {
+          payload.content = e.target.result;
+        }
+
+        const res = await fetch('/api/garmin/upload-file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.data) {
+          this.healthAdvisor = data.data;
+          this.renderAll();
+          sfx.playLevelUp();
+          if (statusEl) {
+            statusEl.innerText = `✓ קובץ ${file.name} סונכרן בהצלחה! צעדים: ${data.data.biometrics.steps?.toLocaleString() || '--'}`;
+          }
+          setTimeout(() => {
+            this.closeModal('garmin-modal');
+          }, 1500);
+        } else {
+          alert(data.error || 'שגיאה בפיענוח קובץ');
+        }
+      } catch (err) {
+        alert('שגיאה בהעלאת קובץ: ' + err.message);
+      }
+    };
+
+    if (isFit) {
+      reader.readAsDataURL(file);
+    } else {
+      reader.readAsText(file);
+    }
+  },
+
+  async triggerSmartGarminSync() {
+    sfx.playClick();
+    try {
+      const res = await fetch('/api/garmin/smart-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (data.data) {
+        this.healthAdvisor = data.data;
+        this.renderAll();
+        sfx.playSystemNotification();
+        this.closeModal('garmin-modal');
+
+        const hud = document.getElementById('garmin-hud-card');
+        if (hud) {
+          hud.style.boxShadow = '0 0 35px rgba(0, 240, 255, 0.6)';
+          setTimeout(() => {
+            hud.style.boxShadow = '0 0 20px rgba(0, 240, 255, 0.15)';
+          }, 1200);
+        }
+      }
+    } catch (e) {
+      alert('שגיאה בסנכרון חכם: ' + e.message);
+    }
   },
 
   setGarminPreset(preset) {
     sfx.playClick();
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.value = val;
+    };
+
     if (preset === 'rest') {
-      document.getElementById('garmin-input-hr').value = 60;
-      document.getElementById('garmin-input-rhr').value = 54;
-      document.getElementById('garmin-input-sleep-score').value = 88;
-      document.getElementById('garmin-input-sleep-hours').value = 8.1;
-      document.getElementById('garmin-input-stress').value = 18;
-      document.getElementById('garmin-input-bb').value = 90;
-      document.getElementById('garmin-input-steps').value = 5200;
-      document.getElementById('garmin-input-active-cals').value = 180;
+      setVal('garmin-input-hr', 60);
+      setVal('garmin-input-rhr', 52);
+      setVal('garmin-input-sleep-score', 90);
+      setVal('garmin-input-sleep-hours', 8.2);
+      setVal('garmin-input-stress', 16);
+      setVal('garmin-input-bb', 92);
+      setVal('garmin-input-steps', 4500);
+      setVal('garmin-input-active-cals', 160);
+    } else if (preset === 'normal') {
+      setVal('garmin-input-hr', 68);
+      setVal('garmin-input-rhr', 56);
+      setVal('garmin-input-sleep-score', 84);
+      setVal('garmin-input-sleep-hours', 7.4);
+      setVal('garmin-input-stress', 28);
+      setVal('garmin-input-bb', 75);
+      setVal('garmin-input-steps', 8500);
+      setVal('garmin-input-active-cals', 450);
     } else if (preset === 'workout') {
-      document.getElementById('garmin-input-hr').value = 76;
-      document.getElementById('garmin-input-rhr').value = 58;
-      document.getElementById('garmin-input-sleep-score').value = 82;
-      document.getElementById('garmin-input-sleep-hours').value = 7.2;
-      document.getElementById('garmin-input-stress').value = 52;
-      document.getElementById('garmin-input-bb').value = 65;
-      document.getElementById('garmin-input-steps').value = 12500;
-      document.getElementById('garmin-input-active-cals').value = 620;
+      setVal('garmin-input-hr', 78);
+      setVal('garmin-input-rhr', 58);
+      setVal('garmin-input-sleep-score', 84);
+      setVal('garmin-input-sleep-hours', 7.5);
+      setVal('garmin-input-stress', 48);
+      setVal('garmin-input-bb', 65);
+      setVal('garmin-input-steps', 13800);
+      setVal('garmin-input-active-cals', 720);
     } else if (preset === 'deficit') {
-      document.getElementById('garmin-input-hr').value = 78;
-      document.getElementById('garmin-input-rhr').value = 64;
-      document.getElementById('garmin-input-sleep-score').value = 54;
-      document.getElementById('garmin-input-sleep-hours').value = 4.8;
-      document.getElementById('garmin-input-stress').value = 62;
-      document.getElementById('garmin-input-bb').value = 35;
-      document.getElementById('garmin-input-steps').value = 7000;
-      document.getElementById('garmin-input-active-cals').value = 300;
+      setVal('garmin-input-hr', 78);
+      setVal('garmin-input-rhr', 64);
+      setVal('garmin-input-sleep-score', 54);
+      setVal('garmin-input-sleep-hours', 5.0);
+      setVal('garmin-input-stress', 64);
+      setVal('garmin-input-bb', 35);
+      setVal('garmin-input-steps', 7200);
+      setVal('garmin-input-active-cals', 320);
     }
   },
 
@@ -1908,7 +2178,8 @@ const AppState = {
       stress_level: parseInt(document.getElementById('garmin-input-stress').value) || 28,
       body_battery: parseInt(document.getElementById('garmin-input-bb').value) || 75,
       steps: parseInt(document.getElementById('garmin-input-steps').value) || 8500,
-      active_calories: parseInt(document.getElementById('garmin-input-active-cals').value) || 450
+      active_calories: parseInt(document.getElementById('garmin-input-active-cals').value) || 450,
+      source: "manual"
     };
 
     try {
