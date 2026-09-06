@@ -695,16 +695,18 @@ const AppState = {
         return;
       }
 
-      const matches = this.foodCatalog.filter(f => 
-        (f.name_he && f.name_he.toLowerCase().includes(val)) ||
-        (f.name && f.name.toLowerCase().includes(val))
-      );
+      // Multi-token search: ALL space-separated tokens must match in name_he or name
+      const tokens = val.split(/\s+/).filter(t => t.length > 0);
+      const matches = this.foodCatalog.filter(f => {
+        const haystack = ((f.name_he || '') + ' ' + (f.name || '')).toLowerCase();
+        return tokens.every(tok => haystack.includes(tok));
+      });
 
       if (matches.length === 0) {
         resultsContainer.innerHTML = `<div style="padding:10px; font-size:12px; color:var(--text-dim);">לא נמצאו תוצאות. תוכל להוסיף מזון מותאם בהגדרות.</div>`;
       } else {
         resultsContainer.innerHTML = '';
-        matches.slice(0, 10).forEach(item => {
+        matches.slice(0, 20).forEach(item => {
           const div = document.createElement('div');
           div.className = 'food-result-item';
           div.innerHTML = `
@@ -1887,27 +1889,44 @@ const AppState = {
     if (!container) return;
     const attent = this.healthAdvisor?.attent;
 
-    if (attent && attent.is_active) {
-      const dose = attent.dose_mg || 20;
-      const elapsed = attent.elapsed_hours || 0;
+    if (attent && (attent.is_active || (attent.doses && attent.doses.length > 0))) {
+      const isAct = attent.is_active;
+      const totalDose = attent.total_dose_mg || attent.dose_mg || 20;
+      const count = attent.dose_count || 1;
       const rem = attent.remaining_hours || 0;
-      const takenAt = attent.timestamp || '09:00';
       const pConsumed = Math.round(this.consumed?.protein || 0);
       const pTarget = this.profile?.target_protein || 160;
 
+      let titleText = '';
+      let subText = '';
+      if (isAct) {
+        if (count > 1) {
+          titleText = `BUFF פעיל: שיקוי ריכוז (${totalDose}mg סה״כ • ${count} מנות)`;
+          const doseSummary = (attent.doses || []).map(d => `${d.dose_mg}mg ב-${d.timestamp}`).join(' + ');
+          subText = `מנות: ${doseSummary} • נותרו כ-${rem.toFixed(1)} שעות השפעה שיא`;
+        } else {
+          titleText = `BUFF פעיל: שיקוי ריכוז והיפר-פוקוס (Attent ${totalDose}mg)`;
+          subText = `נלקח ב-${attent.timestamp || '09:00'} • נותרו כ-${rem.toFixed(1)} שעות שיא`;
+        }
+      } else {
+        titleText = `שיקוי ריכוז (${totalDose}mg סה״כ - השפעה הסתיימה)`;
+        subText = `נלקחו ${count} מנות היום. הטווח הפרמקולוגי הסתיים • לחץ להוספת מנת בוסטר חדשה`;
+      }
+
       container.innerHTML = `
-        <div class="attent-buff-card">
+        <div class="attent-buff-card" style="${!isAct ? 'border-color:rgba(168,85,247,0.4); background:rgba(9,19,38,0.7);' : ''}">
           <div class="attent-header-row">
             <div class="attent-title-wrap">
-              <span class="attent-pill-badge">💊</span>
+              <span class="attent-pill-badge" style="${!isAct ? 'opacity:0.7;' : ''}">💊</span>
               <div>
-                <div class="attent-buff-title">BUFF פעיל: שיקוי ריכוז והיפר-פוקוס (Attent ${dose}mg)</div>
-                <div class="attent-buff-sub">נלקח ב-${takenAt} • עברו ${elapsed.toFixed(1)} שעות • נותרו כ-${rem.toFixed(1)} שעות שיא</div>
+                <div class="attent-buff-title" style="${!isAct ? 'color:#c084fc;' : ''}">${titleText}</div>
+                <div class="attent-buff-sub">${subText}</div>
               </div>
             </div>
             <div style="display:flex; gap:6px; align-items:center;">
-              <button type="button" class="attent-cancel-btn" onclick="AppState.openAttentModal()" style="border-color:#c084fc; color:#f3e8ff; background:rgba(168,85,247,0.25);" title="ערוך מינון או שעת נטילה">✏️ ערוך</button>
-              <button type="button" class="attent-cancel-btn" onclick="AppState.cancelAttent()" title="בטל רישום">✕ ביטול</button>
+              <button type="button" class="attent-cancel-btn" onclick="AppState.openAttentModal()" style="border-color:#a855f7; color:#f3e8ff; background:rgba(168,85,247,0.35); font-weight:800;" title="הוסף מנת בוסטר נוספת">➕ מנה נוספת</button>
+              <button type="button" class="attent-cancel-btn" onclick="AppState.openAttentModal()" style="border-color:#c084fc; color:#f3e8ff; background:rgba(168,85,247,0.18);" title="נהל או מחק מנות">📋 ניהול</button>
+              <button type="button" class="attent-cancel-btn" onclick="AppState.cancelAttent()" title="נקה את כל מנות היום">✕</button>
             </div>
           </div>
           <div class="attent-badges-row">
@@ -1918,7 +1937,7 @@ const AppState = {
               💧 יעד מים מוגבר (+500ml)
             </span>
             <span class="attent-badge-chip success">
-              ⚡ סטרס Garmin מנוטרל
+              ${isAct ? '⚡ סטרס Garmin מנוטרל' : '💤 התאוששות טבעית'}
             </span>
           </div>
         </div>
@@ -1930,7 +1949,7 @@ const AppState = {
             <span style="font-size:18px;">💊</span>
             <div>
               <span style="font-size:12px; font-weight:700; color:#e9d5ff;">שיקוי ריכוז (אטנט / Attent)</span>
-              <span style="font-size:10px; color:var(--text-secondary); display:block;">נטלת אטנט היום? לחץ כאן לבחירת מינון (10, 15, 20, 30mg) ושעת נטילה</span>
+              <span style="font-size:10px; color:var(--text-secondary); display:block;">נטלת אטנט היום? לחץ כאן לבחירת מינון (10, 15, 20, 30mg), שעה ורישום בוסטרים</span>
             </div>
           </div>
           <button type="button" class="badge-button" onclick="event.stopPropagation(); AppState.openAttentModal();" style="background:rgba(168,85,247,0.25); border:1px solid #c084fc; color:#f3e8ff; font-size:11px; padding:6px 12px; border-radius:6px; cursor:pointer;">
@@ -2272,6 +2291,10 @@ const AppState = {
     const timeInput = document.getElementById('attent-input-time');
     const dateInput = document.getElementById('attent-input-date');
     const submitBtn = document.getElementById('attent-submit-btn');
+    const dosesListWrap = document.getElementById('attent-doses-list-wrap');
+    const dosesItemsList = document.getElementById('attent-doses-items-list');
+    const summaryBadge = document.getElementById('attent-total-summary-badge');
+    const formHeading = document.getElementById('attent-form-heading');
 
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, '0');
@@ -2283,20 +2306,55 @@ const AppState = {
     }
 
     if (timeInput) {
-      timeInput.value = (activeAttent && activeAttent.timestamp) ? activeAttent.timestamp : `${hh}:${mm}`;
+      timeInput.value = `${hh}:${mm}`;
     }
 
-    const currentDose = (activeAttent && activeAttent.dose_mg) ? activeAttent.dose_mg : (this.selectedAttentDose || 20);
-    this.selectAttentDose(currentDose);
+    // Default to 15mg or 20mg for quick next dose
+    this.selectAttentDose(this.selectedAttentDose || 20);
 
-    if (submitBtn) {
-      submitBtn.innerText = (activeAttent && activeAttent.is_active) ? '💾 שמור עדכון מנת אטנט' : '✨ הפעל BUFF שיקוי ריכוז (רשום נטילה)';
+    // Populate today's doses list if any exist
+    const doses = (activeAttent && activeAttent.doses) ? activeAttent.doses : [];
+    if (doses.length > 0) {
+      if (dosesListWrap) dosesListWrap.style.display = 'block';
+      if (summaryBadge) {
+        summaryBadge.innerText = `סה״כ: ${activeAttent.total_dose_mg || activeAttent.dose_mg || 0}mg (${doses.length} מנות)`;
+      }
+      if (formHeading) {
+        formHeading.innerText = '➕ הוסף מנת בוסטר נוספת';
+      }
+      if (submitBtn) {
+        submitBtn.innerText = '✨ רשום מנה נוספת (+35 EXP)';
+      }
+      if (dosesItemsList) {
+        dosesItemsList.innerHTML = doses.map((d, idx) => {
+          const isAct = d.is_active;
+          const statusText = isAct ? `⚡ פעיל (נותרו ${d.remaining_hours.toFixed(1)} שעות)` : `⏱️ הסתיים`;
+          const contextText = d.notes ? `• ${d.notes}` : (idx === 0 ? '• מנה 1' : `• בוסטר #${idx+1}`);
+          return `
+            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.04); border:1px solid rgba(192,132,252,0.25); border-radius:8px; padding:7px 10px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="background:#7c3aed; color:#ffffff; font-size:11px; font-weight:800; padding:2px 7px; border-radius:5px;">${d.dose_mg}mg</span>
+                <div style="display:flex; flex-direction:column;">
+                  <span style="font-size:12px; font-weight:700; color:#ffffff;">שעה: ${d.timestamp} <span style="font-size:10px; color:#c084fc;">${contextText}</span></span>
+                  <span style="font-size:10px; color:${isAct ? 'var(--hud-cyan)' : 'var(--text-dim)'};">${statusText}</span>
+                </div>
+              </div>
+              <button type="button" onclick="AppState.deleteAttentDose(${d.id})" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#fca5a5; font-size:12px; border-radius:5px; padding:3px 8px; cursor:pointer;" title="מחק מנה זו">
+                🗑️
+              </button>
+            </div>
+          `;
+        }).join('');
+      }
+    } else {
+      if (dosesListWrap) dosesListWrap.style.display = 'none';
+      if (formHeading) formHeading.innerText = '➕ רשום מנת אטנט ראשונה';
+      if (submitBtn) submitBtn.innerText = '✨ הפעל BUFF שיקוי ריכוז (רשום נטילה)';
     }
 
     const cancelWrap = document.getElementById('attent-active-cancel-wrap');
     if (cancelWrap) {
-      const isActive = this.healthAdvisor?.attent?.is_active;
-      cancelWrap.style.display = isActive ? 'block' : 'none';
+      cancelWrap.style.display = (doses.length > 0) ? 'block' : 'none';
     }
 
     this.openModal('attent-modal');
@@ -2346,7 +2404,7 @@ const AppState = {
     const dose = this.selectedAttentDose || 20;
     const timeVal = document.getElementById('attent-input-time')?.value || '09:00';
     const duration = parseFloat(document.getElementById('attent-input-duration')?.value) || 7.0;
-    const notes = document.getElementById('attent-input-notes')?.value || 'שיקוי ריכוז והיפר-פוקוס';
+    const notes = document.getElementById('attent-input-notes')?.value || 'מנת אטנט';
     const dateVal = document.getElementById('attent-input-date')?.value || '';
 
     try {
@@ -2370,7 +2428,7 @@ const AppState = {
         this.renderAll();
         sfx.playPotion();
         this.closeModal('attent-modal');
-        this.showToast(`[SYSTEM: שיקוי ריכוז (${dose}mg) נרשם בהצלחה ב-${timeVal}!]`);
+        this.showToast(`[SYSTEM: מנת אטנט (${dose}mg) נרשמה בהצלחה ב-${timeVal}!]`);
         await this.fetchDailyDebrief();
         await this.fetchLongTermInsights(this.longTermWindow || 14);
         if (this.calendarDaysData) {
@@ -2383,9 +2441,36 @@ const AppState = {
     }
   },
 
+  async deleteAttentDose(id) {
+    sfx.playClick();
+    if (!confirm('האם למחוק מנת אטנט זו?')) return;
+    try {
+      const res = await fetch(`/api/medication/attent?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'שגיאת שרת במחיקת מנה');
+      }
+      if (data.data) {
+        this.healthAdvisor = data.data;
+        this.renderAll();
+        sfx.playSystemNotification();
+        this.showToast('✕ מנת אטנט נמחקה');
+        this.openAttentModal();
+        await this.fetchDailyDebrief();
+        await this.fetchLongTermInsights(this.longTermWindow || 14);
+        if (this.calendarDaysData) {
+          await this.fetchCalendarData(this.calendarCurrentMonth);
+        }
+      }
+    } catch (e) {
+      console.error('Error in deleteAttentDose:', e);
+      alert('שגיאה במחיקת מנת אטנט: ' + (e.message || e));
+    }
+  },
+
   async cancelAttent() {
     sfx.playClick();
-    if (!confirm('האם לבטל את רישום מנת האטנט של היום?')) return;
+    if (!confirm('האם לנקות ולבטל את כל מנות האטנט שנרשמו להיום?')) return;
     try {
       const res = await fetch('/api/medication/attent', { method: 'DELETE' });
       const data = await res.json();
@@ -2397,7 +2482,7 @@ const AppState = {
         this.renderAll();
         sfx.playSystemNotification();
         this.closeModal('attent-modal');
-        this.showToast('✕ רישום אטנט פעיל בוטל');
+        this.showToast('✕ כל מנות האטנט להיום נוקו');
         await this.fetchDailyDebrief();
         await this.fetchLongTermInsights(this.longTermWindow || 14);
         if (this.calendarDaysData) {

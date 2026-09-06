@@ -1238,67 +1238,85 @@
 
   <!-- ATTENT / CONCENTRATION POTION MODAL -->
   <div id="attent-modal" class="modal-overlay">
-    <div class="modal-content" style="max-width: 440px;">
+    <div class="modal-content" style="max-width: 440px; max-height: 90vh; overflow-y: auto;">
       <div class="modal-header">
-        <span class="modal-title">💊 שיקוי ריכוז והיפר-פוקוס (אטנט / Attent)</span>
+        <span class="modal-title">💊 ניהול מנות שיקוי ריכוז (אטנט / Attent)</span>
         <button class="close-modal-btn" onclick="AppState.closeModal('attent-modal')">✕</button>
       </div>
       <p style="font-size:12px; color:var(--text-secondary); line-height:1.5;">
-        מעקב חכם אחר נטילת אטנט: המערכת תנטרל עליית סטרס שגויה ב-Garmin, תתריע על צורך חיוני בחלבון כשהתיאבון מדוכא, ותכין אותך מראש לחלון הדעיכה (Crash Buffer).
+        מעקב חכם אחר נטילת מנות אטנט ובוסטרים: המערכת מנרמלת אוטומטית את מדדי הסטרס וה-HRV ב-Garmin ומחשבת את ההשפעה הפרמקוקינטית המשולבת.
       </p>
 
-      <label class="form-label" style="margin-top:10px;">בחר מינון מנה שנלקחה:</label>
-      <div class="dose-pills-row">
-        <button type="button" class="dose-pill-btn" onclick="AppState.selectAttentDose(10)" id="dose-pill-10">10mg</button>
-        <button type="button" class="dose-pill-btn" onclick="AppState.selectAttentDose(15)" id="dose-pill-15">15mg</button>
-        <button type="button" class="dose-pill-btn selected" onclick="AppState.selectAttentDose(20)" id="dose-pill-20">20mg</button>
-        <button type="button" class="dose-pill-btn" onclick="AppState.selectAttentDose(30)" id="dose-pill-30">30mg</button>
-      </div>
-
-      <label class="form-label" style="margin-top:12px;">שעת נטילה מדויקת:</label>
-      <div class="time-presets-row" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
-        <button type="button" class="preset-pill active" onclick="AppState.setAttentTimeNow()" id="attent-time-now">⚡ עכשיו</button>
-        <button type="button" class="preset-pill" onclick="AppState.setAttentTime('07:30')" id="attent-time-0730">07:30</button>
-        <button type="button" class="preset-pill" onclick="AppState.setAttentTime('09:00')" id="attent-time-0900">09:00</button>
-        <button type="button" class="preset-pill" onclick="AppState.setAttentTime('11:00')" id="attent-time-1100">11:00</button>
-        <button type="button" class="preset-pill" onclick="AppState.setAttentTime('13:30')" id="attent-time-1330">13:30</button>
-        <button type="button" class="preset-pill" onclick="AppState.setAttentTime('20:00')" id="attent-time-2000">20:00 (לילה)</button>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">שעה מותאמת</label>
-          <input type="time" id="attent-input-time" class="form-input">
+      <!-- TODAY'S LOGGED DOSES CONTAINER -->
+      <div id="attent-doses-list-wrap" style="margin-top:12px; display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-size:12px; font-weight:800; color:var(--hud-cyan);">📋 מנות שנלקחו היום:</span>
+          <span id="attent-total-summary-badge" style="font-size:11px; background:rgba(168,85,247,0.25); border:1px solid #c084fc; color:#f3e8ff; padding:2px 8px; border-radius:12px; font-weight:700;">סה״כ: 0mg</span>
         </div>
-        <div class="form-group">
-          <label class="form-label">משך השפעה צפוי</label>
-          <select id="attent-input-duration" class="meal-type-select" style="width:100%;">
-            <option value="6.0">6 שעות</option>
-            <option value="7.0" selected>7 שעות (סטנדרט)</option>
-            <option value="8.0">8 שעות</option>
-            <option value="10.0">10 שעות (XR / ארוך)</option>
-          </select>
+        <div id="attent-doses-items-list" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <!-- Dynamically populated -->
         </div>
       </div>
 
-      <div class="form-row">
-        <div class="form-group" style="flex:1;">
-          <label class="form-label">תאריך נטילה</label>
-          <input type="date" id="attent-input-date" class="form-input">
+      <!-- ADD NEW DOSE SECTION -->
+      <div style="border-top:1px solid rgba(255,255,255,0.1); padding-top:12px; margin-top:10px;">
+        <div style="font-size:13px; font-weight:800; color:#e9d5ff; margin-bottom:8px;" id="attent-form-heading">
+          ➕ הוסף מנה חדשה / בוסטר נוסף
         </div>
-        <div class="form-group" style="flex:2;">
-          <label class="form-label">הערות / הקשר</label>
-          <input type="text" id="attent-input-notes" class="form-input" placeholder="לדוגמה: משמרת לילה / לפני אימון">
+
+        <label class="form-label">בחר מינון מנה:</label>
+        <div class="dose-pills-row">
+          <button type="button" class="dose-pill-btn" onclick="AppState.selectAttentDose(10)" id="dose-pill-10">10mg</button>
+          <button type="button" class="dose-pill-btn" onclick="AppState.selectAttentDose(15)" id="dose-pill-15">15mg</button>
+          <button type="button" class="dose-pill-btn selected" onclick="AppState.selectAttentDose(20)" id="dose-pill-20">20mg</button>
+          <button type="button" class="dose-pill-btn" onclick="AppState.selectAttentDose(30)" id="dose-pill-30">30mg</button>
         </div>
+
+        <label class="form-label" style="margin-top:12px;">שעת נטילה:</label>
+        <div class="time-presets-row" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+          <button type="button" class="preset-pill active" onclick="AppState.setAttentTimeNow()" id="attent-time-now">⚡ עכשיו</button>
+          <button type="button" class="preset-pill" onclick="AppState.setAttentTime('07:30')" id="attent-time-0730">07:30</button>
+          <button type="button" class="preset-pill" onclick="AppState.setAttentTime('09:00')" id="attent-time-0900">09:00</button>
+          <button type="button" class="preset-pill" onclick="AppState.setAttentTime('11:00')" id="attent-time-1100">11:00</button>
+          <button type="button" class="preset-pill" onclick="AppState.setAttentTime('13:30')" id="attent-time-1330">13:30 (בוסטר)</button>
+          <button type="button" class="preset-pill" onclick="AppState.setAttentTime('20:00')" id="attent-time-2000">20:00 (לילה)</button>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">שעה מותאמת</label>
+            <input type="time" id="attent-input-time" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">משך השפעה צפוי</label>
+            <select id="attent-input-duration" class="meal-type-select" style="width:100%;">
+              <option value="6.0">6 שעות (בוסטר קצר)</option>
+              <option value="7.0" selected>7 שעות (סטנדרט)</option>
+              <option value="8.0">8 שעות</option>
+              <option value="10.0">10 שעות (XR / ארוך)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group" style="flex:1;">
+            <label class="form-label">תאריך נטילה</label>
+            <input type="date" id="attent-input-date" class="form-input">
+          </div>
+          <div class="form-group" style="flex:2;">
+            <label class="form-label">סוג מנה / הקשר</label>
+            <input type="text" id="attent-input-notes" class="form-input" placeholder="לדוגמה: מנת בוקר / בוסטר צהריים">
+          </div>
+        </div>
+
+        <button id="attent-submit-btn" class="action-btn-primary" onclick="AppState.saveAttentLog()" style="background:linear-gradient(90deg, #7c3aed, #a855f7); color:#ffffff; font-weight:900; margin-top:8px;">
+          ✨ רשום מנה זו (+35 EXP)
+        </button>
       </div>
 
-      <button id="attent-submit-btn" class="action-btn-primary" onclick="AppState.saveAttentLog()" style="background:linear-gradient(90deg, #7c3aed, #a855f7); color:#ffffff; font-weight:900;">
-        ✨ הפעל BUFF שיקוי ריכוז (רשום נטילה)
-      </button>
-
-      <div id="attent-active-cancel-wrap" style="display:none; margin-top:10px;">
-        <button type="button" class="attent-cancel-btn" onclick="AppState.cancelAttent()" style="width:100%; padding:10px; font-size:12px;">
-          ✕ בטל רישום אטנט פעיל להיום
+      <div id="attent-active-cancel-wrap" style="display:none; margin-top:14px; border-top:1px solid rgba(255,255,255,0.08); padding-top:10px;">
+        <button type="button" class="attent-cancel-btn" onclick="AppState.cancelAttent()" style="width:100%; padding:9px; font-size:11px; opacity:0.85;">
+          ✕ נקה את כל מנות האטנט של היום
         </button>
       </div>
     </div>

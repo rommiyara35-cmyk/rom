@@ -389,24 +389,28 @@ class Database:
                 VALUES (1, 'צייד רום', 'E-Rank', 1, 0, 300, 'צייד שהתעורר (Awakened)', date('now'))
                 """)
 
-            # Populate food_items if empty
-            c.execute("SELECT COUNT(*) FROM food_items")
-            if c.fetchone()[0] == 0 and os.path.exists(FOOD_DB_PATH):
-                with open(FOOD_DB_PATH, "r", encoding="utf-8") as f:
-                    foods = json.load(f)
-                    for item in foods:
-                        c.execute("""
-                        INSERT INTO food_items (
-                            name, name_he, category, serving_size_g, calories, protein, carbs, fats,
-                            fiber, sodium_mg, potassium_mg, magnesium_mg, zinc_mg, vit_c_mg, vit_d_iu, iron_mg, is_custom
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-                        """, (
-                            item.get("name"), item.get("name_he"), item.get("category"), item.get("serving_size_g", 100),
-                            item.get("calories", 0), item.get("protein", 0), item.get("carbs", 0), item.get("fats", 0),
-                            item.get("fiber", 0), item.get("sodium_mg", 0), item.get("potassium_mg", 0),
-                            item.get("magnesium_mg", 0), item.get("zinc_mg", 0), item.get("vit_c_mg", 0),
-                            item.get("vit_d_iu", 0), item.get("iron_mg", 0)
-                        ))
+            # Populate and sync food_items from food_database.json
+            if os.path.exists(FOOD_DB_PATH):
+                try:
+                    with open(FOOD_DB_PATH, "r", encoding="utf-8") as f:
+                        foods = json.load(f)
+                        for item in foods:
+                            c.execute("SELECT id FROM food_items WHERE name_he = ?", (item.get("name_he"),))
+                            if not c.fetchone():
+                                c.execute("""
+                                INSERT INTO food_items (
+                                    name, name_he, category, serving_size_g, calories, protein, carbs, fats,
+                                    fiber, sodium_mg, potassium_mg, magnesium_mg, zinc_mg, vit_c_mg, vit_d_iu, iron_mg, is_custom
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                                """, (
+                                    item.get("name"), item.get("name_he"), item.get("category"), item.get("serving_size_g", 100),
+                                    item.get("calories", 0), item.get("protein", 0), item.get("carbs", 0), item.get("fats", 0),
+                                    item.get("fiber", 0), item.get("sodium_mg", 0), item.get("potassium_mg", 0),
+                                    item.get("magnesium_mg", 0), item.get("zinc_mg", 0), item.get("vit_c_mg", 0),
+                                    item.get("vit_d_iu", 0), item.get("iron_mg", 0)
+                                ))
+                except Exception as e:
+                    pass
 
             # Achievements & Trophies table
             c.execute("""
@@ -1133,21 +1137,26 @@ class AttentBiometricNormalizer:
                 "scientific_summary": "אין השפעה תרופתית פעילה. מדדי השעון משקפים את המצב הפיזיולוגי הרגיל."
             }
 
-        dose = float(attent_info.get("dose_mg", 20))
+        dose = float(attent_info.get("total_dose_mg") or attent_info.get("dose_mg", 20))
         elapsed = float(attent_info.get("elapsed_hours", 2.0))
+        dose_count = int(attent_info.get("dose_count", 1))
 
-        # Pharmacokinetic potency curve:
-        # Rise phase to peak at ~2.5h, plateau to 5.5h, then half-life decay (t_1/2 = 10.5h)
-        if elapsed < 1.0:
-            potency = 0.5 + (elapsed * 0.5)
-        elif elapsed <= 5.5:
-            potency = 1.0
+        # Check if pre-calculated combined potency is provided (from multiple doses superposition)
+        if "potency" in attent_info and float(attent_info["potency"]) > 0:
+            effective_potency = float(attent_info["potency"])
         else:
-            decay_elapsed = elapsed - 5.5
-            potency = max(0.15, math.exp(-0.693 * decay_elapsed / 10.5))
+            # Pharmacokinetic potency curve:
+            # Rise phase to peak at ~2.5h, plateau to 5.5h, then half-life decay (t_1/2 = 10.5h)
+            if elapsed < 1.0:
+                potency = 0.5 + (elapsed * 0.5)
+            elif elapsed <= 5.5:
+                potency = 1.0
+            else:
+                decay_elapsed = elapsed - 5.5
+                potency = max(0.15, math.exp(-0.693 * decay_elapsed / 10.5))
 
-        dose_factor = min(1.5, max(0.5, dose / 20.0))
-        effective_potency = potency * dose_factor
+            dose_factor = min(1.6, max(0.5, dose / 20.0))
+            effective_potency = potency * dose_factor
 
         # 1. Stress Offset (Garmin Firstbeat inflation compensation)
         base_stress_offset = 24.0 * effective_potency
@@ -1199,17 +1208,21 @@ class AttentBiometricNormalizer:
             "stress_state_he": stress_state
         }
 
+        badge_text = f"💊 פילטר אטנט פעיל ({dose_count} מנות: {int(dose)}mg סה״כ)" if dose_count > 1 else f"💊 פילטר אטנט פעיל (כיול {int(dose)}mg)"
+
         meta = {
             "is_active": True,
-            "dose_mg": dose,
+            "dose_mg": int(dose),
+            "total_dose_mg": int(dose),
+            "dose_count": dose_count,
             "elapsed_hours": elapsed,
-            "potency_pct": round(effective_potency * 100),
+            "potency_pct": round(min(200, effective_potency * 100)),
             "stress_offset": stress_offset,
             "rhr_offset": rhr_offset,
             "body_battery_boost": bb_drain_protection,
-            "status_badge_he": f"💊 פילטר אטנט פעיל (כיול פרמקולוגי {dose}mg)",
+            "status_badge_he": badge_text,
             "scientific_summary": (
-                f"האטנט נלקח לפני {elapsed:.1f} שעות. עוררות אדרנרגית מלאכותית מורידה HRV "
+                f"האטנט נלקח היום ({dose_count} מנות, {int(dose)}mg סה״כ). עוררות אדרנרגית מלאכותית מורידה HRV "
                 f"ומקפיצה את מדד הסטרס בשעון ב-{stress_offset}+ נקודות ואת הדופק ב-{rhr_offset}+ bpm. "
                 f"המערכת מנרמלת את הנתונים ומציגה את הסטטוס הגופני האמיתי שלך ({norm_stress}/100 סטרס, {norm_rhr} bpm דופק מנוחה)."
             ),
@@ -1250,9 +1263,10 @@ class HunterHealthAIAdvisor:
         c.execute("SELECT * FROM medication_logs WHERE date = ? ORDER BY id DESC", (today,))
         meds = [dict(r) for r in c.fetchall()]
 
-        # 3. Check for active Attent
+        # 3. Check for active Attent (supporting multiple doses & boosters)
         attent_info = None
         now = datetime.datetime.now()
+        attent_doses = []
         for m in meds:
             if m["med_name"].lower() == "attent":
                 try:
@@ -1266,22 +1280,68 @@ class HunterHealthAIAdvisor:
                 except Exception:
                     elapsed_h = 2.0
 
-                duration = float(m.get("duration_hours", 7.0))
+                duration = float(m.get("duration_hours") or 7.0)
                 is_active = elapsed_h <= (duration + 1.0)
                 remaining = max(0.0, round(duration - elapsed_h, 1))
+                dose_mg = int(m.get("dose_mg") or 20)
 
-                attent_info = {
+                # Pharmacokinetic potency curve for this specific dose:
+                if elapsed_h < 1.0:
+                    potency = 0.5 + (elapsed_h * 0.5)
+                elif elapsed_h <= 5.5:
+                    potency = 1.0
+                else:
+                    decay_elapsed = elapsed_h - 5.5
+                    potency = max(0.15, math.exp(-0.693 * decay_elapsed / 10.5))
+
+                effective_contrib = potency * (dose_mg / 20.0)
+
+                attent_doses.append({
                     "id": m["id"],
                     "med_name": m["med_name"],
-                    "dose_mg": m["dose_mg"],
+                    "dose_mg": dose_mg,
                     "timestamp": m["timestamp"],
                     "elapsed_hours": elapsed_h,
                     "duration_hours": duration,
                     "remaining_hours": remaining,
                     "is_active": is_active,
+                    "potency": round(potency, 2),
+                    "effective_contrib": round(effective_contrib, 3),
                     "notes": m.get("notes", "")
-                }
-                break
+                })
+
+        if attent_doses:
+            # Sort chronologically by timestamp
+            attent_doses.sort(key=lambda d: d["timestamp"])
+            total_dose_mg = sum(d["dose_mg"] for d in attent_doses)
+            active_doses = [d for d in attent_doses if d["is_active"]]
+            is_active = len(active_doses) > 0
+            
+            # Superposition principle: sum active contributions, smoothly capped at 2.2
+            combined_potency = min(2.2, sum(d["effective_contrib"] for d in active_doses)) if is_active else 0.0
+            
+            primary_dose = active_doses[-1] if active_doses else attent_doses[-1]
+            max_remaining = max((d["remaining_hours"] for d in active_doses), default=0.0)
+
+            attent_info = {
+                "id": primary_dose["id"],
+                "med_name": "Attent",
+                "dose_mg": total_dose_mg,
+                "primary_dose_mg": primary_dose["dose_mg"],
+                "total_dose_mg": total_dose_mg,
+                "dose_count": len(attent_doses),
+                "active_count": len(active_doses),
+                "timestamp": primary_dose["timestamp"],
+                "first_timestamp": attent_doses[0]["timestamp"],
+                "latest_timestamp": attent_doses[-1]["timestamp"],
+                "elapsed_hours": primary_dose["elapsed_hours"],
+                "duration_hours": primary_dose["duration_hours"],
+                "remaining_hours": max_remaining,
+                "is_active": is_active,
+                "potency": round(combined_potency, 2),
+                "notes": primary_dose.get("notes", ""),
+                "doses": attent_doses
+            }
 
         return garmin, attent_info, meds
 
@@ -2275,8 +2335,21 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._set_headers(400)
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-        elif path == "/api/medication/attent":
-            self.handle_delete_attent()
+        elif path == "/api/medication/attent" or path.startswith("/api/medication/attent/"):
+            dose_id = None
+            if path.startswith("/api/medication/attent/"):
+                try:
+                    dose_id = int(path.split("/")[-1])
+                except Exception:
+                    pass
+            else:
+                parsed_query = parse_qs(parsed.query)
+                if "id" in parsed_query:
+                    try:
+                        dose_id = int(parsed_query["id"][0])
+                    except Exception:
+                        pass
+            self.handle_delete_attent(dose_id)
         elif path.startswith("/api/supplements/log/"):
             try:
                 supp_id = int(path.split("/")[-1])
@@ -2836,15 +2909,18 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
     def handle_get_foods(self, search):
         with Database.get_connection() as conn:
             c = conn.cursor()
-            if search.strip():
-                term = f"%{search.strip()}%"
-                c.execute("""
-                SELECT * FROM food_items 
-                WHERE name LIKE ? OR name_he LIKE ? 
-                ORDER BY is_custom DESC, id ASC LIMIT 50
-                """, (term, term))
+            search_str = search.strip()
+            if search_str:
+                tokens = [t.strip() for t in search_str.split() if t.strip()]
+                clauses = []
+                params = []
+                for token in tokens:
+                    clauses.append("(name LIKE ? OR name_he LIKE ?)")
+                    params.extend([f"%{token}%", f"%{token}%"])
+                query = f"SELECT * FROM food_items WHERE {' AND '.join(clauses)} ORDER BY is_custom DESC, id ASC LIMIT 100"
+                c.execute(query, params)
             else:
-                c.execute("SELECT * FROM food_items ORDER BY is_custom DESC, id ASC LIMIT 50")
+                c.execute("SELECT * FROM food_items ORDER BY is_custom DESC, id ASC LIMIT 300")
             items = [dict(r) for r in c.fetchall()]
         self._set_headers()
         self.wfile.write(json.dumps(items, ensure_ascii=False).encode("utf-8"))
@@ -3717,6 +3793,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
 
     def handle_post_attent(self, body):
         try:
+            dose_id = body.get("id") or body.get("dose_id")
             dose_mg = int(body.get("dose_mg") or 20)
             dose_time = body.get("timestamp") or datetime.datetime.now().strftime("%H:%M")
             duration = float(body.get("duration_hours") or 7.0)
@@ -3727,19 +3804,19 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 shift_date = get_hunter_shift_date(conn)
                 date_to_log = target_date if target_date else shift_date
                 c = conn.cursor()
-                c.execute("SELECT id FROM medication_logs WHERE date = ? AND LOWER(med_name) = 'attent'", (date_to_log,))
-                existing = c.fetchone()
-                if existing:
+                if dose_id:
                     c.execute("""
                     UPDATE medication_logs 
-                    SET dose_mg = ?, timestamp = ?, duration_hours = ?, notes = ?
+                    SET dose_mg = ?, timestamp = ?, duration_hours = ?, notes = ?, date = ?
                     WHERE id = ?
-                    """, (dose_mg, dose_time, duration, notes, existing["id"]))
+                    """, (dose_mg, dose_time, duration, notes, date_to_log, dose_id))
+                    logged_id = dose_id
                 else:
                     c.execute("""
                     INSERT INTO medication_logs (date, med_name, dose_mg, timestamp, duration_hours, notes)
                     VALUES (?, 'Attent', ?, ?, ?, ?)
                     """, (date_to_log, dose_mg, dose_time, duration, notes))
+                    logged_id = c.lastrowid
                 conn.commit()
 
                 lvl_res = HunterLevelingEngine.add_exp(conn, 35)
@@ -3748,7 +3825,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self._set_headers()
             self.wfile.write(json.dumps({
                 "status": "buff_activated",
-                "message": f"[SYSTEM: שיקוי ריכוז (Attent {dose_mg}mg) עודכן/הופעל בהצלחה ב-{dose_time}!]",
+                "message": f"[SYSTEM: מנת אטנט ({dose_mg}mg) נרשמה בהצלחה ב-{dose_time}!]",
+                "id": logged_id,
                 "leveling": lvl_res,
                 "data": health_data
             }, ensure_ascii=False).encode("utf-8"))
@@ -3756,19 +3834,22 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self._set_headers(400)
             self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
 
-    def handle_delete_attent(self):
+    def handle_delete_attent(self, dose_id=None):
         try:
             with Database.get_connection() as conn:
                 today = get_hunter_shift_date(conn)
                 c = conn.cursor()
-                c.execute("DELETE FROM medication_logs WHERE date = ? AND LOWER(med_name) = 'attent'", (today,))
+                if dose_id:
+                    c.execute("DELETE FROM medication_logs WHERE id = ? AND LOWER(med_name) = 'attent'", (dose_id,))
+                else:
+                    c.execute("DELETE FROM medication_logs WHERE date = ? AND LOWER(med_name) = 'attent'", (today,))
                 conn.commit()
                 health_data = HunterHealthAIAdvisor.analyze_and_generate_insights(conn, today)
 
             self._set_headers()
             self.wfile.write(json.dumps({
                 "status": "buff_removed",
-                "message": "[SYSTEM: Attent log cleared]",
+                "message": f"[SYSTEM: Attent {'dose #' + str(dose_id) if dose_id else 'all logs'} cleared]",
                 "data": health_data
             }, ensure_ascii=False).encode("utf-8"))
         except Exception as e:
