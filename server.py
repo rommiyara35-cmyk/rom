@@ -2306,6 +2306,88 @@ confidence יכול להיות: high / medium / low"""
 
 
 # -------------------------------------------------------------
+# Food Chat AI — parse free-text food description into nutrition
+# -------------------------------------------------------------
+class FoodChatAI:
+    """Parses a Hebrew free-text meal description into structured food items with nutrition."""
+
+    GEMINI_URL = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        "gemini-1.5-flash:generateContent?key={key}"
+    )
+
+    PROMPT_TEMPLATE = """אתה עוזר תזונה חכם לאפליקציית כושר בסגנון Solo Leveling.
+המשתמש יתאר מה אכל בטקסט חופשי בעברית (לדוגמה: "אכלתי חזה עוף עם אורז ושעועית" או "2 ביצים עם 3 כפות חומוס ולחם").
+
+תנתח את הטקסט ותחזיר JSON בלבד (ללא שום טקסט נוסף, ללא markdown):
+{
+  "items": [
+    {
+      "name_he": "שם הפריט בעברית",
+      "name_en": "item name in English",
+      "estimated_grams": 150,
+      "calories": 250,
+      "protein": 30.0,
+      "carbs": 10.0,
+      "fats": 5.0,
+      "confidence": "high"
+    }
+  ],
+  "meal_description": "תיאור קצר של הארוחה כולה",
+  "total_calories": 250,
+  "total_protein": 30.0,
+  "total_carbs": 10.0,
+  "total_fats": 5.0
+}
+
+כללים:
+- confidence: high (ציין כמות), medium (ציין מזון בלי כמות), low (ניחוש)
+- estimated_grams: הערכה ריאליסטית בגרמים למנה אחת
+- אם ציין כמות (2 ביצים, 3 כפות), חשב לפי זה
+- אם לא ציין כמות, הניח מנה בינונית רגילה
+- ערכי תזונה מדויקים לפי USDA / ספרות
+
+הטקסט של המשתמש: "{user_text}"
+"""
+
+    @classmethod
+    def parse(cls, user_text: str) -> dict:
+        """Call Gemini text API to parse a free-text food description."""
+        if not GEMINI_API_KEY:
+            return {"error": "GEMINI_API_KEY not configured", "items": []}
+
+        url = cls.GEMINI_URL.format(key=GEMINI_API_KEY)
+        prompt = cls.PROMPT_TEMPLATE.replace("{user_text}", user_text)
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1024}
+        }
+        payload_bytes = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=payload_bytes,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                raw = resp.read().decode("utf-8")
+            data = json.loads(raw)
+            text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+            return json.loads(text)
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="replace")
+            return {"error": "Gemini API error: " + err_body[:300], "items": []}
+        except Exception as e:
+            return {"error": str(e), "items": []}
+
+
+# -------------------------------------------------------------
 # HTTP Request Handler & REST API
 # -------------------------------------------------------------
 class SystemApiHandler(SimpleHTTPRequestHandler):
@@ -2430,6 +2512,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.handle_reset_full()
         elif path == "/api/food/recognize":
             self.handle_food_recognize(body)
+        elif path == "/api/food/chat-parse":
+            self.handle_food_chat_parse(body)
         else:
             self._set_headers(404)
             self.wfile.write(json.dumps({"error": "Endpoint not found"}).encode("utf-8"))
@@ -3676,6 +3760,25 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": "image_b64 is required"}, ensure_ascii=False).encode("utf-8"))
                 return
             result = FoodVisionAI.recognize(image_b64, mime_type)
+            if "error" in result and not result.get("items"):
+                self._set_headers(502)
+                self.wfile.write(json.dumps({"error": result["error"]}, ensure_ascii=False).encode("utf-8"))
+                return
+            self._set_headers(200)
+            self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(500)
+            self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
+
+    def handle_food_chat_parse(self, body):
+        """Parse a free-text Hebrew meal description using Gemini."""
+        try:
+            user_text = (body.get("text") or "").strip()
+            if not user_text:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": "text is required"}, ensure_ascii=False).encode("utf-8"))
+                return
+            result = FoodChatAI.parse(user_text)
             if "error" in result and not result.get("items"):
                 self._set_headers(502)
                 self.wfile.write(json.dumps({"error": result["error"]}, ensure_ascii=False).encode("utf-8"))

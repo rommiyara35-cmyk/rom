@@ -2477,6 +2477,44 @@ const AppState = {
     if (inp) inp.click();
   },
 
+  async sendFoodChat() {
+    const inp = document.getElementById('food-chat-input');
+    const text = (inp && inp.value || '').trim();
+    if (!text) return;
+
+    // Show vision modal in loading state (reuse same modal)
+    const modal = document.getElementById('vision-modal');
+    const loading = document.getElementById('vision-loading');
+    const resultsBody = document.getElementById('vision-results-body');
+    const errorDiv = document.getElementById('vision-error');
+    modal.style.display = 'flex';
+    loading.style.display = 'block';
+    resultsBody.style.display = 'none';
+    errorDiv.style.display = 'none';
+    // Update modal title to indicate chat mode
+    const titleEl = modal.querySelector('.modal-title');
+    if (titleEl) titleEl.textContent = '🤖 AI ניתח את הארוחה';
+
+    // Clear input immediately for good UX
+    if (inp) inp.value = '';
+
+    try {
+      const res = await fetch('/api/food/chat-parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      const data = await res.json();
+      loading.style.display = 'none';
+      if (!res.ok) throw new Error(data.error || 'שגיאת שרת');
+      this.showVisionResults(data);
+    } catch (e) {
+      loading.style.display = 'none';
+      errorDiv.style.display = 'block';
+      document.getElementById('vision-error-msg').textContent = 'שגיאה: ' + (e.message || String(e));
+    }
+  },
+
   handleCameraFile(input) {
     const file = input.files && input.files[0];
     if (!file) return;

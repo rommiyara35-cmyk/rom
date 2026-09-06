@@ -431,6 +431,32 @@
             <input type="file" id="food-camera-input" accept="image/*" capture="environment" style="display:none" onchange="AppState.handleCameraFile(this)">
           </div>
 
+          <!-- AI Chat Food Logger -->
+          <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+            <div style="flex:1; position:relative;">
+              <input type="text" id="food-chat-input"
+                placeholder='💬 כתוב מה אכלת... (לדוגמה: "2 ביצים עם אורז ושעועית")'
+                style="
+                  width:100%; box-sizing:border-box;
+                  background:rgba(124,58,237,0.08);
+                  border:1px solid rgba(124,58,237,0.35);
+                  border-radius:12px; color:#e2e8f0;
+                  padding:11px 16px; font-size:13px;
+                  outline:none; font-family:inherit;
+                "
+                onkeydown="if(event.key==='Enter') AppState.sendFoodChat()"
+              >
+            </div>
+            <button onclick="AppState.sendFoodChat()" title="שלח לניתוח AI" style="
+              background: linear-gradient(135deg, #7c3aed, #6d28d9);
+              border: none; border-radius: 12px; color: #fff;
+              font-size: 18px; width: 44px; height: 44px;
+              display: flex; align-items: center; justify-content: center;
+              cursor: pointer; flex-shrink: 0;
+              box-shadow: 0 0 14px rgba(124,58,237,0.5);
+            ">🤖</button>
+          </div>
+
           <!-- Search Autocomplete Dropdown -->
           <div id="food-search-results" class="food-search-results"></div>
 
