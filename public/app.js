@@ -2487,12 +2487,16 @@ const AppState = {
     const loading = document.getElementById('vision-loading');
     const resultsBody = document.getElementById('vision-results-body');
     const errorDiv = document.getElementById('vision-error');
-    modal.style.display = 'flex';
-    loading.style.display = 'block';
-    resultsBody.style.display = 'none';
-    errorDiv.style.display = 'none';
+    if (modal) {
+      modal.classList.add('active');
+      modal.style.display = 'flex';
+      modal.style.pointerEvents = 'auto';
+    }
+    if (loading) loading.style.display = 'block';
+    if (resultsBody) resultsBody.style.display = 'none';
+    if (errorDiv) errorDiv.style.display = 'none';
     // Update modal title to indicate chat mode
-    const titleEl = modal.querySelector('.modal-title');
+    const titleEl = modal ? modal.querySelector('.modal-title') : null;
     if (titleEl) titleEl.textContent = '🤖 AI ניתח את הארוחה';
 
     // Clear input immediately for good UX
@@ -2505,13 +2509,14 @@ const AppState = {
         body: JSON.stringify({ text })
       });
       const data = await res.json();
-      loading.style.display = 'none';
+      if (loading) loading.style.display = 'none';
       if (!res.ok) throw new Error(data.error || 'שגיאת שרת');
       this.showVisionResults(data);
     } catch (e) {
-      loading.style.display = 'none';
-      errorDiv.style.display = 'block';
-      document.getElementById('vision-error-msg').textContent = 'שגיאה: ' + (e.message || String(e));
+      if (loading) loading.style.display = 'none';
+      if (errorDiv) errorDiv.style.display = 'block';
+      const msgEl = document.getElementById('vision-error-msg');
+      if (msgEl) msgEl.textContent = 'שגיאה: ' + (e.message || String(e));
     }
   },
 
@@ -2529,10 +2534,16 @@ const AppState = {
     const loading = document.getElementById('vision-loading');
     const resultsBody = document.getElementById('vision-results-body');
     const errorDiv = document.getElementById('vision-error');
-    modal.style.display = 'flex';
-    loading.style.display = 'block';
-    resultsBody.style.display = 'none';
-    errorDiv.style.display = 'none';
+    if (modal) {
+      modal.classList.add('active');
+      modal.style.display = 'flex';
+      modal.style.pointerEvents = 'auto';
+    }
+    if (loading) loading.style.display = 'block';
+    if (resultsBody) resultsBody.style.display = 'none';
+    if (errorDiv) errorDiv.style.display = 'none';
+    const titleEl = modal ? modal.querySelector('.modal-title') : null;
+    if (titleEl) titleEl.textContent = '🔍 AI זיהוי מזון מתמונה';
 
     try {
       // Convert file to base64
@@ -2553,15 +2564,16 @@ const AppState = {
         body: JSON.stringify({ image_b64: b64, mime_type: file.type || 'image/jpeg' })
       });
       const data = await res.json();
-      loading.style.display = 'none';
+      if (loading) loading.style.display = 'none';
       if (!res.ok) {
         throw new Error(data.error || 'שגיאת שרת בזיהוי תמונה');
       }
       this.showVisionResults(data);
     } catch (e) {
-      loading.style.display = 'none';
-      errorDiv.style.display = 'block';
-      document.getElementById('vision-error-msg').textContent = 'שגיאה: ' + (e.message || String(e));
+      if (loading) loading.style.display = 'none';
+      if (errorDiv) errorDiv.style.display = 'block';
+      const msgEl = document.getElementById('vision-error-msg');
+      if (msgEl) msgEl.textContent = 'שגיאה: ' + (e.message || String(e));
     }
   },
 
@@ -2640,12 +2652,18 @@ const AppState = {
   },
 
   closeVisionModal() {
+    sfx.playClick();
     const modal = document.getElementById('vision-modal');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+      modal.classList.remove('active');
+      modal.style.display = 'none';
+      modal.style.pointerEvents = 'none';
+    }
     this._visionItems = null;
   },
 
   async addAllVisionItems() {
+    sfx.playClick();
     if (!this._visionItems || this._visionItems.length === 0) {
       this.closeVisionModal();
       return;
@@ -2654,14 +2672,15 @@ const AppState = {
     for (const item of this._visionItems) {
       try {
         const body = {
-          food_name: item.name_he || item.name_en,
-          calories: item.calories,
-          protein: item.protein,
-          carbs: item.carbs,
-          fats: item.fats,
-          serving_size: item.estimated_grams,
-          meal_type: 'ai_vision',
-          notes: 'זוהה על ידי AI מתמונה'
+          food_name: item.name_he || item.name_en || 'ארוחת AI',
+          calories: item.calories || 0,
+          protein: item.protein || 0,
+          carbs: item.carbs || 0,
+          fats: item.fats || 0,
+          serving_count: 1.0,
+          serving_size_g: item.estimated_grams || 100,
+          meal_type: 'snack',
+          notes: 'זוהה על ידי AI'
         };
         const res = await fetch('/api/nutrition/log', {
           method: 'POST',
@@ -2674,10 +2693,18 @@ const AppState = {
       }
     }
     this.closeVisionModal();
-    this.showToast('📷 נוספו ' + addedCount + ' פריטי מזון לביומן!', 'success');
-    // Refresh nutrition data
-    await this.fetchNutrition();
-    if (this.calendarDaysData) await this.fetchCalendarData(this.calendarCurrentMonth);
+    sfx.playSystemNotification();
+    this.showToast('✅ נוספו ' + addedCount + ' פריטי מזון לביומן!', 'success');
+    
+    // Refresh all dashboards and calendar
+    try {
+      await this.fetchTodayData();
+      await this.fetchSkills();
+      await this.fetchDailyDebrief();
+      if (this.calendarDaysData) await this.fetchCalendarData(this.calendarCurrentMonth);
+    } catch (err) {
+      console.warn('Error refreshing data after adding AI food items:', err);
+    }
   },
 
   async cancelAttent() {

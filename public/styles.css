@@ -914,7 +914,7 @@ button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:activ
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  z-index: 10000;
+  z-index: 100000;
   display: none;
   align-items: center;
   justify-content: center;
@@ -941,9 +941,11 @@ button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:activ
   flex-direction: column;
   gap: 16px;
   position: relative;
+  pointer-events: auto;
 }
 
 .modal-header {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -961,11 +963,28 @@ button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:activ
 }
 
 .close-modal-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #e2e8f0;
+  font-size: 18px;
   cursor: pointer;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  touch-action: manipulation;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.close-modal-btn:active {
+  background: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  transform: scale(0.92);
 }
 
 /* Form Styles */
