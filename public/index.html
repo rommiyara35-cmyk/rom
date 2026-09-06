@@ -31,18 +31,19 @@
   <div class="system-container">
     
     <!-- SYSTEM HEADER -->
-    <header class="system-header">
+    <!-- SYSTEM HEADER & ARISE HUNTER PROFILE -->
+    <header class="system-header arise-theme">
+      <!-- Top Action Bar -->
       <div class="header-top">
-        <div class="hunter-identity">
-          <div id="rank-badge" class="rank-badge">E-Rank</div>
-          <div class="hunter-name-title">
-            <span class="hunter-name">
-              <span id="hunter-name">צייד רום</span>
-              <span style="font-size:12px; color:var(--hud-cyan); font-family:var(--font-mono);">[LV.<span id="hunter-level">1</span>]</span>
-            </span>
-            <span id="hunter-title" class="hunter-title">Awakened Hunter</span>
-          </div>
+        <div class="header-left-actions">
+          <button class="hud-btn-icon" onclick="AppState.openRankModal()" title="מערכת דרגות ורנקים (E-SSS)">
+            <span style="font-size:16px;">⚔️</span>
+          </button>
+          <button class="hud-btn-icon" onclick="AppState.openAchievementsModal()" title="גביעים והישגים (Achievements)">
+            <span style="font-size:16px;">🏆</span>
+          </button>
         </div>
+        
         <div class="header-actions">
           <button id="shift-toggle-btn" class="hud-btn-icon" onclick="AppState.toggleShiftMode()" title="החלף בין משמרת יום למשמרת לילה">☀️</button>
           <button id="sound-toggle-btn" class="hud-btn-icon" title="השתק/הפעל סאונד">🔊</button>
@@ -65,10 +66,96 @@
         </div>
       </div>
 
+      <!-- HUNTER HERO IDENTITY (Matching Images 1 & 3) -->
+      <div class="hunter-hero-card">
+        <div class="hunter-avatar-wrap" onclick="AppState.openModal('awakening-modal')" title="לחץ לעריכת נתוני צייד">
+          <div class="hunter-avatar-box">
+            <div class="hunter-avatar-img">👤</div>
+            <div class="hunter-avatar-ring"></div>
+          </div>
+        </div>
+        <div class="hunter-hero-details">
+          <div id="hunter-name" class="hunter-hero-name">צייד רום</div>
+          <div id="hunter-handle" class="hunter-hero-handle">@player_rom</div>
+        </div>
+      </div>
+
+      <!-- 4 CIRCULAR HUD GAUGES (Rank, Level, Workouts, Streak - Matching Images 1 & 3) -->
+      <div class="hud-gauges-row">
+        <!-- 1. Rank Hexagon -->
+        <div class="gauge-card" onclick="AppState.openRankModal()" title="לחץ לפתיחת מפת הרנקים המלאה">
+          <div class="gauge-hex-outer">
+            <div id="rank-badge" class="gauge-hex-inner">E</div>
+          </div>
+          <span class="gauge-label">Rank</span>
+        </div>
+
+        <!-- 2. Level Cyan Ring -->
+        <div class="gauge-card" onclick="AppState.openRankModal()" title="רמת הצייד">
+          <div class="gauge-circle-ring cyan">
+            <span id="hunter-level" class="gauge-val">1</span>
+          </div>
+          <span class="gauge-label">Level</span>
+        </div>
+
+        <!-- 3. Workouts Purple Ring -->
+        <div class="gauge-card" onclick="AppState.openWorkoutModal()" title="סך אימונים - לחץ לרשום אימון חדש">
+          <div class="gauge-circle-ring purple">
+            <span id="gauge-workouts-val" class="gauge-val">0</span>
+          </div>
+          <span class="gauge-label">Workouts</span>
+        </div>
+
+        <!-- 4. Streak Flame Ring -->
+        <div class="gauge-card" title="ימי רצף פעילות במערכת">
+          <div class="gauge-circle-ring flame">
+            <span id="gauge-streak-val" class="gauge-val">1</span>
+            <span class="gauge-flame-icon">🔥</span>
+          </div>
+          <span class="gauge-label">Streak</span>
+        </div>
+      </div>
+
+      <!-- HUNTER STATS & BIO BOX (Matching Images 1 & 3) -->
+      <div class="hunter-char-bio-box">
+        <div class="char-bio-grid">
+          <div class="char-bio-item">
+            <span class="char-bio-label">Class:</span>
+            <span class="char-bio-val highlight">Fighter (לוחם)</span>
+          </div>
+          <div class="char-bio-item">
+            <span class="char-bio-label">Height:</span>
+            <span id="char-bio-height" class="char-bio-val">178 cm</span>
+          </div>
+          <div class="char-bio-item">
+            <span class="char-bio-label">Title:</span>
+            <span id="hunter-title" class="char-bio-val">צייד שהתעורר</span>
+          </div>
+          <div class="char-bio-item">
+            <span class="char-bio-label">Weight:</span>
+            <span id="char-bio-weight" class="char-bio-val">78.0 kg</span>
+          </div>
+          <div class="char-bio-item">
+            <span class="char-bio-label">Age:</span>
+            <span id="char-bio-age" class="char-bio-val">25</span>
+          </div>
+          <div class="char-bio-item">
+            <span class="char-bio-label">Target:</span>
+            <span id="char-bio-target" class="char-bio-val highlight">74.0 kg</span>
+          </div>
+        </div>
+
+        <div class="char-id-row">
+          <span class="char-id-label">ID:</span>
+          <span id="hunter-system-id" class="char-id-code">HNT-77492</span>
+          <button type="button" class="copy-id-btn" onclick="AppState.copyHunterId()" title="העתק מזהה צייד">📋</button>
+        </div>
+      </div>
+
       <!-- EXP Progress Bar -->
       <div class="exp-container">
         <div class="exp-label">
-          <span>PROGRESSION</span>
+          <span>PROGRESSION TO NEXT RANK</span>
           <span id="exp-text">0 / 300 EXP (0%)</span>
         </div>
         <div class="exp-bar-bg">
@@ -76,7 +163,24 @@
         </div>
       </div>
 
-      <!-- STATUS ATTRIBUTES -->
+      <!-- QUICK ACTION HERO PILLS (Matching Images 1 & 3) -->
+      <div class="hero-action-pills-row">
+        <button type="button" class="hero-action-pill nutrition" onclick="AppState.scrollToSection('nutrition-cockpit')">
+          <span class="pill-icon">🍏</span>
+          <span class="pill-text">Nutrition</span>
+        </button>
+        <button type="button" class="hero-action-pill badges" onclick="AppState.openAchievementsModal()">
+          <span class="pill-icon">🏆</span>
+          <span class="pill-text">Badges</span>
+          <span id="badges-pill-count" class="pill-badge-count">1/13</span>
+        </button>
+        <button type="button" class="hero-action-pill rank" onclick="AppState.openRankModal()">
+          <span class="pill-icon">⚔️</span>
+          <span class="pill-text">Rank System</span>
+        </button>
+      </div>
+
+      <!-- STATUS ATTRIBUTES (STR, AGI, VIT, INT, PER) -->
       <div class="status-grid">
         <div class="stat-item" title="Strength - מונע ע&quot;י צריכת חלבון">
           <span class="stat-key">STR</span>
@@ -1177,6 +1281,129 @@
     </div>
   </div>
 
-  <script src="/app.js?v=10"></script>
+  <!-- RANK CONSTELLATION MODAL (Matching Image 4) -->
+  <div id="rank-modal" class="modal-overlay">
+    <div class="modal-content rank-modal-content">
+      <div class="modal-header rank-header">
+        <div class="rank-header-titles">
+          <div class="rank-modal-tag">HUNTER ASSOCIATION SYSTEM</div>
+          <h2 class="rank-modal-main-title">מערכת דרגות ורנקים</h2>
+          <div class="rank-modal-sub">התקדמות מ-E-Rank ועד לדרגת SSS • Shadow Monarch</div>
+        </div>
+        <button class="close-modal-btn" onclick="AppState.closeModal('rank-modal')">✕</button>
+      </div>
+
+      <!-- Hero Center Badge for Current Rank -->
+      <div class="rank-hero-center">
+        <div class="rank-hex-hero-wrapper">
+          <div id="rank-hero-hex" class="rank-hex-hero rank-e">
+            <span id="rank-hero-letter" class="rank-hero-letter">E</span>
+          </div>
+          <div class="rank-hex-glow-pulse"></div>
+        </div>
+        <div class="rank-hero-info">
+          <div id="rank-hero-title-text" class="rank-hero-title-text">צייד שהתעורר</div>
+          <div id="rank-hero-level-range" class="rank-hero-level-range">רמות 1 - 9</div>
+          <div class="rank-hero-progression-bar-box">
+            <div class="rank-prog-label">
+              <span>התקדמות לרנק הבא</span>
+              <span id="rank-hero-next-label">D-Rank (רמה 10)</span>
+            </div>
+            <div class="rank-bar-bg">
+              <div id="rank-hero-bar-fill" class="rank-bar-fill" style="width: 10%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Constellation Grid of all 8 Ranks -->
+      <div class="rank-constellation-container">
+        <div class="rank-constellation-title">מפת הרנקים של המערכת</div>
+        <div class="rank-constellation-grid" id="rank-constellation-grid">
+          <!-- Injected dynamically by AppState.renderRankModal() -->
+        </div>
+      </div>
+
+      <!-- ARISE Aesthetic Footer -->
+      <div class="arise-footer-banner">
+        <div class="arise-glow-text">A R I S E</div>
+        <div class="arise-subtext">BECOME THE SHADOW MONARCH</div>
+        <button class="share-rank-btn" onclick="AppState.shareRank()">
+          <span>📤 שתף כרטיס צייד</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACHIEVEMENTS & TROPHIES MODAL (Matching Image 2) -->
+  <div id="achievements-modal" class="modal-overlay">
+    <div class="modal-content achievements-modal-content">
+      <div class="modal-header">
+        <div class="ach-header-titles">
+          <div class="ach-tag">ACHIEVEMENTS SYSTEM</div>
+          <h2 class="modal-title" style="color:#fbbf24;">🏆 גביעים והישגים</h2>
+          <div class="ach-header-stats">
+            <span id="ach-unlocked-count-text">0 / 13 פתוחים</span>
+            <div class="ach-mini-prog-bg">
+              <div id="ach-mini-prog-fill" class="ach-mini-prog-fill" style="width:0%;"></div>
+            </div>
+          </div>
+        </div>
+        <button class="close-modal-btn" onclick="AppState.closeModal('achievements-modal')">✕</button>
+      </div>
+
+      <div class="achievements-body">
+        <p class="ach-intro-subtitle">עמוד ביעדי אימונים, תזונה, סטרייק ורמות כדי לפתוח גביעים ולהתעורר:</p>
+        <div id="achievements-hex-grid" class="achievements-hex-grid">
+          <!-- Dynamic rendering via AppState.renderAchievements() -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACHIEVEMENT UNLOCKED OVERLAY -->
+  <div id="achievement-unlocked-overlay" class="levelup-overlay">
+    <div class="levelup-card achievement-unlock-card">
+      <div class="levelup-banner achievement-banner">[ ACHIEVEMENT UNLOCKED! ]</div>
+      <div class="ach-unlocked-hex-box">
+        <div id="ach-unlocked-hex" class="ach-hex-badge unlocked gold">
+          <span id="ach-unlocked-icon" class="ach-hex-icon">🏆</span>
+        </div>
+      </div>
+      <div id="ach-unlocked-title" class="ach-unlocked-name">שם ההישג</div>
+      <div id="ach-unlocked-desc" class="ach-unlocked-desc">תיאור היעד שהושג בהצלחה</div>
+      <div id="ach-unlocked-reward" class="ach-unlocked-reward">+250 EXP • תואר צייד חדש</div>
+      <button class="action-btn-primary ach-claim-btn" onclick="AppState.closeAchievementOverlay()">
+        ⚡ המשך במסע
+      </button>
+    </div>
+  </div>
+
+  <!-- FIXED BOTTOM NAVIGATION BAR (Images 1, 3, 5 style) -->
+  <nav class="bottom-nav-bar" id="bottom-nav-bar">
+    <button type="button" class="bottom-nav-item active" id="nav-item-profile" onclick="AppState.navTo('profile')" title="פרופיל ראשי">
+      <span class="nav-icon">👤</span>
+      <span class="nav-text">פרופיל</span>
+    </button>
+    <button type="button" class="bottom-nav-item" id="nav-item-workouts" onclick="AppState.navTo('workouts')" title="אימונים">
+      <span class="nav-icon">🏋️</span>
+      <span class="nav-text">אימונים</span>
+    </button>
+    <button type="button" class="bottom-nav-item" id="nav-item-quests" onclick="AppState.navTo('quests')" title="משימות יומיות">
+      <span class="nav-icon">📜</span>
+      <span class="nav-text">משימות</span>
+    </button>
+    <button type="button" class="bottom-nav-item" id="nav-item-health" onclick="AppState.navTo('health')" title="מדדי Garmin & בריאות">
+      <span class="nav-icon">📊</span>
+      <span class="nav-text">בריאות</span>
+    </button>
+    <button type="button" class="bottom-nav-item" id="nav-item-badges" onclick="AppState.navTo('badges')" title="גביעים והישגים">
+      <span class="nav-icon">🏆</span>
+      <span class="nav-text">הישגים</span>
+      <span id="nav-badge-pill" class="nav-badge-pill">1</span>
+    </button>
+  </nav>
+
+  <script src="/app.js?v=11"></script>
 </body>
 </html>

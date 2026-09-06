@@ -98,6 +98,9 @@ const AppState = {
   skills: [],
   workouts: [],
   supplements: [],
+  achievements: [],
+  totalWorkouts: 0,
+  achievementsSummary: null,
   dailyDebrief: null,
   activeDebriefTab: 'maintain',
   codeReader: null,
@@ -127,9 +130,18 @@ const AppState = {
       } catch (e) {}
     }
 
+    const cachedAch = localStorage.getItem('hunter_achievements');
+    if (cachedAch) {
+      try {
+        this.achievements = JSON.parse(cachedAch);
+        this.renderAchievements();
+      } catch (e) {}
+    }
+
     // Fetch live data from server
     await this.fetchNetworkInfo();
     await this.fetchTodayData();
+    await this.fetchAchievements();
     await this.fetchSkills();
     await this.fetchSupplements();
     await this.fetchDailyDebrief();
@@ -172,6 +184,13 @@ const AppState = {
       this.meals = data.meals;
       this.quests = data.quests;
       this.shiftInfo = data.shift_info;
+      if (data.total_workouts !== undefined) {
+        this.totalWorkouts = data.total_workouts;
+      }
+      if (data.achievements_summary) {
+        this.achievementsSummary = data.achievements_summary;
+        this.updateBadgePills(data.achievements_summary.unlocked_count, data.achievements_summary.total_count);
+      }
       if (data.health_advisor) {
         this.healthAdvisor = data.health_advisor;
         localStorage.setItem('hunter_health_advisor', JSON.stringify(this.healthAdvisor));
@@ -229,12 +248,40 @@ const AppState = {
     document.getElementById('hunter-level').innerText = p.level;
 
     const rankBadge = document.getElementById('rank-badge');
-    rankBadge.innerText = p.rank;
-    rankBadge.className = 'rank-badge';
-    if (p.level >= 75) {
-      rankBadge.classList.add('shadow-monarch');
-    } else if (p.level >= 50) {
-      rankBadge.classList.add('s-rank');
+    if (rankBadge) {
+      const cleanRank = (p.rank || 'E-Rank').replace('-Rank', '').replace('Rank', '').trim();
+      rankBadge.innerText = cleanRank;
+      const rankKey = `rank-${cleanRank.toLowerCase()}`;
+      rankBadge.className = `gauge-hex-inner ${rankKey}`;
+    }
+
+    const workoutsValEl = document.getElementById('gauge-workouts-val');
+    if (workoutsValEl) {
+      workoutsValEl.innerText = this.totalWorkouts || p.total_workouts || 0;
+    }
+
+    const streakValEl = document.getElementById('gauge-streak-val');
+    if (streakValEl) {
+      streakValEl.innerText = p.streak_days || 1;
+    }
+
+    // Hunter Bio Box
+    const heightEl = document.getElementById('char-bio-height');
+    if (heightEl) heightEl.innerText = `${p.height || 178} cm`;
+
+    const weightEl = document.getElementById('char-bio-weight');
+    if (weightEl) weightEl.innerText = `${Number(p.weight || 78).toFixed(1)} kg`;
+
+    const ageEl = document.getElementById('char-bio-age');
+    if (ageEl) ageEl.innerText = p.age || 25;
+
+    const targetEl = document.getElementById('char-bio-target');
+    if (targetEl) targetEl.innerText = `${Number(p.target_weight || 74).toFixed(1)} kg`;
+
+    const hunterIdEl = document.getElementById('hunter-system-id');
+    if (hunterIdEl) {
+      const seed = Math.abs((p.name || 'ROM').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 77000)) % 100000;
+      hunterIdEl.innerText = p.hunter_id || `HNT-${String(seed).padStart(5, '0')}`;
     }
 
     // Shift Worker HUD Elements
@@ -488,6 +535,9 @@ const AppState = {
       if (data.leveling && data.leveling.leveled_up) {
         this.showLevelUpModal(data.leveling);
       }
+      if (data.newly_unlocked_achievements && data.newly_unlocked_achievements.length > 0) {
+        this.checkNewlyUnlocked(data.newly_unlocked_achievements);
+      }
       await this.fetchTodayData();
     } catch (e) {
       console.error(e);
@@ -551,6 +601,10 @@ const AppState = {
         this.showLevelUpModal(data.leveling);
       } else {
         sfx.playSystemNotification();
+      }
+
+      if (data.newly_unlocked_achievements && data.newly_unlocked_achievements.length > 0) {
+        this.checkNewlyUnlocked(data.newly_unlocked_achievements);
       }
 
       await this.fetchTodayData();
@@ -776,6 +830,9 @@ const AppState = {
       this.closeModal('awakening-modal');
       sfx.playLevelUp();
       alert('ההתעוררות הושלמה בהצלחה! יעדי התזונה המדעיים עודכנו.');
+      if (data.newly_unlocked_achievements && data.newly_unlocked_achievements.length > 0) {
+        this.checkNewlyUnlocked(data.newly_unlocked_achievements);
+      }
       await this.fetchTodayData();
     } catch (e) {
       alert('שגיאה בחישוב ההתעוררות');
@@ -2062,6 +2119,10 @@ const AppState = {
         this.showSkillLevelUpModal(data.skill_leveling);
       }
 
+      if (data.newly_unlocked_achievements && data.newly_unlocked_achievements.length > 0) {
+        this.checkNewlyUnlocked(data.newly_unlocked_achievements);
+      }
+
       await this.fetchSkills();
       await this.fetchTodayData();
       await this.fetchDailyDebrief();
@@ -2355,6 +2416,264 @@ const AppState = {
           </div>
         </div>
       `).join('');
+    }
+  },
+
+  // ========================================================
+  // ACHIEVEMENTS & TROPHIES ENGINE (Matching Image 2)
+  // ========================================================
+  async fetchAchievements() {
+    try {
+      const res = await fetch('/api/achievements');
+      if (res.ok) {
+        const data = await res.json();
+        this.achievements = data.achievements || [];
+        localStorage.setItem('hunter_achievements', JSON.stringify(this.achievements));
+        this.renderAchievements();
+        this.updateBadgePills(data.unlocked_count, data.total_count);
+      }
+    } catch (e) {
+      console.warn('Could not fetch achievements, using cache:', e);
+      const cached = localStorage.getItem('hunter_achievements');
+      if (cached) {
+        try {
+          this.achievements = JSON.parse(cached);
+          this.renderAchievements();
+        } catch (err) {}
+      }
+    }
+  },
+
+  updateBadgePills(unlocked, total) {
+    const pill = document.getElementById('badges-pill-count');
+    if (pill) pill.innerText = `${unlocked}/${total}`;
+    const navPill = document.getElementById('nav-badge-pill');
+    if (navPill) navPill.innerText = unlocked;
+  },
+
+  renderAchievements() {
+    const grid = document.getElementById('achievements-hex-grid');
+    if (!grid || !this.achievements) return;
+
+    const unlocked = this.achievements.filter(a => a.unlocked);
+    const total = this.achievements.length;
+    const pct = total > 0 ? Math.round((unlocked.length / total) * 100) : 0;
+
+    const countText = document.getElementById('ach-unlocked-count-text');
+    if (countText) countText.innerText = `${unlocked.length} / ${total} פתוחים (${pct}%)`;
+
+    const fillBar = document.getElementById('ach-mini-prog-fill');
+    if (fillBar) fillBar.style.width = `${pct}%`;
+
+    this.updateBadgePills(unlocked.length, total);
+
+    grid.innerHTML = this.achievements.map(ach => {
+      const isUnlocked = ach.unlocked;
+      const tierColor = ach.tier_color || 'gold';
+      if (isUnlocked) {
+        const escapedJson = JSON.stringify(ach).replace(/"/g, '&quot;');
+        return `
+          <div class="ach-hex-card unlocked" onclick="AppState.showAchievementOverlay(${escapedJson})">
+            <div class="ach-hex-badge unlocked ${tierColor}">
+              <span class="ach-hex-icon">${ach.icon || '🏆'}</span>
+            </div>
+            <div class="ach-card-title">${ach.title}</div>
+            <div class="ach-card-desc">${ach.description}</div>
+            <div class="ach-card-reward">${ach.reward_desc || ''}</div>
+            <div class="ach-unlocked-date">✓ פתוח (${ach.unlocked_at ? ach.unlocked_at.split(' ')[0] : 'היום'})</div>
+          </div>
+        `;
+      } else {
+        return `
+          <div class="ach-hex-card locked" title="הישג נעול: ${ach.description}">
+            <div class="ach-hex-badge locked">
+              <span>?</span>
+            </div>
+            <div class="ach-card-title">${ach.title}</div>
+            <div class="ach-card-desc">${ach.description}</div>
+            <div class="ach-card-reward">${ach.reward_desc || ''}</div>
+          </div>
+        `;
+      }
+    }).join('');
+  },
+
+  openAchievementsModal() {
+    this.renderAchievements();
+    this.openModal('achievements-modal');
+  },
+
+  showAchievementOverlay(ach) {
+    const overlay = document.getElementById('achievement-unlocked-overlay');
+    if (!overlay) return;
+    const iconEl = document.getElementById('ach-unlocked-icon');
+    if (iconEl) iconEl.innerText = ach.icon || '🏆';
+    const hexBadge = document.getElementById('ach-unlocked-hex');
+    if (hexBadge) hexBadge.className = `ach-hex-badge unlocked ${ach.tier_color || 'gold'}`;
+    const titleEl = document.getElementById('ach-unlocked-title');
+    if (titleEl) titleEl.innerText = ach.title;
+    const descEl = document.getElementById('ach-unlocked-desc');
+    if (descEl) descEl.innerText = ach.description;
+    const rewardEl = document.getElementById('ach-unlocked-reward');
+    if (rewardEl) rewardEl.innerText = ach.reward_desc || '+EXP';
+
+    sfx.playLevelUp();
+    overlay.classList.add('active');
+  },
+
+  closeAchievementOverlay() {
+    const overlay = document.getElementById('achievement-unlocked-overlay');
+    if (overlay) overlay.classList.remove('active');
+  },
+
+  checkNewlyUnlocked(newlyUnlockedList) {
+    if (Array.isArray(newlyUnlockedList) && newlyUnlockedList.length > 0) {
+      newlyUnlockedList.forEach((ach, i) => {
+        setTimeout(() => {
+          this.showAchievementOverlay(ach);
+          this.fetchAchievements();
+        }, i * 3500);
+      });
+    }
+  },
+
+  // ========================================================
+  // RANK CONSTELLATION & SYSTEM (Matching Image 4)
+  // ========================================================
+  openRankModal() {
+    this.renderRankModal();
+    this.openModal('rank-modal');
+  },
+
+  renderRankModal() {
+    if (!this.profile) return;
+    const p = this.profile;
+    const curLevel = p.level || 1;
+    const curRank = (p.rank || 'E-Rank').replace('-Rank', '').replace('Rank', '').trim();
+
+    const ranks = [
+      { key: 'E', name: 'E-Rank', title: 'צייד שהתעורר', min: 1, max: 9, classKey: 'rank-e', perk: 'גישה למערכת המשימות' },
+      { key: 'D', name: 'D-Rank', title: 'לוחם טירון', min: 10, max: 19, classKey: 'rank-d', perk: '+5% בונוס צבירת XP' },
+      { key: 'C', name: 'C-Rank', title: 'צייד מנוסה', min: 20, max: 29, classKey: 'rank-c', perk: '+10% בונוס התאוששות' },
+      { key: 'B', name: 'B-Rank', title: 'לוחם מובחר', min: 30, max: 39, classKey: 'rank-b', perk: 'חסינות עייפות מוגברת' },
+      { key: 'A', name: 'A-Rank', title: 'צייד עלית', min: 40, max: 49, classKey: 'rank-a', perk: '+15% לפוקוס ואנרגיה' },
+      { key: 'S', name: 'S-Rank', title: 'אגדה חיה (S-Rank)', min: 50, max: 74, classKey: 'rank-s', perk: 'הילת זהב • +25% כוח וסיבולת' },
+      { key: 'SS', name: 'SS-Rank', title: 'שליט צללים עליון', min: 75, max: 99, classKey: 'rank-ss', perk: 'זרימת מאנה מקסימלית' },
+      { key: 'SSS', name: 'Shadow Monarch', title: 'מונרך הצללים (SSS)', min: 100, max: 999, classKey: 'rank-sss', perk: 'שליטה מוחלטת • עוצמה אינסופית' }
+    ];
+
+    // Current hero hex
+    const heroHex = document.getElementById('rank-hero-hex');
+    const heroLetter = document.getElementById('rank-hero-letter');
+    const heroTitle = document.getElementById('rank-hero-title-text');
+    const heroRange = document.getElementById('rank-hero-level-range');
+    const heroNext = document.getElementById('rank-hero-next-label');
+    const heroBar = document.getElementById('rank-hero-bar-fill');
+
+    const curRankObj = ranks.find(r => r.key === curRank) || ranks[0];
+    const nextRankObj = ranks.find(r => r.min > curLevel) || null;
+
+    if (heroHex) {
+      heroHex.className = `rank-hex-hero ${curRankObj.classKey}`;
+    }
+    if (heroLetter) heroLetter.innerText = curRankObj.key;
+    if (heroTitle) heroTitle.innerText = `${p.name || 'רום'} • ${curRankObj.title}`;
+    if (heroRange) heroRange.innerText = `רמה ${curLevel} (טווח רנק: ${curRankObj.min}-${curRankObj.max})`;
+
+    if (nextRankObj) {
+      const levelsNeeded = nextRankObj.min - curLevel;
+      const levelsInCurrent = nextRankObj.min - curRankObj.min;
+      const progressInRank = Math.min(100, Math.max(0, Math.round(((curLevel - curRankObj.min) / Math.max(1, levelsInCurrent)) * 100)));
+      if (heroNext) heroNext.innerText = `${nextRankObj.name} (רמה ${nextRankObj.min}, נותרו ${levelsNeeded} רמות)`;
+      if (heroBar) heroBar.style.width = `${progressInRank}%`;
+    } else {
+      if (heroNext) heroNext.innerText = 'הגעת לדרגת שיא עליונה (Shadow Monarch)!';
+      if (heroBar) heroBar.style.width = '100%';
+    }
+
+    // Constellation Grid
+    const constellationGrid = document.getElementById('rank-constellation-grid');
+    if (constellationGrid) {
+      constellationGrid.innerHTML = ranks.map(r => {
+        let status = 'locked';
+        let statusTag = '🔒 נעול';
+        if (curRank === r.key) {
+          status = 'active';
+          statusTag = '⚡ נוכחי';
+        } else if (curLevel >= r.min) {
+          status = 'unlocked';
+          statusTag = '✓ פתוח';
+        }
+
+        return `
+          <div class="rank-constellation-item ${status}">
+            <div class="rank-item-hex ${r.classKey}">${r.key}</div>
+            <div class="rank-item-title">${r.name}</div>
+            <div class="rank-item-level">רמה ${r.min}+</div>
+            <span class="rank-item-status-tag">${statusTag}</span>
+          </div>
+        `;
+      }).join('');
+    }
+  },
+
+  shareRank() {
+    if (!this.profile) return;
+    const p = this.profile;
+    const text = `⚔️ SOLO LEVELING: THE SYSTEM ⚔️\nצייד: ${p.name || 'רום'}\nדרגה: ${p.rank} | רמה: ${p.level}\nתואר: ${p.title}\nמזהה: ${p.hunter_id || 'HNT-77492'}\nARISE - Rise to SSS-Rank!`;
+    
+    if (navigator.share) {
+      navigator.share({
+        title: 'Solo Leveling Hunter Card',
+        text: text
+      }).catch(() => {});
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        alert('📋 כרטיס הצייד הועתק ללוח!');
+      });
+    } else {
+      alert(text);
+    }
+  },
+
+  copyHunterId() {
+    const id = document.getElementById('hunter-system-id')?.innerText || 'HNT-77492';
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(id).then(() => {
+        const btn = document.querySelector('.copy-id-btn');
+        if (btn) {
+          const old = btn.innerText;
+          btn.innerText = '✓';
+          setTimeout(() => btn.innerText = old, 1500);
+        }
+      });
+    }
+  },
+
+  scrollToSection(id) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  },
+
+  navTo(section) {
+    document.querySelectorAll('.bottom-nav-item').forEach(b => b.classList.remove('active'));
+    const btn = document.getElementById(`nav-item-${section}`);
+    if (btn) btn.classList.add('active');
+
+    if (section === 'profile') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (section === 'workouts') {
+      this.openWorkoutModal();
+    } else if (section === 'quests') {
+      const q = document.getElementById('daily-quest-card') || document.querySelector('.quest-list');
+      if (q) q.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (section === 'health') {
+      const g = document.getElementById('garmin-hud-card') || document.getElementById('biometrics-hud');
+      if (g) g.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (section === 'badges') {
+      this.openAchievementsModal();
     }
   }
 };

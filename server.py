@@ -390,6 +390,49 @@ class Database:
                             item.get("magnesium_mg", 0), item.get("zinc_mg", 0), item.get("vit_c_mg", 0),
                             item.get("vit_d_iu", 0), item.get("iron_mg", 0)
                         ))
+
+            # Achievements & Trophies table
+            c.execute("""
+            CREATE TABLE IF NOT EXISTS hunter_achievements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT NOT NULL UNIQUE,
+                title_he TEXT NOT NULL,
+                title_en TEXT NOT NULL,
+                desc_he TEXT NOT NULL,
+                icon TEXT NOT NULL,
+                color_hex TEXT DEFAULT '#8b5cf6',
+                category TEXT DEFAULT 'milestone',
+                target_val INTEGER DEFAULT 1,
+                unlocked INTEGER DEFAULT 0,
+                unlocked_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+
+            # Populate default achievements if empty
+            c.execute("SELECT COUNT(*) FROM hunter_achievements")
+            if c.fetchone()[0] == 0:
+                default_achievements = [
+                    ("the_awakening", "ההתעוררות", "The Awakening", "השלמת מבדק התעוררות צייד מדעי וקביעת מדדים", "🔮", "#a855f7", "milestone", 1, 1),
+                    ("level_up", "עליית שלב ראשונה", "Level Up", "הגעת לרמה 2 או יותר במסע הצייד", "⚡", "#00f0ff", "level", 2, 0),
+                    ("unbroken_streak", "רצף ברזל", "Unbroken Streak", "שמירה על 3 ימי פעילות רצופים במערכת", "🔥", "#f97316", "streak", 3, 0),
+                    ("colossus_warrior", "לוחם המשקולות", "Total Workout", "השלמת 5 אימוני כוח ומשקולות", "🏋️‍♂️", "#eab308", "workout", 5, 0),
+                    ("shadow_stride", "צעדי צללים וריצה", "Shadow Stride", "השלמת אימון ריצה או הגעה ל-10,000 צעדים", "🏃‍♂️", "#3b82f6", "workout", 1, 0),
+                    ("nutrition_master", "שליטה תזונתית מושלמת", "Nutrition Mastery", "עמידה מלאה ביעדי הקלוריות והחלבון היומיים", "🥗", "#10b981", "nutrition", 1, 0),
+                    ("oceanic_vitality", "רוויה אולטימטיבית", "Oceanic Vitality", "שתיית 3,000 מ\"ל מים ביום אחד", "💧", "#06b6d4", "vitality", 3000, 0),
+                    ("master_alchemist", "אמן השיקויים והתוספים", "Master Alchemist", "נטילת תוספים וויטמינים ב-3 ימים נפרדים", "🧪", "#8b5cf6", "alchemy", 3, 0),
+                    ("protein_beast", "מועדון ה-100g חלבון", "Protein Beast", "צריכת מעל 100 גרם חלבון ביום אחד", "🥩", "#ef4444", "nutrition", 100, 0),
+                    ("rank_d", "קידום לדרגה D", "D-Rank Promotion", "הגעה לדרגת צייד D (רמה 10 ומעלה)", "🛡️", "#64748b", "rank", 10, 0),
+                    ("rank_a", "צייד עילית דרגה A", "A-Rank Champion", "הגעה לדרגת צייד A (רמה 40 ומעלה)", "⚔️", "#06b6d4", "rank", 40, 0),
+                    ("rank_s", "אגדה חיה דרגה S", "S-Rank Legend", "הגעה לדרגת צייד לאומי S (רמה 50 ומעלה)!", "👑", "#818cf8", "rank", 50, 0),
+                    ("shadow_monarch", "שליט הצללים (ARISE)", "Shadow Monarch", "התעלות מעבר לכל הגבולות (רמה 100+)!", "💀", "#dc2626", "rank", 100, 0)
+                ]
+                for ach in default_achievements:
+                    c.execute("""
+                    INSERT INTO hunter_achievements (code, title_he, title_en, desc_he, icon, color_hex, category, target_val, unlocked)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, ach)
+
             conn.commit()
 
 # -------------------------------------------------------------
@@ -410,13 +453,29 @@ class HunterLevelingEngine:
             return "A-Rank"
         elif level < 75:
             return "S-Rank"
+        elif level < 100:
+            return "SS-Rank"
         else:
-            return "Shadow Monarch"
+            return "SSS-Rank"
+
+    @staticmethod
+    def get_rank_title(rank):
+        titles = {
+            "E-Rank": "צייד שהתעורר (Awakened Novice)",
+            "D-Rank": "פושט מבוכים (D-Rank Raider)",
+            "C-Rank": "מכה מבוכים (Dungeon Striker)",
+            "B-Rank": "צייד עילית (Elite Hunter)",
+            "A-Rank": "אלוף דרגה עליונה (A-Rank Champion)",
+            "S-Rank": "צייד ברמה לאומית (National S-Rank)",
+            "SS-Rank": "כובש התהום (Abyssal Conqueror)",
+            "SSS-Rank": "שליט הצללים • ARISE (Shadow Monarch)"
+        }
+        return titles.get(rank, "Awakened Hunter")
 
     @staticmethod
     def add_exp(conn, amount):
         c = conn.cursor()
-        c.execute("SELECT level, exp, exp_to_next, rank, stats_str, stats_agi, stats_vit, stats_int, stats_per FROM hunter_profile WHERE id=1")
+        c.execute("SELECT level, exp, exp_to_next, rank, title, stats_str, stats_agi, stats_vit, stats_int, stats_per FROM hunter_profile WHERE id=1")
         row = c.fetchone()
         if not row:
             return {"leveled_up": False}
@@ -425,6 +484,7 @@ class HunterLevelingEngine:
         exp = row["exp"] + amount
         exp_to_next = row["exp_to_next"]
         leveled_up = False
+        old_rank = row["rank"]
 
         while exp >= exp_to_next:
             exp -= exp_to_next
@@ -443,20 +503,105 @@ class HunterLevelingEngine:
             """)
 
         new_rank = HunterLevelingEngine.get_rank(level)
+        new_title = HunterLevelingEngine.get_rank_title(new_rank)
+
         c.execute("""
         UPDATE hunter_profile
-        SET level = ?, exp = ?, exp_to_next = ?, rank = ?
+        SET level = ?, exp = ?, exp_to_next = ?, rank = ?, title = ?
         WHERE id=1
-        """, (level, exp, exp_to_next, new_rank))
+        """, (level, exp, exp_to_next, new_rank, new_title))
         conn.commit()
+
+        # Check achievements
+        newly_unlocked = HunterAchievementEngine.evaluate_and_unlock(conn)
 
         return {
             "leveled_up": leveled_up,
             "level": level,
             "rank": new_rank,
+            "title": new_title,
+            "rank_promoted": new_rank != old_rank,
             "exp": exp,
-            "exp_to_next": exp_to_next
+            "exp_to_next": exp_to_next,
+            "newly_unlocked_achievements": newly_unlocked
         }
+
+# -------------------------------------------------------------
+# Hunter Achievement & Trophy Engine
+# -------------------------------------------------------------
+class HunterAchievementEngine:
+    @staticmethod
+    def evaluate_and_unlock(conn):
+        c = conn.cursor()
+        c.execute("SELECT level, rank, streak_days FROM hunter_profile WHERE id=1")
+        prof = c.fetchone()
+        if not prof:
+            return []
+
+        level = prof["level"]
+        streak = prof["streak_days"] or 1
+
+        c.execute("SELECT COUNT(*) FROM workout_logs")
+        total_workouts = c.fetchone()[0]
+
+        c.execute("SELECT COUNT(*) FROM workout_logs WHERE workout_type IN ('run', 'cardio')")
+        run_workouts = c.fetchone()[0]
+
+        c.execute("SELECT COUNT(DISTINCT date) FROM supplements_log")
+        supp_days = c.fetchone()[0]
+
+        c.execute("SELECT COALESCE(MAX(protein), 0) FROM daily_logs")
+        max_protein = c.fetchone()[0]
+
+        c.execute("SELECT COALESCE(MAX(total_water), 0) FROM (SELECT SUM(amount_ml) as total_water FROM water_logs GROUP BY date)")
+        max_water_row = c.fetchone()
+        max_water = max_water_row[0] if max_water_row else 0
+
+        # Current status
+        c.execute("SELECT code, unlocked FROM hunter_achievements")
+        current_achs = {r["code"]: r["unlocked"] for r in c.fetchall()}
+
+        newly_unlocked = []
+
+        def trigger_unlock(code):
+            if current_achs.get(code) == 0:
+                c.execute("UPDATE hunter_achievements SET unlocked = 1, unlocked_at = CURRENT_TIMESTAMP WHERE code = ?", (code,))
+                c.execute("SELECT * FROM hunter_achievements WHERE code = ?", (code,))
+                row = dict(c.fetchone())
+                row["title"] = row.get("title_he")
+                row["description"] = row.get("desc_he")
+                row["reward_desc"] = f"+{row.get('target_val', 1) * 50 + 100} EXP"
+                row["tier_color"] = "gold"
+                newly_unlocked.append(row)
+
+        # Evaluate rules
+        trigger_unlock("the_awakening")
+
+        if level >= 2:
+            trigger_unlock("level_up")
+        if streak >= 3:
+            trigger_unlock("unbroken_streak")
+        if total_workouts >= 5:
+            trigger_unlock("colossus_warrior")
+        if run_workouts >= 1:
+            trigger_unlock("shadow_stride")
+        if max_water >= 3000:
+            trigger_unlock("oceanic_vitality")
+        if supp_days >= 3:
+            trigger_unlock("master_alchemist")
+        if max_protein >= 100:
+            trigger_unlock("protein_beast")
+        if level >= 10:
+            trigger_unlock("rank_d")
+        if level >= 40:
+            trigger_unlock("rank_a")
+        if level >= 50:
+            trigger_unlock("rank_s")
+        if level >= 100:
+            trigger_unlock("shadow_monarch")
+
+        conn.commit()
+        return newly_unlocked
 
     @staticmethod
     def add_skill_exp(conn, skill_code, amount):
@@ -1269,6 +1414,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.handle_get_garmin_health()
         elif path == "/api/skills":
             self.handle_get_skills()
+        elif path == "/api/achievements":
+            self.handle_get_achievements()
         elif path == "/api/workouts/today":
             self.handle_get_workouts()
         elif path == "/api/supplements/today":
@@ -1367,6 +1514,56 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             skills = [dict(r) for r in c.fetchall()]
         self._set_headers()
         self.wfile.write(json.dumps({"skills": skills}, ensure_ascii=False).encode("utf-8"))
+
+    def handle_get_achievements(self):
+        with Database.get_connection() as conn:
+            newly_unlocked = HunterAchievementEngine.evaluate_and_unlock(conn)
+            c = conn.cursor()
+            c.execute("SELECT * FROM hunter_achievements ORDER BY id ASC")
+            raw_achs = [dict(r) for r in c.fetchall()]
+            achs = []
+            for a in raw_achs:
+                tier_color = "gold"
+                cat = a.get("category", "")
+                code = a.get("code", "")
+                if "rank" in cat or code == "shadow_monarch":
+                    tier_color = "crimson" if code in ("rank_s", "shadow_monarch") else "purple"
+                elif cat in ("nutrition", "vitality"):
+                    tier_color = "cyan"
+                elif cat in ("alchemy", "milestone"):
+                    tier_color = "purple"
+
+                reward = f"+{a.get('target_val', 1) * 50 + 100} EXP"
+                if cat == "rank":
+                    reward = "תואר צייד חדש • עליית כוח"
+                elif code == "shadow_monarch":
+                    reward = "👑 מונרך הצללים • ARISE"
+
+                achs.append({
+                    "id": a["id"],
+                    "code": a["code"],
+                    "title": a.get("title_he") or a.get("title_en"),
+                    "title_he": a.get("title_he"),
+                    "title_en": a.get("title_en"),
+                    "description": a.get("desc_he"),
+                    "desc_he": a.get("desc_he"),
+                    "icon": a.get("icon", "🏆"),
+                    "color_hex": a.get("color_hex", "#8b5cf6"),
+                    "tier_color": tier_color,
+                    "category": a.get("category"),
+                    "target_val": a.get("target_val"),
+                    "unlocked": a.get("unlocked", 0),
+                    "unlocked_at": a.get("unlocked_at"),
+                    "reward_desc": reward
+                })
+            unlocked_count = sum(1 for a in achs if a["unlocked"] == 1)
+        self._set_headers()
+        self.wfile.write(json.dumps({
+            "achievements": achs,
+            "unlocked_count": unlocked_count,
+            "total_count": len(achs),
+            "newly_unlocked": newly_unlocked
+        }, ensure_ascii=False).encode("utf-8"))
 
     def handle_get_workouts(self):
         with Database.get_connection() as conn:
@@ -1677,6 +1874,18 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             health_adv = HunterHealthAIAdvisor.analyze_and_generate_insights(conn, today)
             profile["fatigue"] = health_adv["calculated_fatigue"]
 
+            c.execute("SELECT COUNT(*) FROM workout_logs")
+            total_workouts = c.fetchone()[0]
+
+            c.execute("SELECT COUNT(*), COALESCE(SUM(unlocked), 0) FROM hunter_achievements")
+            ach_stats = c.fetchone()
+            ach_total = ach_stats[0] if ach_stats else 0
+            ach_unlocked = ach_stats[1] if ach_stats else 0
+
+            profile["total_workouts"] = total_workouts
+            profile["ach_unlocked"] = ach_unlocked
+            profile["ach_total"] = ach_total
+
             self._set_headers()
             self.wfile.write(json.dumps({
                 "date": today,
@@ -1685,6 +1894,11 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 "consumed": consumed,
                 "meals": meals,
                 "quests": quests,
+                "total_workouts": total_workouts,
+                "achievements_summary": {
+                    "unlocked": ach_unlocked,
+                    "total": ach_total
+                },
                 "health_advisor": health_adv,
                 "stats_live": {
                     "str": profile["stats_str"] + str_bonus,
@@ -1972,6 +2186,9 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             c.execute("SELECT * FROM food_items WHERE is_custom=1")
             custom_foods = [dict(r) for r in c.fetchall()]
 
+            c.execute("SELECT * FROM hunter_achievements ORDER BY id ASC")
+            achievements = [dict(r) for r in c.fetchall()]
+
         now_str = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
         backup_payload = {
             "system_name": "Solo Leveling Fitness System",
@@ -1981,6 +2198,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             "profile": profile,
             "hunter_skills": skills,
             "skills": skills,
+            "hunter_achievements": achievements,
+            "achievements": achievements,
             "workout_logs": workouts,
             "supplements_log": supplements,
             "supplements": supplements,
@@ -1993,6 +2212,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             "custom_foods": custom_foods,
             "counts": {
                 "skills": len(skills),
+                "achievements": len(achievements),
                 "workouts": len(workouts),
                 "supplements": len(supplements),
                 "garmin": len(garmin_logs),
@@ -2164,6 +2384,18 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                             ))
                     restored_summary["custom_foods_processed"] = len(custom_foods)
 
+                # 10. Restore Achievements
+                achievements = body.get("hunter_achievements") or body.get("achievements")
+                if achievements and isinstance(achievements, list):
+                    for a in achievements:
+                        c.execute("""
+                        UPDATE hunter_achievements SET
+                            unlocked = ?,
+                            unlocked_at = ?
+                        WHERE code = ?
+                        """, (a.get("unlocked", 0), a.get("unlocked_at"), a.get("code")))
+                    restored_summary["achievements_count"] = len(achievements)
+
                 conn.commit()
 
             self._set_headers(200)
@@ -2210,7 +2442,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                     level = 1,
                     exp = 0,
                     exp_to_next = 300,
-                    title = 'צייד שהתעורר (Awakened)',
+                    title = 'צייד שהתעורר (Awakened Novice)',
                     stats_str = 10,
                     stats_agi = 10,
                     stats_vit = 10,
@@ -2231,6 +2463,9 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                     exp_to_next = 100,
                     stat_boost_val = 2
                 """)
+
+                # Reset achievements to default
+                c.execute("UPDATE hunter_achievements SET unlocked = CASE WHEN code = 'the_awakening' THEN 1 ELSE 0 END, unlocked_at = NULL")
 
                 # Wipe all activity & history logs
                 c.execute("DELETE FROM daily_logs")
