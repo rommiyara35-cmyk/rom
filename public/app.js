@@ -138,6 +138,11 @@ const AppState = {
     // Setup input listeners
     this.bindEvents();
 
+    // Check disaster recovery & auto snapshotting
+    this.checkDisasterRecovery();
+    this.saveLocalSnapshot();
+    this.updateBackupUI();
+
     // System chime on launch
     setTimeout(() => {
       sfx.playSystemNotification();
@@ -177,6 +182,7 @@ const AppState = {
       localStorage.setItem('hunter_consumed', JSON.stringify(this.consumed));
 
       this.renderAll();
+      this.triggerDebouncedSnapshot();
     } catch (err) {
       console.warn('Using offline cache:', err);
       const cachedC = localStorage.getItem('hunter_consumed');
@@ -794,10 +800,253 @@ const AppState = {
     if (m) m.style.display = 'none';
   },
 
+  // --- Auto-Snapshotting & Multi-Layer Persistence ---
+  snapshotTimer: null,
+  triggerDebouncedSnapshot() {
+    if (this.snapshotTimer) clearTimeout(this.snapshotTimer);
+    this.snapshotTimer = setTimeout(() => {
+      this.saveLocalSnapshot();
+    }, 1500);
+  },
+
+  async saveLocalSnapshot(optionalData = null) {
+    try {
+      if (optionalData) {
+        localStorage.setItem('SOLO_HUNTER_SYSTEM_SNAPSHOT', JSON.stringify(optionalData));
+        localStorage.setItem('SOLO_HUNTER_SNAPSHOT_TIMESTAMP', new Date().toISOString());
+        this.updateBackupUI();
+        return;
+      }
+      const res = await fetch('/api/backup');
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem('SOLO_HUNTER_SYSTEM_SNAPSHOT', JSON.stringify(data));
+        localStorage.setItem('SOLO_HUNTER_SNAPSHOT_TIMESTAMP', new Date().toISOString());
+        this.updateBackupUI();
+      }
+    } catch (e) {
+      console.warn('Auto-snapshot save failed:', e);
+    }
+  },
+
+  updateBackupUI() {
+    const timeEl = document.getElementById('backup-last-time-text');
+    const badgeEl = document.getElementById('backup-sync-status-badge');
+    const rawTime = localStorage.getItem('SOLO_HUNTER_SNAPSHOT_TIMESTAMP');
+    if (timeEl && rawTime) {
+      const d = new Date(rawTime);
+      const timeFormatted = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const dateFormatted = d.toLocaleDateString('he-IL');
+      timeEl.innerText = `סנכרון מקומי אחרון בדפדפן: ${dateFormatted} ב-${timeFormatted}`;
+    }
+    if (badgeEl) {
+      badgeEl.innerText = '● סנכרון מקומי פעיל';
+      badgeEl.style.color = '#34d399';
+    }
+  },
+
+  checkDisasterRecovery() {
+    try {
+      const banner = document.getElementById('disaster-recovery-banner');
+      if (!banner) return;
+      const rawSnapshot = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
+      if (!rawSnapshot) {
+        banner.style.display = 'none';
+        return;
+      }
+      const snapshot = JSON.parse(rawSnapshot);
+      const snapProfile = snapshot.hunter_profile || snapshot.profile || {};
+      const snapDailyLogs = snapshot.daily_logs || snapshot.logs || [];
+      const snapWorkouts = snapshot.workout_logs || [];
+      const snapSupps = snapshot.supplements_log || [];
+
+      const totalSnapRecords = snapDailyLogs.length + snapWorkouts.length + snapSupps.length;
+      const isServerFresh = (!this.profile || this.profile.level <= 1) && (!this.todayMeals || this.todayMeals.length === 0);
+
+      // If server is fresh but snapshot has higher level or existing history
+      if (isServerFresh && (snapProfile.level > 1 || totalSnapRecords > 0)) {
+        banner.style.display = 'block';
+        const subEl = document.getElementById('disaster-banner-sub');
+        if (subEl) {
+          subEl.innerText = `נמצא גיבוי דפדפן ברמה ${snapProfile.level || 1} עם ${totalSnapRecords} רשומות היסטוריות. שחזר עכשיו כדי לא לאבד התקדמות.`;
+        }
+      } else {
+        banner.style.display = 'none';
+      }
+    } catch (e) {
+      console.warn('Disaster recovery check error:', e);
+    }
+  },
+
+  async restoreFromLocalSnapshot() {
+    sfx.playClick();
+    try {
+      const rawSnapshot = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
+      if (!rawSnapshot) {
+        alert('לא נמצא גיבוי מקומי שמור בדפדפן.');
+        return;
+      }
+      const snapshot = JSON.parse(rawSnapshot);
+      const res = await fetch('/api/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(snapshot)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Restore failed');
+      sfx.playLevelUp();
+      const banner = document.getElementById('disaster-recovery-banner');
+      if (banner) banner.style.display = 'none';
+      this.showToast('✨ כל הנתונים שוחזרו בהצלחה מהגיבוי המקומי!');
+      setTimeout(() => window.location.reload(), 600);
+    } catch (err) {
+      alert('שגיאה בשחזור מגיבוי מקומי: ' + err.message);
+    }
+  },
+
   // Export JSON Backup
   async exportBackup() {
     sfx.playClick();
-    window.location.href = '/api/backup';
+    try {
+      const res = await fetch('/api/backup');
+      if (!res.ok) throw new Error('Backup failed');
+      const data = await res.json();
+      const nowStr = new Date().toISOString().slice(0, 10);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `solo_hunter_backup_${nowStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      this.showToast('✓ קובץ גיבוי מלא (JSON) הורד למכשירך בהצלחה!');
+      this.saveLocalSnapshot(data);
+    } catch (err) {
+      console.error('Export backup failed, falling back:', err);
+      window.location.href = '/api/backup';
+    }
+  },
+
+  // Import JSON Backup
+  async importBackupFile(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    sfx.playClick();
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed.hunter_profile && !parsed.profile) {
+        throw new Error('קובץ לא תקין - מבנה נתוני צייד חסר');
+      }
+      if (!confirm(`האם לשחזר את כל נתוני המערכת מקובץ הגיבוי ${file.name}? פעולה זו תעדכן את השרת בכל הרמות, הסקילים והיומנים.`)) {
+        event.target.value = '';
+        return;
+      }
+      const res = await fetch('/api/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Restore failed');
+      sfx.playLevelUp();
+      this.saveLocalSnapshot(parsed);
+      this.showToast('✨ כל הנתונים, הסקילים והיומנים שוחזרו בהצלחה!');
+      setTimeout(() => window.location.reload(), 700);
+    } catch (err) {
+      alert('שגיאה בשחזור קובץ הגיבוי: ' + err.message);
+    } finally {
+      event.target.value = '';
+    }
+  },
+
+  // --- Reset & Rebirth Controls ---
+  openResetModal(mode = 'all') {
+    sfx.playClick();
+    this.openModal('reset-modal');
+    const input = document.getElementById('rebirth-confirm-input');
+    if (input) input.value = '';
+  },
+
+  async confirmResetToday() {
+    if (!confirm('האם לאפס את נתוני היום הנוכחי בלבד?\n\nכל הארוחות, המים, התוספים ואימוני היום יימחקו.\nדרגת הצייד (Level), הסקילים וההיסטוריה הקודמת יישמרו במלואם.')) {
+      return;
+    }
+    sfx.playClick();
+    try {
+      const res = await fetch('/api/reset/today', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Reset failed');
+      sfx.playSystemNotification();
+      this.showToast('🔄 נתוני יום זה אופסו בהצלחה!');
+      this.closeModal('reset-modal');
+      await this.fetchTodayData();
+      await this.fetchSupplements();
+      await this.fetchGarminStatus();
+      await this.fetchDailyDebrief();
+      this.saveLocalSnapshot();
+    } catch (err) {
+      alert('שגיאה באיפוס היום: ' + err.message);
+    }
+  },
+
+  async confirmFullRebirth() {
+    const input = document.getElementById('rebirth-confirm-input');
+    const val = input ? input.value.trim().toLowerCase() : '';
+    if (val !== 'אישור' && val !== 'rebirth') {
+      alert('לאישור לידה מחדש, עליך להקליד "אישור" או "REBIRTH" בשדה המתאים.');
+      if (input) input.focus();
+      return;
+    }
+
+    sfx.playClick();
+
+    // Step 1: Emergency Backup Download FIRST so data is guaranteed never lost!
+    try {
+      const resBackup = await fetch('/api/backup');
+      if (resBackup.ok) {
+        const backupData = await resBackup.json();
+        const nowStr = new Date().toISOString().slice(0, 10);
+        const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `solo_hunter_emergency_backup_before_rebirth_${nowStr}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (e) {
+      console.warn('Pre-rebirth emergency backup download failed:', e);
+    }
+
+    // Step 2: Call /api/reset/full
+    try {
+      const res = await fetch('/api/reset/full', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Rebirth failed');
+
+      localStorage.removeItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
+      localStorage.removeItem('hunter_profile');
+      localStorage.removeItem('hunter_health_advisor');
+
+      sfx.playLevelUp();
+      alert('[SYSTEM: לידה מחדש הושלמה!]\nהצייד חזר לרמה 1 (E-Rank) וכל הסקילים אופסו לרמה 1.\nעותק גיבוי חירום הורד בהצלחה למכשירך.');
+      window.location.reload();
+    } catch (err) {
+      alert('שגיאה בתהליך הלידה מחדש: ' + err.message);
+    }
   },
 
   // Open watch simulator in new tab

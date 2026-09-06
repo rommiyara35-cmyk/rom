@@ -2449,4 +2449,131 @@ body {
   line-height: 1.4;
 }
 
+/* ========================================================
+   DISASTER RECOVERY AUTO-BANNER STYLES
+   ======================================================== */
+.disaster-banner {
+  background: linear-gradient(90deg, rgba(220, 38, 38, 0.25), rgba(245, 158, 11, 0.2));
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 10px 0;
+  animation: pulseDisaster 2s infinite alternate;
+}
+
+@keyframes pulseDisaster {
+  0% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
+  100% { box-shadow: 0 0 22px rgba(239, 68, 68, 0.6); }
+}
+
+.disaster-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.disaster-banner-icon {
+  font-size: 24px;
+}
+
+.disaster-banner-text {
+  flex: 1;
+  font-size: 12px;
+  color: #fca5a5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.disaster-banner-text strong {
+  color: #fee2e2;
+  font-size: 13px;
+}
+
+.disaster-restore-btn {
+  background: linear-gradient(90deg, #10b981, #059669);
+  color: #ffffff;
+  border: 1px solid #34d399;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+}
+
+.disaster-dismiss-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+/* ========================================================
+   RESET & REBIRTH MODAL STYLES
+   ======================================================== */
+.reset-option-card {
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reset-option-card.daily {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.reset-option-card.rebirth {
+  background: rgba(220, 38, 38, 0.09);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  box-shadow: 0 0 16px rgba(220, 38, 38, 0.15);
+}
+
+.reset-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reset-card-icon {
+  font-size: 24px;
+}
+
+.reset-card-title {
+  font-weight: 800;
+  font-size: 14px;
+  color: #fde68a;
+}
+
+.reset-card-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.reset-card-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #cbd5e1;
+}
+
+.reset-card-list li {
+  line-height: 1.4;
+}
+
+.reset-card-list.danger li {
+  color: #fca5a5;
+}
+
 

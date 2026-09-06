@@ -1321,6 +1321,10 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.handle_post_workout(body)
         elif path == "/api/supplements/log":
             self.handle_post_supplement(body)
+        elif path == "/api/reset/today":
+            self.handle_reset_today()
+        elif path == "/api/reset/full":
+            self.handle_reset_full()
         else:
             self._set_headers(404)
             self.wfile.write(json.dumps({"error": "Endpoint not found"}).encode("utf-8"))
@@ -1941,39 +1945,307 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         with Database.get_connection() as conn:
             c = conn.cursor()
             c.execute("SELECT * FROM hunter_profile WHERE id=1")
-            profile = dict(c.fetchone())
-            c.execute("SELECT * FROM food_items")
-            foods = [dict(r) for r in c.fetchall()]
-            c.execute("SELECT * FROM daily_logs")
-            logs = [dict(r) for r in c.fetchall()]
-            c.execute("SELECT * FROM water_logs")
-            water = [dict(r) for r in c.fetchall()]
+            prof_row = c.fetchone()
+            profile = dict(prof_row) if prof_row else {}
 
+            c.execute("SELECT * FROM hunter_skills ORDER BY id ASC")
+            skills = [dict(r) for r in c.fetchall()]
+
+            c.execute("SELECT * FROM workout_logs ORDER BY id ASC")
+            workouts = [dict(r) for r in c.fetchall()]
+
+            c.execute("SELECT * FROM supplements_log ORDER BY id ASC")
+            supplements = [dict(r) for r in c.fetchall()]
+
+            c.execute("SELECT * FROM garmin_health_logs ORDER BY id ASC")
+            garmin_logs = [dict(r) for r in c.fetchall()]
+
+            c.execute("SELECT * FROM medication_logs ORDER BY id ASC")
+            med_logs = [dict(r) for r in c.fetchall()]
+
+            c.execute("SELECT * FROM daily_logs ORDER BY id ASC")
+            daily_logs = [dict(r) for r in c.fetchall()]
+
+            c.execute("SELECT * FROM water_logs ORDER BY id ASC")
+            water_logs = [dict(r) for r in c.fetchall()]
+
+            c.execute("SELECT * FROM food_items WHERE is_custom=1")
+            custom_foods = [dict(r) for r in c.fetchall()]
+
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
         backup_payload = {
-            "version": "1.0",
+            "system_name": "Solo Leveling Fitness System",
+            "version": "2.5",
             "exported_at": datetime.datetime.now().isoformat(),
+            "hunter_profile": profile,
             "profile": profile,
-            "foods": foods,
-            "logs": logs,
-            "water": water
+            "hunter_skills": skills,
+            "skills": skills,
+            "workout_logs": workouts,
+            "supplements_log": supplements,
+            "supplements": supplements,
+            "garmin_health_logs": garmin_logs,
+            "medication_logs": med_logs,
+            "daily_logs": daily_logs,
+            "logs": daily_logs,
+            "water_logs": water_logs,
+            "water": water_logs,
+            "custom_foods": custom_foods,
+            "counts": {
+                "skills": len(skills),
+                "workouts": len(workouts),
+                "supplements": len(supplements),
+                "garmin": len(garmin_logs),
+                "medications": len(med_logs),
+                "meals": len(daily_logs),
+                "water": len(water_logs),
+                "custom_foods": len(custom_foods)
+            }
         }
-        self._set_headers(200, "application/json")
-        self.wfile.write(json.dumps(backup_payload, ensure_ascii=False, indent=2).encode("utf-8"))
+        json_data = json.dumps(backup_payload, ensure_ascii=False, indent=2).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Disposition", f'attachment; filename="solo_hunter_backup_{now_str}.json"')
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(json_data)))
+        self.end_headers()
+        self.wfile.write(json_data)
 
     def handle_restore_backup(self, body):
         try:
-            profile = body.get("profile")
+            profile = body.get("hunter_profile") or body.get("profile")
+            skills = body.get("hunter_skills") or body.get("skills")
+            workouts = body.get("workout_logs") or body.get("workouts")
+            supplements = body.get("supplements_log") or body.get("supplements")
+            garmin_logs = body.get("garmin_health_logs") or body.get("garmin_logs")
+            med_logs = body.get("medication_logs") or body.get("medications")
+            daily_logs = body.get("daily_logs") or body.get("logs")
+            water_logs = body.get("water_logs") or body.get("water")
+            custom_foods = body.get("custom_foods") or body.get("foods")
+
+            restored_summary = {}
+
             with Database.get_connection() as conn:
                 c = conn.cursor()
-                if profile:
-                    cols = [k for k in profile.keys() if k != "id"]
-                    vals = [profile[k] for k in cols]
-                    set_clause = ", ".join([f"{k} = ?" for k in cols])
-                    vals.append(1)
-                    c.execute(f"UPDATE hunter_profile SET {set_clause} WHERE id = ?", vals)
+
+                # 1. Restore Profile
+                if profile and isinstance(profile, dict):
+                    cols = [k for k in profile.keys() if k not in ("id", "updated_at")]
+                    if cols:
+                        set_clause = ", ".join([f"{k} = ?" for k in cols])
+                        vals = [profile[k] for k in cols] + [1]
+                        c.execute(f"UPDATE hunter_profile SET {set_clause}, updated_at=CURRENT_TIMESTAMP WHERE id = ?", vals)
+                        restored_summary["profile"] = True
+
+                # 2. Restore Hunter Skills
+                if skills and isinstance(skills, list):
+                    for s in skills:
+                        c.execute("""
+                        INSERT INTO hunter_skills (skill_code, name_he, name_en, level, current_exp, exp_to_next, stat_boost_type, stat_boost_val, icon, description_he)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(skill_code) DO UPDATE SET
+                            level=excluded.level,
+                            current_exp=excluded.current_exp,
+                            exp_to_next=excluded.exp_to_next,
+                            stat_boost_val=excluded.stat_boost_val
+                        """, (
+                            s.get("skill_code"), s.get("name_he"), s.get("name_en"),
+                            s.get("level", 1), s.get("current_exp", 0), s.get("exp_to_next", 100),
+                            s.get("stat_boost_type", "STR"), s.get("stat_boost_val", 2),
+                            s.get("icon", "⚡"), s.get("description_he", "")
+                        ))
+                    restored_summary["skills_count"] = len(skills)
+
+                # 3. Restore Workout Logs
+                if workouts is not None and isinstance(workouts, list):
+                    c.execute("DELETE FROM workout_logs")
+                    for w in workouts:
+                        c.execute("""
+                        INSERT INTO workout_logs (date, workout_type, title, duration_min, calories_burned, notes, timestamp)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            w.get("date"), w.get("workout_type", "strength"), w.get("title", "אימון"),
+                            w.get("duration_min", 45), w.get("calories_burned", 300),
+                            w.get("notes", ""), w.get("timestamp", "12:00")
+                        ))
+                    restored_summary["workouts_count"] = len(workouts)
+
+                # 4. Restore Supplements
+                if supplements is not None and isinstance(supplements, list):
+                    c.execute("DELETE FROM supplements_log")
+                    for sup in supplements:
+                        c.execute("""
+                        INSERT INTO supplements_log (date, name, dosage, unit, category, notes, timestamp)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            sup.get("date"), sup.get("name"), sup.get("dosage", "1 מנה"),
+                            sup.get("unit", "mg"), sup.get("category", "vitamin"),
+                            sup.get("notes", ""), sup.get("timestamp", "08:00")
+                        ))
+                    restored_summary["supplements_count"] = len(supplements)
+
+                # 5. Restore Garmin Logs
+                if garmin_logs is not None and isinstance(garmin_logs, list):
+                    c.execute("DELETE FROM garmin_health_logs")
+                    for g in garmin_logs:
+                        c.execute("""
+                        INSERT OR REPLACE INTO garmin_health_logs (
+                            date, timestamp, heart_rate, resting_hr, sleep_score, sleep_hours,
+                            stress_level, body_battery, steps, active_calories, spo2_pct, respiration_rpm
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            g.get("date"), g.get("timestamp", "08:00"), g.get("heart_rate", 68),
+                            g.get("resting_hr", 58), g.get("sleep_score", 82), g.get("sleep_hours", 7.2),
+                            g.get("stress_level", 28), g.get("body_battery", 75), g.get("steps", 8500),
+                            g.get("active_calories", 450), g.get("spo2_pct", 98), g.get("respiration_rpm", 14)
+                        ))
+                    restored_summary["garmin_count"] = len(garmin_logs)
+
+                # 6. Restore Medication / Attent Logs
+                if med_logs is not None and isinstance(med_logs, list):
+                    c.execute("DELETE FROM medication_logs")
+                    for m in med_logs:
+                        c.execute("""
+                        INSERT INTO medication_logs (date, med_name, dose_mg, timestamp, duration_hours, notes)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """, (
+                            m.get("date"), m.get("med_name", "Attent"), m.get("dose_mg", 20),
+                            m.get("timestamp", "08:00"), m.get("duration_hours", 7.0), m.get("notes", "")
+                        ))
+                    restored_summary["medication_count"] = len(med_logs)
+
+                # 7. Restore Daily Meal Logs
+                if daily_logs is not None and isinstance(daily_logs, list):
+                    c.execute("DELETE FROM daily_logs")
+                    for dl in daily_logs:
+                        c.execute("""
+                        INSERT INTO daily_logs (
+                            date, food_id, food_name, serving_count, serving_size_g,
+                            calories, protein, carbs, fats, fiber, sodium_mg, potassium_mg,
+                            magnesium_mg, zinc_mg, vit_c_mg, vit_d_iu, iron_mg, meal_type, timestamp
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            dl.get("date"), dl.get("food_id"), dl.get("food_name"),
+                            dl.get("serving_count", 1.0), dl.get("serving_size_g", 100),
+                            dl.get("calories", 0), dl.get("protein", 0), dl.get("carbs", 0),
+                            dl.get("fats", 0), dl.get("fiber", 0), dl.get("sodium_mg", 0),
+                            dl.get("potassium_mg", 0), dl.get("magnesium_mg", 0),
+                            dl.get("zinc_mg", 0), dl.get("vit_c_mg", 0), dl.get("vit_d_iu", 0),
+                            dl.get("iron_mg", 0), dl.get("meal_type", "snack"), dl.get("timestamp", "12:00")
+                        ))
+                    restored_summary["meals_count"] = len(daily_logs)
+
+                # 8. Restore Water Logs
+                if water_logs is not None and isinstance(water_logs, list):
+                    c.execute("DELETE FROM water_logs")
+                    for wl in water_logs:
+                        c.execute("""
+                        INSERT INTO water_logs (date, amount_ml, timestamp)
+                        VALUES (?, ?, ?)
+                        """, (wl.get("date"), wl.get("amount_ml", 250), wl.get("timestamp", "12:00")))
+                    restored_summary["water_count"] = len(water_logs)
+
+                # 9. Restore Custom Foods
+                if custom_foods and isinstance(custom_foods, list):
+                    for cf in custom_foods:
+                        if cf.get("name"):
+                            c.execute("""
+                            INSERT OR IGNORE INTO food_items (
+                                name, name_he, category, serving_size_g, calories, protein, carbs, fats,
+                                fiber, sodium_mg, potassium_mg, magnesium_mg, zinc_mg, vit_c_mg, vit_d_iu, iron_mg, is_custom
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                            """, (
+                                cf.get("name"), cf.get("name_he", cf.get("name")), cf.get("category", "מותאם אישית"),
+                                cf.get("serving_size_g", 100), cf.get("calories", 0), cf.get("protein", 0),
+                                cf.get("carbs", 0), cf.get("fats", 0), cf.get("fiber", 0),
+                                cf.get("sodium_mg", 0), cf.get("potassium_mg", 0), cf.get("magnesium_mg", 0),
+                                cf.get("zinc_mg", 0), cf.get("vit_c_mg", 0), cf.get("vit_d_iu", 0),
+                                cf.get("iron_mg", 0)
+                            ))
+                    restored_summary["custom_foods_processed"] = len(custom_foods)
+
                 conn.commit()
+
             self._set_headers(200)
-            self.wfile.write(json.dumps({"status": "restored"}).encode("utf-8"))
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "message": "[SYSTEM: מסד הנתונים שוחזר בהצלחה מלאה מתוך קובץ הגיבוי!]",
+                "summary": restored_summary
+            }, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_reset_today(self):
+        try:
+            with Database.get_connection() as conn:
+                today = get_hunter_shift_date(conn)
+                c = conn.cursor()
+                c.execute("DELETE FROM daily_logs WHERE date = ?", (today,))
+                c.execute("DELETE FROM water_logs WHERE date = ?", (today,))
+                c.execute("DELETE FROM workout_logs WHERE date = ?", (today,))
+                c.execute("DELETE FROM supplements_log WHERE date = ?", (today,))
+                c.execute("DELETE FROM medication_logs WHERE date = ?", (today,))
+                c.execute("DELETE FROM garmin_health_logs WHERE date = ?", (today,))
+                conn.commit()
+
+            self._set_headers(200)
+            self.wfile.write(json.dumps({
+                "status": "today_reset",
+                "date": today,
+                "message": "[SYSTEM: נתוני יום המשמרת הנוכחי אופסו בהצלחה. דרגת הצייד והסקילים נשמרו!]"
+            }, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_reset_full(self):
+        try:
+            with Database.get_connection() as conn:
+                c = conn.cursor()
+                # Reset Hunter Profile to Level 1 Awakened Novice
+                c.execute("""
+                UPDATE hunter_profile SET
+                    rank = 'E-Rank',
+                    level = 1,
+                    exp = 0,
+                    exp_to_next = 300,
+                    title = 'צייד שהתעורר (Awakened)',
+                    stats_str = 10,
+                    stats_agi = 10,
+                    stats_vit = 10,
+                    stats_int = 10,
+                    stats_per = 10,
+                    fatigue = 15,
+                    streak_days = 1,
+                    last_active_date = date('now'),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+                """)
+
+                # Reset all 5 Skills to Level 1, 0/100 XP
+                c.execute("""
+                UPDATE hunter_skills SET
+                    level = 1,
+                    current_exp = 0,
+                    exp_to_next = 100,
+                    stat_boost_val = 2
+                """)
+
+                # Wipe all activity & history logs
+                c.execute("DELETE FROM daily_logs")
+                c.execute("DELETE FROM water_logs")
+                c.execute("DELETE FROM workout_logs")
+                c.execute("DELETE FROM supplements_log")
+                c.execute("DELETE FROM medication_logs")
+                c.execute("DELETE FROM garmin_health_logs")
+                conn.commit()
+
+            self._set_headers(200)
+            self.wfile.write(json.dumps({
+                "status": "rebirth_complete",
+                "message": "[SYSTEM: לידה מחדש הושלמה! הצייד חזר לרמה 1, דרגת E-Rank. כל הסקילים אופסו לרמה 1.]"
+            }, ensure_ascii=False).encode("utf-8"))
         except Exception as e:
             self._set_headers(400)
             self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
