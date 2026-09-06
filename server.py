@@ -543,6 +543,66 @@ class HunterLevelingEngine:
             "newly_unlocked_achievements": newly_unlocked
         }
 
+    @staticmethod
+    def add_skill_exp(conn, skill_code, amount):
+        c = conn.cursor()
+        c.execute("SELECT * FROM hunter_skills WHERE skill_code = ?", (skill_code,))
+        row = c.fetchone()
+        if not row:
+            return None
+        skill = dict(row)
+        lvl = skill["level"]
+        exp = skill["current_exp"] + amount
+        exp_next = skill["exp_to_next"]
+        leveled_up = False
+        stat_type = skill["stat_boost_type"]
+        stat_boost = skill["stat_boost_val"]
+        levels_gained = 0
+
+        while exp >= exp_next:
+            exp -= exp_next
+            lvl += 1
+            levels_gained += 1
+            exp_next = round(exp_next * 1.35 + 35)
+            leveled_up = True
+
+        if leveled_up:
+            stat_col_map = {
+                "STR": "stats_str",
+                "AGI": "stats_agi",
+                "VIT": "stats_vit",
+                "INT": "stats_int",
+                "PER": "stats_per"
+            }
+            col = stat_col_map.get(stat_type)
+            if col:
+                total_stat_gain = stat_boost * levels_gained
+                c.execute(f"UPDATE hunter_profile SET {col} = {col} + ? WHERE id=1", (total_stat_gain,))
+
+        c.execute("""
+        UPDATE hunter_skills 
+        SET level = ?, current_exp = ?, exp_to_next = ? 
+        WHERE skill_code = ?
+        """, (lvl, exp, exp_next, skill_code))
+        conn.commit()
+
+        # Also award partial EXP to player level
+        player_exp_gain = max(10, int(amount * 0.7))
+        player_res = HunterLevelingEngine.add_exp(conn, player_exp_gain)
+
+        return {
+            "skill_code": skill_code,
+            "name_he": skill["name_he"],
+            "leveled_up": leveled_up,
+            "level": lvl,
+            "levels_gained": levels_gained,
+            "stat_boost_type": stat_type,
+            "stat_boost_val": stat_boost,
+            "current_exp": exp,
+            "exp_to_next": exp_next,
+            "player_leveling": player_res
+        }
+
 # -------------------------------------------------------------
 # Hunter Achievement & Trophy Engine
 # -------------------------------------------------------------
@@ -622,63 +682,7 @@ class HunterAchievementEngine:
 
     @staticmethod
     def add_skill_exp(conn, skill_code, amount):
-        c = conn.cursor()
-        c.execute("SELECT * FROM hunter_skills WHERE skill_code = ?", (skill_code,))
-        row = c.fetchone()
-        if not row:
-            return None
-        skill = dict(row)
-        lvl = skill["level"]
-        exp = skill["current_exp"] + amount
-        exp_next = skill["exp_to_next"]
-        leveled_up = False
-        stat_type = skill["stat_boost_type"]
-        stat_boost = skill["stat_boost_val"]
-        levels_gained = 0
-
-        while exp >= exp_next:
-            exp -= exp_next
-            lvl += 1
-            levels_gained += 1
-            exp_next = round(exp_next * 1.35 + 35)
-            leveled_up = True
-
-        if leveled_up:
-            stat_col_map = {
-                "STR": "stats_str",
-                "AGI": "stats_agi",
-                "VIT": "stats_vit",
-                "INT": "stats_int",
-                "PER": "stats_per"
-            }
-            col = stat_col_map.get(stat_type)
-            if col:
-                total_stat_gain = stat_boost * levels_gained
-                c.execute(f"UPDATE hunter_profile SET {col} = {col} + ? WHERE id=1", (total_stat_gain,))
-
-        c.execute("""
-        UPDATE hunter_skills 
-        SET level = ?, current_exp = ?, exp_to_next = ? 
-        WHERE skill_code = ?
-        """, (lvl, exp, exp_next, skill_code))
-        conn.commit()
-
-        # Also award partial EXP to player level
-        player_exp_gain = max(10, int(amount * 0.7))
-        player_res = HunterLevelingEngine.add_exp(conn, player_exp_gain)
-
-        return {
-            "skill_code": skill_code,
-            "name_he": skill["name_he"],
-            "leveled_up": leveled_up,
-            "level": lvl,
-            "levels_gained": levels_gained,
-            "stat_boost_type": stat_type,
-            "stat_boost_val": stat_boost,
-            "current_exp": exp,
-            "exp_to_next": exp_next,
-            "player_leveling": player_res
-        }
+        return HunterLevelingEngine.add_skill_exp(conn, skill_code, amount)
 
 
 
@@ -2360,39 +2364,43 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         self.wfile.write(json.dumps({"workouts": workouts}, ensure_ascii=False).encode("utf-8"))
 
     def handle_post_workout(self, body):
-        w_type = body.get("workout_type", "strength")
-        title = body.get("title") or ("אימון כוח (Hypertrophy)" if w_type == "strength" else "אימון ריצה וסיבולת")
-        duration = int(body.get("duration_min", 45))
-        calories = int(body.get("calories_burned", duration * 7))
-        notes = body.get("notes", "")
-        now_time = datetime.datetime.now().strftime("%H:%M")
+        try:
+            w_type = body.get("workout_type", "strength") or "strength"
+            title = body.get("title") or ("אימון כוח (Hypertrophy)" if w_type == "strength" else "אימון ריצה וסיבולת")
+            duration = int(body.get("duration_min") or 45)
+            calories = int(body.get("calories_burned") or (duration * 7))
+            notes = body.get("notes") or ""
+            now_time = datetime.datetime.now().strftime("%H:%M")
 
-        with Database.get_connection() as conn:
-            today = get_hunter_shift_date(conn)
-            c = conn.cursor()
-            c.execute("""
-            INSERT INTO workout_logs (date, workout_type, title, duration_min, calories_burned, notes, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (today, w_type, title, duration, calories, notes, now_time))
-            w_id = c.lastrowid
+            with Database.get_connection() as conn:
+                today = get_hunter_shift_date(conn)
+                c = conn.cursor()
+                c.execute("""
+                INSERT INTO workout_logs (date, workout_type, title, duration_min, calories_burned, notes, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (today, w_type, title, duration, calories, notes, now_time))
+                w_id = c.lastrowid
 
-            skill_code = "colossus_strength" if w_type == "strength" else "shadow_sprint"
-            skill_exp = 30 + int(duration * 0.8)
-            skill_res = HunterLevelingEngine.add_skill_exp(conn, skill_code, skill_exp)
+                skill_code = "colossus_strength" if w_type == "strength" else "shadow_sprint"
+                skill_exp = 30 + int(duration * 0.8)
+                skill_res = HunterLevelingEngine.add_skill_exp(conn, skill_code, skill_exp)
 
-            c.execute("UPDATE hunter_profile SET fatigue = max(0, fatigue - 10) WHERE id=1")
-            conn.commit()
+                c.execute("UPDATE hunter_profile SET fatigue = max(0, fatigue - 10) WHERE id=1")
+                conn.commit()
 
-            c.execute("SELECT * FROM hunter_profile WHERE id=1")
-            profile = dict(c.fetchone())
+                c.execute("SELECT * FROM hunter_profile WHERE id=1")
+                profile = dict(c.fetchone())
 
-        self._set_headers(201)
-        self.wfile.write(json.dumps({
-            "status": "workout_logged",
-            "id": w_id,
-            "skill_leveling": skill_res,
-            "profile": profile
-        }, ensure_ascii=False).encode("utf-8"))
+            self._set_headers(201)
+            self.wfile.write(json.dumps({
+                "status": "workout_logged",
+                "id": w_id,
+                "skill_leveling": skill_res,
+                "profile": profile
+            }, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
 
     def handle_delete_workout(self, w_id):
         with Database.get_connection() as conn:
@@ -2413,35 +2421,39 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         self.wfile.write(json.dumps({"supplements": supps}, ensure_ascii=False).encode("utf-8"))
 
     def handle_post_supplement(self, body):
-        name = body.get("name", "תוסף ויטמין")
-        dosage = str(body.get("dosage", "1 מנה"))
-        unit = body.get("unit", "mg")
-        category = body.get("category", "vitamin")
-        notes = body.get("notes", "")
-        now_time = datetime.datetime.now().strftime("%H:%M")
+        try:
+            name = body.get("name") or "תוסף ויטמין"
+            dosage = str(body.get("dosage") or "1 מנה")
+            unit = body.get("unit") or "mg"
+            category = body.get("category") or "vitamin"
+            notes = body.get("notes") or ""
+            now_time = datetime.datetime.now().strftime("%H:%M")
 
-        with Database.get_connection() as conn:
-            today = get_hunter_shift_date(conn)
-            c = conn.cursor()
-            c.execute("""
-            INSERT INTO supplements_log (date, name, dosage, unit, category, notes, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (today, name, dosage, unit, category, notes, now_time))
-            s_id = c.lastrowid
+            with Database.get_connection() as conn:
+                today = get_hunter_shift_date(conn)
+                c = conn.cursor()
+                c.execute("""
+                INSERT INTO supplements_log (date, name, dosage, unit, category, notes, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (today, name, dosage, unit, category, notes, now_time))
+                s_id = c.lastrowid
 
-            skill_res = HunterLevelingEngine.add_skill_exp(conn, "alchemy_discipline", 20)
-            conn.commit()
+                skill_res = HunterLevelingEngine.add_skill_exp(conn, "alchemy_discipline", 20)
+                conn.commit()
 
-            c.execute("SELECT * FROM hunter_profile WHERE id=1")
-            profile = dict(c.fetchone())
+                c.execute("SELECT * FROM hunter_profile WHERE id=1")
+                profile = dict(c.fetchone())
 
-        self._set_headers(201)
-        self.wfile.write(json.dumps({
-            "status": "supplement_logged",
-            "id": s_id,
-            "skill_leveling": skill_res,
-            "profile": profile
-        }, ensure_ascii=False).encode("utf-8"))
+            self._set_headers(201)
+            self.wfile.write(json.dumps({
+                "status": "supplement_logged",
+                "id": s_id,
+                "skill_leveling": skill_res,
+                "profile": profile
+            }, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
 
     def handle_delete_supplement(self, s_id):
         with Database.get_connection() as conn:
@@ -2695,57 +2707,61 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             }, ensure_ascii=False).encode("utf-8"))
 
     def handle_post_log(self, body):
-        now_time = datetime.datetime.now().strftime("%H:%M")
-        
-        food_id = body.get("food_id")
-        food_name = body.get("food_name", "ארוחת צייד")
-        serving_count = float(body.get("serving_count", 1.0))
-        serving_size_g = float(body.get("serving_size_g", 100))
-        calories = float(body.get("calories", 0)) * serving_count
-        protein = float(body.get("protein", 0)) * serving_count
-        carbs = float(body.get("carbs", 0)) * serving_count
-        fats = float(body.get("fats", 0)) * serving_count
-        fiber = float(body.get("fiber", 0)) * serving_count
-        sodium_mg = float(body.get("sodium_mg", 0)) * serving_count
-        potassium_mg = float(body.get("potassium_mg", 0)) * serving_count
-        magnesium_mg = float(body.get("magnesium_mg", 0)) * serving_count
-        zinc_mg = float(body.get("zinc_mg", 0)) * serving_count
-        vit_c_mg = float(body.get("vit_c_mg", 0)) * serving_count
-        vit_d_iu = float(body.get("vit_d_iu", 0)) * serving_count
-        iron_mg = float(body.get("iron_mg", 0)) * serving_count
-        meal_type = body.get("meal_type", "snack")
+        try:
+            now_time = datetime.datetime.now().strftime("%H:%M")
+            
+            food_id = body.get("food_id")
+            food_name = body.get("food_name", "ארוחת צייד")
+            serving_count = float(body.get("serving_count") or 1.0)
+            serving_size_g = float(body.get("serving_size_g") or 100)
+            calories = float(body.get("calories") or 0) * serving_count
+            protein = float(body.get("protein") or 0) * serving_count
+            carbs = float(body.get("carbs") or 0) * serving_count
+            fats = float(body.get("fats") or 0) * serving_count
+            fiber = float(body.get("fiber") or 0) * serving_count
+            sodium_mg = float(body.get("sodium_mg") or 0) * serving_count
+            potassium_mg = float(body.get("potassium_mg") or 0) * serving_count
+            magnesium_mg = float(body.get("magnesium_mg") or 0) * serving_count
+            zinc_mg = float(body.get("zinc_mg") or 0) * serving_count
+            vit_c_mg = float(body.get("vit_c_mg") or 0) * serving_count
+            vit_d_iu = float(body.get("vit_d_iu") or 0) * serving_count
+            iron_mg = float(body.get("iron_mg") or 0) * serving_count
+            meal_type = body.get("meal_type", "snack") or "snack"
 
-        with Database.get_connection() as conn:
-            today = get_hunter_shift_date(conn)
-            c = conn.cursor()
-            c.execute("""
-            INSERT INTO daily_logs (
-                date, food_id, food_name, serving_count, serving_size_g,
-                calories, protein, carbs, fats, fiber, sodium_mg, potassium_mg,
-                magnesium_mg, zinc_mg, vit_c_mg, vit_d_iu, iron_mg, meal_type, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                today, food_id, food_name, serving_count, serving_size_g,
-                calories, protein, carbs, fats, fiber, sodium_mg, potassium_mg,
-                magnesium_mg, zinc_mg, vit_c_mg, vit_d_iu, iron_mg, meal_type, now_time
-            ))
-            log_id = c.lastrowid
-            conn.commit()
+            with Database.get_connection() as conn:
+                today = get_hunter_shift_date(conn)
+                c = conn.cursor()
+                c.execute("""
+                INSERT INTO daily_logs (
+                    date, food_id, food_name, serving_count, serving_size_g,
+                    calories, protein, carbs, fats, fiber, sodium_mg, potassium_mg,
+                    magnesium_mg, zinc_mg, vit_c_mg, vit_d_iu, iron_mg, meal_type, timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    today, food_id, food_name, serving_count, serving_size_g,
+                    calories, protein, carbs, fats, fiber, sodium_mg, potassium_mg,
+                    magnesium_mg, zinc_mg, vit_c_mg, vit_d_iu, iron_mg, meal_type, now_time
+                ))
+                log_id = c.lastrowid
+                conn.commit()
 
-            exp_awarded = 25 + int(protein * 0.5)
-            lvl_res = HunterLevelingEngine.add_exp(conn, exp_awarded)
+                exp_awarded = 25 + int(protein * 0.5)
+                lvl_res = HunterLevelingEngine.add_exp(conn, exp_awarded)
 
-            # Award XP to Nutrition Mastery skill
-            skill_res = HunterLevelingEngine.add_skill_exp(conn, "nutrition_mastery", 15 + int(protein * 0.3))
+                # Award XP to Nutrition Mastery skill
+                skill_res = HunterLevelingEngine.add_skill_exp(conn, "nutrition_mastery", 15 + int(protein * 0.3))
 
-        self._set_headers(201)
-        self.wfile.write(json.dumps({
-            "status": "success",
-            "log_id": log_id,
-            "exp_awarded": exp_awarded,
-            "leveling": lvl_res,
-            "skill_leveling": skill_res
-        }, ensure_ascii=False).encode("utf-8"))
+            self._set_headers(201)
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "log_id": log_id,
+                "exp_awarded": exp_awarded,
+                "leveling": lvl_res,
+                "skill_leveling": skill_res
+            }, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
 
     def handle_delete_log(self, log_id):
         with Database.get_connection() as conn:
@@ -3701,10 +3717,10 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
 
     def handle_post_attent(self, body):
         try:
-            dose_mg = int(body.get("dose_mg", 20))
-            dose_time = body.get("timestamp", datetime.datetime.now().strftime("%H:%M"))
-            duration = float(body.get("duration_hours", 7.0))
-            notes = body.get("notes", "שיקוי ריכוז והיפר-פוקוס")
+            dose_mg = int(body.get("dose_mg") or 20)
+            dose_time = body.get("timestamp") or datetime.datetime.now().strftime("%H:%M")
+            duration = float(body.get("duration_hours") or 7.0)
+            notes = body.get("notes") or "שיקוי ריכוז והיפר-פוקוס"
             target_date = body.get("date")
 
             with Database.get_connection() as conn:

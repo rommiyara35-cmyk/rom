@@ -621,6 +621,9 @@ const AppState = {
         body: JSON.stringify(payload)
       });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'שגיאת שרת ברישום הארוחה');
+      }
 
       // Reset selection
       this.selectedFood = null;
@@ -639,11 +642,14 @@ const AppState = {
         this.checkNewlyUnlocked(data.newly_unlocked_achievements);
       }
 
+      this.showToast(`[SYSTEM: ארוחה נרשמה בהצלחה! (+${data.exp_awarded || 25} EXP)]`);
+
       await this.fetchTodayData();
       await this.fetchSkills();
       await this.fetchDailyDebrief();
     } catch (e) {
-      alert('שגיאה ברישום הארוחה');
+      console.error('Error logging food:', e);
+      alert('שגיאה ברישום הארוחה: ' + (e.message || e));
     }
   },
 
@@ -911,6 +917,37 @@ const AppState = {
       m.style.display = 'none';
       m.style.pointerEvents = 'none';
     }
+  },
+
+  // Toast notifications
+  showToast(message, type = 'info') {
+    let container = document.getElementById('system-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'system-toast-container';
+      container.style.cssText = 'position:fixed; bottom:76px; left:50%; transform:translateX(-50%); z-index:99999; display:flex; flex-direction:column; gap:8px; pointer-events:none; width:90%; max-width:380px; align-items:center;';
+      document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `system-toast ${type}`;
+    toast.style.cssText = 'background:rgba(9,19,38,0.95); border:1.5px solid var(--hud-cyan); border-radius:10px; padding:10px 16px; color:#ffffff; font-size:12px; font-weight:800; box-shadow:0 0 20px rgba(0,240,255,0.4); text-align:center; backdrop-filter:blur(8px); transition:all 0.3s ease; opacity:0; transform:translateY(10px); pointer-events:auto;';
+    toast.innerText = message;
+
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => {
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateY(0)';
+    });
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(-10px)';
+      setTimeout(() => {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 350);
+    }, 3200);
   },
 
   // --- Auto-Snapshotting & Multi-Layer Persistence ---
@@ -2325,6 +2362,9 @@ const AppState = {
         })
       });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'שגיאת שרת ברישום אטנט');
+      }
       if (data.data) {
         this.healthAdvisor = data.data;
         this.renderAll();
@@ -2338,7 +2378,8 @@ const AppState = {
         }
       }
     } catch (e) {
-      alert('שגיאה ברישום נטילת אטנט');
+      console.error('Error in saveAttentLog:', e);
+      alert('שגיאה ברישום נטילת אטנט: ' + (e.message || e));
     }
   },
 
@@ -2348,6 +2389,9 @@ const AppState = {
     try {
       const res = await fetch('/api/medication/attent', { method: 'DELETE' });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'שגיאת שרת בביטול אטנט');
+      }
       if (data.data) {
         this.healthAdvisor = data.data;
         this.renderAll();
@@ -2361,7 +2405,8 @@ const AppState = {
         }
       }
     } catch (e) {
-      alert('שגיאה בביטול רישום אטנט');
+      console.error('Error in cancelAttent:', e);
+      alert('שגיאה בביטול רישום אטנט: ' + (e.message || e));
     }
   },
 
@@ -2869,8 +2914,12 @@ const AppState = {
         })
       });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'שגיאת שרת ברישום האימון');
+      }
       this.closeModal('workout-modal');
       sfx.playSystemNotification();
+      this.showToast(`[SYSTEM: אימון נרשם בהצלחה!]`);
 
       // Check skill leveling up
       if (data.skill_leveling && data.skill_leveling.leveled_up) {
@@ -2885,7 +2934,8 @@ const AppState = {
       await this.fetchTodayData();
       await this.fetchDailyDebrief();
     } catch (e) {
-      alert('שגיאה ברישום האימון');
+      console.error('Error in saveWorkoutLog:', e);
+      alert('שגיאה ברישום האימון: ' + (e.message || e));
     }
   },
 
@@ -2898,11 +2948,20 @@ const AppState = {
     const valEl = document.getElementById('skill-levelup-val');
     const rewardEl = document.getElementById('skill-levelup-reward');
 
-    if (iconEl) iconEl.innerText = event.skill?.icon || '⚡';
-    if (titleEl) titleEl.innerText = event.skill?.name_he || 'יכולת צייד';
-    if (valEl) valEl.innerText = event.skill?.level || 2;
+    const defaultIcons = {
+      'nutrition_mastery': '🍖',
+      'colossus_strength': '⚔️',
+      'shadow_sprint': '⚡',
+      'alchemy_discipline': '🧪'
+    };
+
+    if (iconEl) iconEl.innerText = event.skill?.icon || defaultIcons[event.skill_code] || '⚡';
+    if (titleEl) titleEl.innerText = event.name_he || event.skill?.name_he || 'יכולת צייד';
+    if (valEl) valEl.innerText = event.level || event.skill?.level || 2;
     if (rewardEl) {
-      rewardEl.innerText = `בונוס תכונה שודרג: +${event.stat_awarded || 2} ל-${event.stat_type || 'STR'}!`;
+      const statGain = event.stat_boost_val || event.stat_awarded || 2;
+      const statType = event.stat_boost_type || event.stat_type || 'STR';
+      rewardEl.innerText = `בונוס תכונה שודרג: +${statGain} ל-${statType}!`;
     }
 
     overlay.style.display = 'flex';
@@ -2975,7 +3034,11 @@ const AppState = {
         })
       });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'שגיאת שרת ברישום התוסף');
+      }
       sfx.playPotion();
+      this.showToast(`[SYSTEM: ${name} נרשם בהצלחה!]`);
 
       if (data.skill_leveling && data.skill_leveling.leveled_up) {
         this.showSkillLevelUpModal(data.skill_leveling);
@@ -2986,7 +3049,8 @@ const AppState = {
       await this.fetchDailyDebrief();
       await this.fetchTodayData();
     } catch (e) {
-      alert('שגיאה ברישום התוסף');
+      console.error('Error in quickAddSupplement:', e);
+      alert('שגיאה ברישום התוסף: ' + (e.message || e));
     }
   },
 
@@ -3019,8 +3083,12 @@ const AppState = {
         })
       });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'שגיאת שרת ברישום התוסף');
+      }
       this.closeModal('supplement-modal');
       sfx.playPotion();
+      this.showToast(`[SYSTEM: ${name} נרשם בהצלחה!]`);
 
       if (data.skill_leveling && data.skill_leveling.leveled_up) {
         this.showSkillLevelUpModal(data.skill_leveling);
@@ -3031,7 +3099,8 @@ const AppState = {
       await this.fetchDailyDebrief();
       await this.fetchTodayData();
     } catch (e) {
-      alert('שגיאה בשמירת התוסף');
+      console.error('Error in saveCustomSupplement:', e);
+      alert('שגיאה ברישום התוסף: ' + (e.message || e));
     }
   },
 
