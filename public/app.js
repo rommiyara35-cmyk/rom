@@ -95,6 +95,12 @@ const AppState = {
   selectedAttentDose: 20,
   networkIp: '127.0.0.1',
   port: 8080,
+  skills: [],
+  workouts: [],
+  supplements: [],
+  dailyDebrief: null,
+  activeDebriefTab: 'maintain',
+  codeReader: null,
 
   async init() {
     // Setup Service Worker
@@ -124,6 +130,9 @@ const AppState = {
     // Fetch live data from server
     await this.fetchNetworkInfo();
     await this.fetchTodayData();
+    await this.fetchSkills();
+    await this.fetchSupplements();
+    await this.fetchDailyDebrief();
     await this.fetchFoods();
 
     // Setup input listeners
@@ -192,6 +201,9 @@ const AppState = {
   // --- Rendering UI ---
   renderAll() {
     this.renderProfile();
+    this.renderSkills();
+    this.renderSupplements();
+    this.renderDailyDebrief();
     this.renderGarminBiometrics();
     this.renderAttentBanner();
     this.renderAIInsights();
@@ -479,15 +491,26 @@ const AppState = {
   async logSelectedFood() {
     if (!this.selectedFood) return;
     sfx.playClick();
-    const grams = parseFloat(document.getElementById('portion-grams-input').value) || 100;
-    const factor = grams / (this.selectedFood.serving_size_g || 100);
+    const unitEl = document.getElementById('portion-unit-select');
+    const unit = unitEl ? unitEl.value : 'g';
+    const amount = parseFloat(document.getElementById('portion-amount-input').value) || 1;
+    let factor = 1;
+    if (unit === 'g') factor = 1;
+    else if (unit === 'tbsp') factor = 15;
+    else if (unit === 'tsp') factor = 5;
+    else if (unit === 'cup') factor = 240;
+    else factor = this.selectedFood.serving_size_g || 100;
+
+    const totalGrams = Math.max(1, Math.round(amount * factor));
+    const baseServing = this.selectedFood.serving_size_g || 100;
+    const ratio = totalGrams / baseServing;
     const mealType = document.getElementById('meal-type-select').value;
 
     const payload = {
       food_id: this.selectedFood.id,
       food_name: this.selectedFood.name_he || this.selectedFood.name,
-      serving_count: factor,
-      serving_size_g: grams,
+      serving_count: ratio,
+      serving_size_g: totalGrams,
       calories: this.selectedFood.calories,
       protein: this.selectedFood.protein,
       carbs: this.selectedFood.carbs,
@@ -516,13 +539,17 @@ const AppState = {
       document.getElementById('staging-card').style.display = 'none';
       document.getElementById('food-search-input').value = '';
 
-      if (data.leveling && data.leveling.leveled_up) {
+      if (data.skill_leveling && data.skill_leveling.leveled_up) {
+        this.showSkillLevelUpModal(data.skill_leveling);
+      } else if (data.leveling && data.leveling.leveled_up) {
         this.showLevelUpModal(data.leveling);
       } else {
         sfx.playSystemNotification();
       }
 
       await this.fetchTodayData();
+      await this.fetchSkills();
+      await this.fetchDailyDebrief();
     } catch (e) {
       alert('שגיאה ברישום הארוחה');
     }
@@ -615,8 +642,70 @@ const AppState = {
     this.selectedFood = item;
     const staging = document.getElementById('staging-card');
     document.getElementById('staging-name').innerText = item.name_he || item.name;
-    document.getElementById('portion-grams-input').value = item.serving_size_g || 100;
+    const amountInput = document.getElementById('portion-amount-input');
+    const unitSelect = document.getElementById('portion-unit-select');
+    if (amountInput) amountInput.value = 1;
+    if (unitSelect) unitSelect.value = 'serving';
+    this.updatePortionCalculations();
     staging.style.display = 'flex';
+    staging.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  },
+
+  onUnitChange() {
+    const unit = document.getElementById('portion-unit-select').value;
+    const amountInput = document.getElementById('portion-amount-input');
+    if (unit === 'g') {
+      amountInput.value = this.selectedFood ? (this.selectedFood.serving_size_g || 100) : 100;
+      amountInput.step = 5;
+    } else {
+      amountInput.value = 1;
+      amountInput.step = 0.5;
+    }
+    this.updatePortionCalculations();
+  },
+
+  updatePortionCalculations() {
+    if (!this.selectedFood) return;
+    const unitEl = document.getElementById('portion-unit-select');
+    const amountEl = document.getElementById('portion-amount-input');
+    const unit = unitEl ? unitEl.value : 'serving';
+    const amount = parseFloat(amountEl ? amountEl.value : 1) || 1;
+    let factor = 1;
+    let unitLabel = 'גרם';
+
+    if (unit === 'g') {
+      factor = 1;
+      unitLabel = 'גרם';
+    } else if (unit === 'tbsp') {
+      factor = 15;
+      unitLabel = 'כפות';
+    } else if (unit === 'tsp') {
+      factor = 5;
+      unitLabel = 'כפיות';
+    } else if (unit === 'cup') {
+      factor = 240;
+      unitLabel = 'כוסות';
+    } else if (unit === 'unit') {
+      factor = this.selectedFood.serving_size_g || 100;
+      unitLabel = 'יחידות';
+    } else if (unit === 'serving') {
+      factor = this.selectedFood.serving_size_g || 100;
+      unitLabel = 'מנות';
+    }
+
+    const totalGrams = Math.max(1, Math.round(amount * factor));
+    const baseServing = this.selectedFood.serving_size_g || 100;
+    const multiplier = totalGrams / baseServing;
+
+    const calcCal = Math.round(this.selectedFood.calories * multiplier);
+    const calcP = Math.round(this.selectedFood.protein * multiplier * 10) / 10;
+    const calcC = Math.round(this.selectedFood.carbs * multiplier * 10) / 10;
+    const calcF = Math.round(this.selectedFood.fats * multiplier * 10) / 10;
+
+    const previewEl = document.getElementById('staging-calc-preview');
+    if (previewEl) {
+      previewEl.innerHTML = `סה"כ: <strong>${totalGrams} גרם</strong> (${amount} ${unitLabel}) • <span style="color:#00f0ff;">${calcCal} קק"ל</span> | חלבון: <span style="color:#10b981;">${calcP}g</span> | פחמימה: ${calcC}g | שומן: ${calcF}g`;
+    }
   },
 
   // Awakening Scientific Assessment Logic
@@ -733,15 +822,34 @@ const AppState = {
     const hasMedia = navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function';
 
     if (hasMedia) {
-      statusEl.innerText = '[SYSTEM: מפעיל חיישני זיהוי ומצלמה...]';
+      statusEl.innerText = '[SYSTEM: מפעיל מנוע זיהוי ZXing וחיישני מצלמה...]';
       try {
         this.videoStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
         });
         video.srcObject = this.videoStream;
         await video.play();
-        statusEl.innerText = '[SYSTEM: כוון אל מרכז הברקוד...]';
+        statusEl.innerText = '[SYSTEM: סורק ZXing פעיל - כוון אל מרכז הברקוד...]';
 
+        // 1. ZXing Continuous Video Stream Decoding
+        if (window.ZXing && window.ZXing.BrowserMultiFormatReader) {
+          try {
+            if (!this.codeReader) {
+              this.codeReader = new ZXing.BrowserMultiFormatReader();
+            }
+            this.codeReader.decodeFromVideoDevice(null, 'scanner-video', (result, err) => {
+              if (result && result.getText()) {
+                const detectedCode = result.getText();
+                this.closeBarcodeScanner();
+                this.lookupBarcode(detectedCode);
+              }
+            });
+          } catch (zxErr) {
+            console.warn('ZXing video decode initialization notice:', zxErr);
+          }
+        }
+
+        // 2. BarcodeDetector fallback loop
         if ('BarcodeDetector' in window) {
           const detector = new BarcodeDetector({
             formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']
@@ -754,21 +862,18 @@ const AppState = {
                 const detectedCode = barcodes[0].rawValue;
                 clearInterval(this.scannerInterval);
                 this.scannerInterval = null;
+                this.closeBarcodeScanner();
                 this.lookupBarcode(detectedCode);
               }
             } catch (err) {}
           }, 250);
-        } else {
-          statusEl.innerText = '[SYSTEM: סורק פעיל - כוון למרכז או צלם בכפתור הכחול]';
         }
       } catch (err) {
         console.warn('Live camera access error:', err);
-        statusEl.innerText = '📱 מצלמת וידאו חיה דורשת אישור. לחץ על הכפתור הכחול לצילום ישיר במצלמת האייפון!';
+        statusEl.innerText = '📱 לחץ על הכפתור הכחול למעלה לפתיחת מצלמת האייפון וצילום ישיר של הברקוד!';
       }
     } else {
-      // In iOS Safari over HTTP: direct camera capture is active
-      statusEl.innerText = '📱 לחץ על הכפתור הכחול למעלה לפתיחת מצלמת האייפון וצילום הברקוד!';
-      // Automatically prompt native camera on mobile device
+      statusEl.innerText = '📱 לחץ על הכפתור הכחול למעלה לפתיחת מצלמת האייפון וצילום ישיר של הברקוד!';
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       if (isMobile && cameraInput) {
         setTimeout(() => {
@@ -784,13 +889,32 @@ const AppState = {
 
     sfx.playClick();
     const statusEl = document.getElementById('scanner-status');
-    statusEl.innerText = '[SYSTEM: מעבד ומפענח תמונת ברקוד...]';
+    statusEl.innerText = '[SYSTEM: מנוע ZXing מעבד ומנתח את חתימת הברקוד...]';
 
     const reader = new FileReader();
     reader.onload = async (e) => {
       const img = new Image();
       img.onload = async () => {
-        // Draw to canvas with optimal resolution for sharp barcode recognition
+        // 1. First Pass: Try ZXing Directly on the Source Image
+        if (window.ZXing && window.ZXing.BrowserMultiFormatReader) {
+          try {
+            if (!this.codeReader) {
+              this.codeReader = new ZXing.BrowserMultiFormatReader();
+            }
+            const zxResult = await this.codeReader.decodeFromImageElement(img);
+            if (zxResult && zxResult.getText()) {
+              const code = zxResult.getText();
+              statusEl.innerText = `[✓ זוהה ברקוד: ${code}]`;
+              sfx.playScanLock();
+              this.lookupBarcode(code);
+              return;
+            }
+          } catch (zxErr) {
+            // Normal if first pass didn't catch angle
+          }
+        }
+
+        // Draw to optimal canvas for multi-angle and contrast passes
         const canvas = document.createElement('canvas');
         let width = img.width;
         let height = img.height;
@@ -809,7 +933,7 @@ const AppState = {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
 
-        // 1. Try Native BarcodeDetector (iOS 17+ / Chrome)
+        // 2. Second Pass: Native BarcodeDetector
         if ('BarcodeDetector' in window) {
           try {
             const detector = new BarcodeDetector({
@@ -824,11 +948,37 @@ const AppState = {
               return;
             }
           } catch (err) {
-            console.warn('BarcodeDetector on photo error:', err);
+            console.warn('BarcodeDetector notice:', err);
           }
         }
 
-        // 2. Pure JavaScript 1D Barcode Scanner Fallback (EAN-13 & UPC)
+        // 3. Third Pass: Rotate 90 degrees with ZXing (Handles vertical/angled phone photos)
+        if (window.ZXing && window.ZXing.BrowserMultiFormatReader) {
+          try {
+            const rotCanvas = document.createElement('canvas');
+            rotCanvas.width = height;
+            rotCanvas.height = width;
+            const rotCtx = rotCanvas.getContext('2d');
+            rotCtx.translate(height / 2, width / 2);
+            rotCtx.rotate((90 * Math.PI) / 180);
+            rotCtx.drawImage(canvas, -width / 2, -height / 2);
+
+            const rotImg = new Image();
+            rotImg.src = rotCanvas.toDataURL('image/jpeg', 0.95);
+            await new Promise(r => rotImg.onload = r);
+
+            const rotResult = await this.codeReader.decodeFromImageElement(rotImg);
+            if (rotResult && rotResult.getText()) {
+              const code = rotResult.getText();
+              statusEl.innerText = `[✓ זוהה ברקוד בזווית 90°: ${code}]`;
+              sfx.playScanLock();
+              this.lookupBarcode(code);
+              return;
+            }
+          } catch (rotErr) {}
+        }
+
+        // 4. Fourth Pass: Pure JS 1D Pattern Scanline
         const decoded = this.scan1DBarcodeFromCanvas(canvas);
         if (decoded) {
           statusEl.innerText = `[✓ זוהה ברקוד: ${decoded}]`;
@@ -837,10 +987,11 @@ const AppState = {
           return;
         }
 
+        // If not found by any engine
         statusEl.innerHTML = `
           <div style="color:#f87171; font-weight:700;">❌ לא זוהה ברקוד בבירור בתמונה</div>
           <div style="font-size:11px; color:#cbd5e1; margin-top:4px;">
-            נסה לצלם שוב כשהברקוד מואר, קרוב וישר, או הקלד את המספר ידנית למטה.
+            נסה לצלם שוב כשהברקוד קרוב ומואר, או הקלד את מספרי הברקוד למטה.
           </div>
         `;
       };
@@ -987,6 +1138,11 @@ const AppState = {
   },
 
   closeBarcodeScanner() {
+    if (this.codeReader) {
+      try {
+        this.codeReader.reset();
+      } catch (e) {}
+    }
     if (this.videoStream) {
       this.videoStream.getTracks().forEach(track => track.stop());
       this.videoStream = null;
@@ -1472,6 +1628,419 @@ const AppState = {
       }
     } catch (e) {
       alert('שגיאה בביטול רישום אטנט');
+    }
+  },
+
+  // ==========================================
+  // HUNTER SKILLS & WORKOUT ENGINE
+  // ==========================================
+  async fetchSkills() {
+    try {
+      const res = await fetch('/api/skills');
+      const data = await res.json();
+      this.skills = data.skills || [];
+      this.renderSkills();
+    } catch (e) {
+      console.warn('Could not fetch skills:', e);
+    }
+  },
+
+  renderSkills() {
+    const grid = document.getElementById('skills-grid');
+    if (!grid) return;
+
+    if (!this.skills || this.skills.length === 0) {
+      grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:12px; color:var(--text-dim); font-size:12px;">טוען יכולות צייד...</div>`;
+      return;
+    }
+
+    grid.innerHTML = this.skills.map(s => {
+      const code = s.skill_code || s.code;
+      const curExp = s.current_exp !== undefined ? s.current_exp : (s.exp || 0);
+      const nextExp = s.exp_to_next || 100;
+      const pct = Math.min(100, Math.round((curExp / nextExp) * 100));
+      const statType = s.stat_boost_type || (code === 'colossus_strength' ? 'STR' : (code === 'shadow_sprint' ? 'AGI' : (code === 'nutrition_mastery' ? 'INT' : (code === 'regeneration' ? 'VIT' : 'PER'))));
+      const statBoost = s.stat_boost_val || 2;
+      const bonusText = `${statType} +${s.level * statBoost}`;
+      const desc = s.description_he || s.desc_he || '';
+
+      return `
+        <div class="skill-card" data-code="${code}">
+          <div class="skill-top-row">
+            <div class="skill-icon-name">
+              <span class="skill-icon">${s.icon || '⚡'}</span>
+              <div>
+                <div class="skill-name">${s.name_he}</div>
+                <div class="skill-name-en">${s.name_en || code}</div>
+              </div>
+            </div>
+            <div class="skill-level-badge">Lv. ${s.level}</div>
+          </div>
+          <div class="skill-desc">${desc}</div>
+          <div class="skill-progress-bar-wrap">
+            <div class="skill-progress-bar" style="width: ${pct}%;"></div>
+          </div>
+          <div class="skill-bottom-row">
+            <span class="skill-bonus-tag">⚡ ${bonusText}</span>
+            <span class="skill-exp-text">${curExp} / ${nextExp} XP (${pct}%)</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  },
+
+  openWorkoutModal() {
+    sfx.playClick();
+    this.openModal('workout-modal');
+  },
+
+  onWorkoutTypeChange() {
+    const sel = document.getElementById('workout-type-select').value;
+    const titleInput = document.getElementById('workout-title-input');
+    const durInput = document.getElementById('workout-duration-input');
+    const calInput = document.getElementById('workout-calories-input');
+
+    if (sel === 'strength') {
+      titleInput.value = 'אימון כוח (Hypertrophy)';
+      durInput.value = 50;
+      calInput.value = 350;
+    } else if (sel === 'run') {
+      titleInput.value = 'ריצה / ספרינטים';
+      durInput.value = 30;
+      calInput.value = 320;
+    } else if (sel === 'cardio') {
+      titleInput.value = 'אירובי / אופניים';
+      durInput.value = 40;
+      calInput.value = 300;
+    } else if (sel === 'hiit') {
+      titleInput.value = 'אימון הפוגות / קרוספיט';
+      durInput.value = 30;
+      calInput.value = 350;
+    }
+  },
+
+  async saveWorkoutLog() {
+    sfx.playClick();
+    const wType = document.getElementById('workout-type-select').value;
+    const title = document.getElementById('workout-title-input').value.trim() || 'אימון צייד';
+    const duration = parseInt(document.getElementById('workout-duration-input').value) || 45;
+    const calories = parseInt(document.getElementById('workout-calories-input').value) || 300;
+    const notes = document.getElementById('workout-notes-input').value.trim();
+
+    try {
+      const res = await fetch('/api/workouts/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workout_type: wType,
+          title: title,
+          duration_min: duration,
+          calories_burned: calories,
+          notes: notes
+        })
+      });
+      const data = await res.json();
+      this.closeModal('workout-modal');
+      sfx.playSystemNotification();
+
+      // Check skill leveling up
+      if (data.skill_leveling && data.skill_leveling.leveled_up) {
+        this.showSkillLevelUpModal(data.skill_leveling);
+      }
+
+      await this.fetchSkills();
+      await this.fetchTodayData();
+      await this.fetchDailyDebrief();
+    } catch (e) {
+      alert('שגיאה ברישום האימון');
+    }
+  },
+
+  showSkillLevelUpModal(event) {
+    const overlay = document.getElementById('skill-levelup-overlay');
+    if (!overlay) return;
+
+    const iconEl = document.getElementById('skill-levelup-icon');
+    const titleEl = document.getElementById('skill-levelup-title');
+    const valEl = document.getElementById('skill-levelup-val');
+    const rewardEl = document.getElementById('skill-levelup-reward');
+
+    if (iconEl) iconEl.innerText = event.skill?.icon || '⚡';
+    if (titleEl) titleEl.innerText = event.skill?.name_he || 'יכולת צייד';
+    if (valEl) valEl.innerText = event.skill?.level || 2;
+    if (rewardEl) {
+      rewardEl.innerText = `בונוס תכונה שודרג: +${event.stat_awarded || 2} ל-${event.stat_type || 'STR'}!`;
+    }
+
+    overlay.style.display = 'flex';
+    sfx.playLevelUp();
+
+    setTimeout(() => {
+      overlay.style.display = 'none';
+    }, 3500);
+  },
+
+  // ==========================================
+  // HUNTER ALCHEMY & SUPPLEMENTS TRACKER
+  // ==========================================
+  async fetchSupplements() {
+    try {
+      const res = await fetch('/api/supplements/today');
+      const data = await res.json();
+      this.supplements = data.supplements || [];
+      this.renderSupplements();
+    } catch (e) {
+      console.warn('Could not fetch supplements:', e);
+    }
+  },
+
+  renderSupplements() {
+    const list = document.getElementById('supplements-today-list');
+    if (!list) return;
+
+    if (!this.supplements || this.supplements.length === 0) {
+      list.innerHTML = `
+        <div style="padding:14px; text-align:center; color:var(--text-dim); font-size:12px; background:rgba(255,255,255,0.02); border-radius:8px; border:1px dashed rgba(255,255,255,0.08);">
+          💊 טרם נרשמו ויטמינים או תוספים להיום. לחץ על הלחצנים המהירים למעלה לרישום בלחיצה אחת!
+        </div>
+      `;
+      return;
+    }
+
+    const catIcons = {
+      'vitamin': '🌿',
+      'mineral': '🌙',
+      'omega': '🐟',
+      'performance': '💥'
+    };
+
+    list.innerHTML = this.supplements.map(item => `
+      <div class="supp-item-card">
+        <div class="supp-item-left">
+          <span class="supp-item-icon">${catIcons[item.category] || '🧪'}</span>
+          <div>
+            <div class="supp-item-name">${item.name}</div>
+            <div class="supp-item-dosage">${item.dosage} ${item.unit && item.unit !== 'dose' ? item.unit : ''} • ${item.timestamp || ''}</div>
+          </div>
+        </div>
+        <button class="supp-item-delete" onclick="AppState.deleteSupplement(${item.id})" title="מחק תוסף">✕</button>
+      </div>
+    `).join('');
+  },
+
+  async quickAddSupplement(name, dose, category) {
+    sfx.playClick();
+    try {
+      const res = await fetch('/api/supplements/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name,
+          dosage: dose,
+          unit: 'dose',
+          category: category
+        })
+      });
+      const data = await res.json();
+      sfx.playPotion();
+
+      if (data.skill_leveling && data.skill_leveling.leveled_up) {
+        this.showSkillLevelUpModal(data.skill_leveling);
+      }
+
+      await this.fetchSupplements();
+      await this.fetchSkills();
+      await this.fetchDailyDebrief();
+      await this.fetchTodayData();
+    } catch (e) {
+      alert('שגיאה ברישום התוסף');
+    }
+  },
+
+  openSupplementModal() {
+    sfx.playClick();
+    document.getElementById('custom-supp-name').value = '';
+    document.getElementById('custom-supp-dose').value = '';
+    this.openModal('supplement-modal');
+  },
+
+  async saveCustomSupplement() {
+    sfx.playClick();
+    const name = document.getElementById('custom-supp-name').value.trim();
+    if (!name) {
+      alert('נא להזין שם תוסף או ויטמין');
+      return;
+    }
+    const dose = document.getElementById('custom-supp-dose').value.trim() || '1 מנה';
+    const cat = document.getElementById('custom-supp-category').value;
+
+    try {
+      const res = await fetch('/api/supplements/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name,
+          dosage: dose,
+          unit: 'dose',
+          category: cat
+        })
+      });
+      const data = await res.json();
+      this.closeModal('supplement-modal');
+      sfx.playPotion();
+
+      if (data.skill_leveling && data.skill_leveling.leveled_up) {
+        this.showSkillLevelUpModal(data.skill_leveling);
+      }
+
+      await this.fetchSupplements();
+      await this.fetchSkills();
+      await this.fetchDailyDebrief();
+      await this.fetchTodayData();
+    } catch (e) {
+      alert('שגיאה בשמירת התוסף');
+    }
+  },
+
+  async deleteSupplement(id) {
+    sfx.playClick();
+    try {
+      await fetch(`/api/supplements/log/${id}`, { method: 'DELETE' });
+      sfx.playSystemNotification();
+      await this.fetchSupplements();
+      await this.fetchDailyDebrief();
+    } catch (e) {
+      alert('שגיאה במחיקת התוסף');
+    }
+  },
+
+  // ==========================================
+  // EVIDENCE-BASED DAILY HEALTH SYNERGY DEBRIEF
+  // ==========================================
+  async fetchDailyDebrief() {
+    try {
+      const res = await fetch('/api/health-synergy/daily-debrief');
+      const data = await res.json();
+      this.dailyDebrief = data;
+      this.renderDailyDebrief();
+    } catch (e) {
+      console.warn('Could not fetch daily debrief:', e);
+    }
+  },
+
+  renderDailyDebrief() {
+    if (!this.dailyDebrief) return;
+    const d = this.dailyDebrief;
+
+    const scoreValEl = document.getElementById('debrief-score-val');
+    const titleEl = document.getElementById('debrief-status-title');
+    const subEl = document.getElementById('debrief-status-sub');
+    const scoreCard = document.getElementById('debrief-score-card');
+
+    if (scoreValEl) scoreValEl.innerText = d.composite_score ?? 85;
+    if (titleEl) titleEl.innerText = d.status_title || 'סינרגיה פיזיולוגית תקינה';
+    if (subEl) subEl.innerText = d.status_sub || 'הצלבת מדדי Garmin, תזונה, אטנט, ויטמינים ומשמרת';
+
+    if (scoreCard) {
+      const score = d.composite_score || 80;
+      if (score >= 80) {
+        scoreCard.style.borderColor = 'rgba(16,185,129,0.4)';
+        if (scoreValEl) scoreValEl.style.color = 'var(--neon-green)';
+      } else if (score >= 60) {
+        scoreCard.style.borderColor = 'rgba(245,158,11,0.4)';
+        if (scoreValEl) scoreValEl.style.color = '#fbbf24';
+      } else {
+        scoreCard.style.borderColor = 'rgba(239,68,68,0.4)';
+        if (scoreValEl) scoreValEl.style.color = '#f87171';
+      }
+    }
+
+    this.renderDebriefTabContent();
+  },
+
+  switchDebriefTab(tab) {
+    sfx.playClick();
+    this.activeDebriefTab = tab;
+    ['maintain', 'improve', 'status', 'research'].forEach(t => {
+      const btn = document.getElementById(`tab-btn-${t}`);
+      if (btn) {
+        if (t === tab) btn.classList.add('active');
+        else btn.classList.remove('active');
+      }
+    });
+    this.renderDebriefTabContent();
+  },
+
+  renderDebriefTabContent() {
+    const container = document.getElementById('debrief-tab-content');
+    if (!container || !this.dailyDebrief) return;
+    const d = this.dailyDebrief;
+
+    if (this.activeDebriefTab === 'maintain') {
+      const list = d.maintain_list || [];
+      if (list.length === 0) {
+        container.innerHTML = `<div style="padding:14px; text-align:center; color:var(--text-dim); font-size:12px;">טרם נרשמו נקודות חוזק להיום.</div>`;
+        return;
+      }
+      container.innerHTML = list.map(item => `
+        <div class="debrief-item-card maintain">
+          <div class="debrief-item-header">
+            <span class="debrief-item-title">🛡️ ${item.title}</span>
+            <span class="debrief-item-tag science">${item.tag || 'שימור'}</span>
+          </div>
+          <div class="debrief-item-desc">${item.desc}</div>
+        </div>
+      `).join('');
+    } else if (this.activeDebriefTab === 'improve') {
+      const list = d.improve_list || [];
+      if (list.length === 0) {
+        container.innerHTML = `
+          <div class="debrief-item-card maintain">
+            <div class="debrief-item-header">
+              <span class="debrief-item-title">👑 מושלם! אין ליקויים לתיקון</span>
+              <span class="debrief-item-tag science">OPTIMAL</span>
+            </div>
+            <div class="debrief-item-desc">כל המדדים (קלוריות, חלבון, רוויה, תוספים ואיזון מערכת העצבים) במצב מעולה להיום!</div>
+          </div>
+        `;
+        return;
+      }
+      container.innerHTML = list.map(item => `
+        <div class="debrief-item-card improve">
+          <div class="debrief-item-header">
+            <span class="debrief-item-title">🎯 ${item.title}</span>
+            <span class="debrief-item-tag alert">${item.tag || 'לשיפור'}</span>
+          </div>
+          <div class="debrief-item-desc">${item.desc}</div>
+        </div>
+      `).join('');
+    } else if (this.activeDebriefTab === 'status') {
+      const analysis = d.status_analysis || [];
+      container.innerHTML = analysis.map(st => `
+        <div class="debrief-item-card status">
+          <div class="debrief-item-header">
+            <span class="debrief-item-title">${st.icon || '📊'} ${st.domain}</span>
+            <span class="debrief-item-tag ${st.status_level === 'optimal' ? 'science' : (st.status_level === 'warning' ? 'alert' : 'info')}">${st.status_label}</span>
+          </div>
+          <div class="debrief-item-desc">${st.summary}</div>
+        </div>
+      `).join('');
+    } else if (this.activeDebriefTab === 'research') {
+      const citations = d.research_citations || [];
+      container.innerHTML = citations.map(c => `
+        <div class="debrief-item-card research">
+          <div class="debrief-item-header">
+            <span class="debrief-item-title">🔬 ${c.title}</span>
+            <span class="debrief-item-tag science">${c.source}</span>
+          </div>
+          <div class="debrief-item-desc">
+            <strong>ממצא מפתח:</strong> ${c.finding}
+          </div>
+          <div style="font-size:11px; color:#38bdf8; margin-top:4px;">
+            <strong>יישום במערכת:</strong> ${c.system_application}
+          </div>
+        </div>
+      `).join('');
     }
   }
 };

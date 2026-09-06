@@ -9,9 +9,10 @@
   <meta name="theme-color" content="#050811">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.svg">
   <title>Solo Leveling | The System</title>
-  <link rel="stylesheet" href="/styles.css?v=7">
+  <link rel="stylesheet" href="/styles.css?v=8">
+  <!-- ZXing Industry-Standard Multi-Format Barcode Scanner (EAN-13, EAN-8, UPC, Code 128) -->
+  <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 </head>
 <body>
   <!-- Scanlines Effect -->
@@ -90,6 +91,25 @@
         </div>
       </div>
     </header>
+
+    <!-- HUNTER SKILLS SECTION (STARTING AT LEVEL 1 WITH ACTIVE PROGRESSION) -->
+    <section class="skills-hud-section" id="skills-hud-section">
+      <div class="skills-hud-header">
+        <div class="skills-title-wrap">
+          <span class="skills-title-icon">⚔️</span>
+          <div class="skills-titles-block">
+            <span class="skills-title-text">יְכוֹלוֹת צַיָּד • HUNTER SKILLS</span>
+            <span class="skills-title-sub">מתחילות ברמה 1 • צבירת XP מאימונים, ריצה, שינה ודיוק קלורי</span>
+          </div>
+        </div>
+        <button class="skill-log-workout-btn" onclick="AppState.openWorkoutModal()" title="רשום אימון כוח או ריצה לצבירת XP">
+          <span>⚡ רשום אימון</span>
+        </button>
+      </div>
+      <div id="skills-grid" class="skills-grid">
+        <!-- Injected dynamically via AppState.renderSkills() -->
+      </div>
+    </section>
 
     <!-- PROMINENT SHIFT WORKER CONTROL BANNER -->
     <div id="shift-banner" class="shift-control-banner" onclick="AppState.toggleShiftMode()" title="לחץ להחלפת משמרת">
@@ -195,17 +215,46 @@
       </div>
     </section>
 
-    <!-- SYSTEM AI PHYSIOLOGICAL ADVISOR -->
+    <!-- SYSTEM AI PHYSIOLOGICAL & EVIDENCE-BASED DEBRIEF -->
     <section class="ai-advisor-section" id="ai-advisor-section">
       <div class="ai-advisor-header">
         <div class="ai-advisor-tag">
           <span class="ai-tag-icon">🧠</span>
-          <span class="ai-tag-text">SYSTEM AI PHYSIOLOGICAL ADVISOR</span>
+          <span class="ai-tag-text">SYSTEM AI HEALTH SYNERGY & RESEARCH DEBRIEF</span>
         </div>
         <span class="ai-advisor-badge">EVIDENCE-BASED</span>
       </div>
-      <div class="ai-advisor-subtitle">
-        הצלבת מדדי Garmin Venu 4, תזונה יומית והשפעת אטנט בזמן אמת:
+
+      <!-- Overall Health Index Banner -->
+      <div class="debrief-score-card" id="debrief-score-card">
+        <div class="debrief-score-left">
+          <div class="debrief-score-circle">
+            <span id="debrief-score-val" class="debrief-score-num">--</span>
+            <span class="debrief-score-sub">/ 100</span>
+          </div>
+        </div>
+        <div class="debrief-score-right">
+          <div class="debrief-status-title" id="debrief-status-title">מנתח סינרגיה פיזיולוגית...</div>
+          <div class="debrief-status-sub" id="debrief-status-sub">הצלבת Garmin, תזונה, אטנט, ויטמינים ומשמרות</div>
+        </div>
+      </div>
+
+      <!-- Debrief Category Tabs -->
+      <div class="debrief-nav-tabs">
+        <button class="debrief-tab-btn active" onclick="AppState.switchDebriefTab('maintain')" id="tab-btn-maintain">🛡️ לשימור</button>
+        <button class="debrief-tab-btn" onclick="AppState.switchDebriefTab('improve')" id="tab-btn-improve">🎯 לשיפור</button>
+        <button class="debrief-tab-btn" onclick="AppState.switchDebriefTab('status')" id="tab-btn-status">📊 תמונת מצב</button>
+        <button class="debrief-tab-btn" onclick="AppState.switchDebriefTab('research')" id="tab-btn-research">🔬 מחקרים</button>
+      </div>
+
+      <!-- Debrief Content Area -->
+      <div id="debrief-tab-content" class="debrief-tab-content">
+        <!-- Injected dynamically via AppState.renderDailyDebrief() -->
+      </div>
+
+      <!-- Real-time Alerts List -->
+      <div class="ai-advisor-subtitle" style="margin-top:12px;">
+        התראות פיזיולוגיות חיות בזמן אמת:
       </div>
       <div id="ai-insights-list" class="ai-insights-list">
         <!-- Injected dynamically via AppState.renderAIInsights() -->
@@ -354,6 +403,36 @@
       </div>
     </section>
 
+    <!-- HUNTER ELIXIRS & VITAMINS SECTION -->
+    <section class="supplements-hud-section" id="supplements-hud-section">
+      <div class="supplements-hud-header">
+        <div class="supplements-title-wrap">
+          <span class="supplements-title-icon">🧪</span>
+          <div>
+            <span class="supplements-title-text">שיקויי צייד ותוספים • ALCHEMY & VITAMINS</span>
+            <span class="supplements-title-sub">ויטמינים ומינרלים קריטיים לתמיכה במערכת העצבים ובריאות כללית</span>
+          </div>
+        </div>
+        <button class="add-custom-supp-btn" onclick="AppState.openSupplementModal()" title="הוסף תוסף אישי">
+          <span>+ תוסף אישי</span>
+        </button>
+      </div>
+
+      <!-- Quick 1-Tap Presets -->
+      <div class="supp-preset-chips">
+        <button class="supp-chip" onclick="AppState.quickAddSupplement('ויטמין D3', '2000 IU', 'vitamin')">☀️ ויטמין D3</button>
+        <button class="supp-chip" onclick="AppState.quickAddSupplement('אומגה 3', '1000 מ״ג', 'omega')">🐟 אומגה 3</button>
+        <button class="supp-chip" onclick="AppState.quickAddSupplement('מגנזיום גליצינאט', '300 מ״ג', 'mineral')">🌙 מגנזיום</button>
+        <button class="supp-chip" onclick="AppState.quickAddSupplement('אבץ (Zinc)', '25 מ״ג', 'mineral')">⚡ אבץ</button>
+        <button class="supp-chip" onclick="AppState.quickAddSupplement('קריאטין', '5 גרם', 'performance')">💥 קריאטין</button>
+        <button class="supp-chip" onclick="AppState.quickAddSupplement('מולטיוויטמין / B', '1 מנה', 'vitamin')">🌿 קומפלקס B</button>
+      </div>
+
+      <div id="supplements-today-list" class="supplements-today-list">
+        <!-- Injected dynamically via AppState.renderSupplements() -->
+      </div>
+    </section>
+
     <!-- MEAL LOGGER & SEARCH -->
     <section class="log-section">
       <div class="section-title-wrap">
@@ -380,15 +459,24 @@
       <!-- Search Autocomplete Dropdown -->
       <div id="food-search-results" class="food-search-results"></div>
 
-      <!-- Food Selection Staging Card -->
+      <!-- Food Selection Staging Card with Household Units -->
       <div id="staging-card" class="staging-card">
         <div class="staging-top">
           <span id="staging-name" class="staging-title">חזה עוף</span>
-          <span style="font-size:11px; color:var(--hud-cyan); font-family:var(--font-mono);">הזן כמות בגרמים</span>
+          <span id="staging-base-info" style="font-size:11px; color:var(--hud-cyan); font-family:var(--font-mono);">בחר כמות ויחידת מידה</span>
         </div>
         <div class="portion-controls">
-          <input type="number" id="portion-grams-input" class="portion-input" value="100" min="1" step="5">
-          <span style="font-size:12px; color:var(--text-secondary);">גרם</span>
+          <div class="portion-amount-unit-row">
+            <input type="number" id="portion-amount-input" class="portion-input" value="1" min="0.1" step="0.5" oninput="AppState.updatePortionCalculations()">
+            <select id="portion-unit-select" class="portion-unit-select" onchange="AppState.onUnitChange()">
+              <option value="g">גרם (g)</option>
+              <option value="tbsp">כף (15 גרם)</option>
+              <option value="tsp">כפית (5 גרם)</option>
+              <option value="cup">כוס (240 גרם)</option>
+              <option value="unit">יחידה / פרוסה</option>
+              <option value="serving" selected>מנה סטנדרטית</option>
+            </select>
+          </div>
           <select id="meal-type-select" class="meal-type-select">
             <option value="breakfast">ארוחת בוקר</option>
             <option value="lunch" selected>ארוחת צהריים</option>
@@ -396,6 +484,12 @@
             <option value="snack">נשנוש / אימון</option>
           </select>
         </div>
+
+        <!-- Dynamic Live Calculation Preview -->
+        <div id="staging-calc-preview" class="staging-calc-preview">
+          סה"כ: 100 גרם • 165 קק"ל | 31g חלבון
+        </div>
+
         <button class="action-btn-primary" onclick="AppState.logSelectedFood()">
           <span>✓</span> רשום ארוחה וקבל EXP
         </button>
@@ -809,6 +903,103 @@
     </div>
   </div>
 
+  <!-- WORKOUT LOGGER MODAL -->
+  <div id="workout-modal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 440px;">
+      <div class="modal-header">
+        <span class="modal-title">⚔️ רישום אימון ועליית סקילים (Workout Log)</span>
+        <button class="close-modal-btn" onclick="AppState.closeModal('workout-modal')">✕</button>
+      </div>
+      <p style="font-size:12px; color:var(--text-secondary); line-height:1.5;">
+        השלמת אימון כוח מקדמת את יכולת <strong>כוח ענקים</strong> ומעלה נקודות STR! ריצה או אירובי מקדמים את <strong>צעדי צללים</strong> ומעלים AGI וסיבולת!
+      </p>
+
+      <div class="form-group" style="margin-top:10px;">
+        <label class="form-label">סוג האימון</label>
+        <select id="workout-type-select" class="meal-type-select" style="width:100%;" onchange="AppState.onWorkoutTypeChange()">
+          <option value="strength" selected>🏋️‍♂️ אימון כוח ומשקולות (+STR)</option>
+          <option value="run">🏃‍♂️ ריצה / ספרינטים (+AGI & סיבולת)</option>
+          <option value="cardio">🚴‍♂️ אירובי / אופניים (+AGI)</option>
+          <option value="hiit">⚡ אימון הפוגות / קרוספיט (+STR & AGI)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">שם / תיאור האימון</label>
+        <input type="text" id="workout-title-input" class="form-input" value="אימון כוח (Hypertrophy)">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">משך זמן (דקות)</label>
+          <input type="number" id="workout-duration-input" class="form-input" value="50" min="5" step="5">
+        </div>
+        <div class="form-group">
+          <label class="form-label">שריפת קלוריות מוערכת</label>
+          <input type="number" id="workout-calories-input" class="form-input" value="350" min="0" step="25">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">הערות / משקלי עבודה (אופציונלי)</label>
+        <input type="text" id="workout-notes-input" class="form-input" placeholder="לדוגמה: 4 סטים סקווט, 4 סטים בנץ'">
+      </div>
+
+      <button class="action-btn-primary" onclick="AppState.saveWorkoutLog()" style="background:linear-gradient(90deg, #f59e0b, #ef4444); color:#ffffff; font-weight:900;">
+        ⚡ שמור אימון, צבור XP ושדרג יכולות
+      </button>
+    </div>
+  </div>
+
+  <!-- SUPPLEMENT CUSTOM MODAL -->
+  <div id="supplement-modal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 440px;">
+      <div class="modal-header">
+        <span class="modal-title">🧪 הוספת תוסף מותאם (Custom Elixir)</span>
+        <button class="close-modal-btn" onclick="AppState.closeModal('supplement-modal')">✕</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">שם התוסף / ויטמין</label>
+        <input type="text" id="custom-supp-name" class="form-input" placeholder="לדוגמה: אשווגנדה, אבץ, מלטונין">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">מינון וכמות</label>
+          <input type="text" id="custom-supp-dose" class="form-input" placeholder="לדוגמה: 300 מ״ג">
+        </div>
+        <div class="form-group">
+          <label class="form-label">קטגוריה</label>
+          <select id="custom-supp-category" class="meal-type-select" style="width:100%;">
+            <option value="vitamin" selected>🌿 ויטמין</option>
+            <option value="mineral">🌙 מינרל</option>
+            <option value="omega">🐟 חומצות שומן / אומגה</option>
+            <option value="performance">💥 ביצועים וספורט</option>
+          </select>
+        </div>
+      </div>
+      <button class="action-btn-primary" onclick="AppState.saveCustomSupplement()" style="background:linear-gradient(90deg, #10b981, #059669); color:#ffffff; font-weight:900;">
+        ✓ הוסף תוסף להיום וצבור EXP
+      </button>
+    </div>
+  </div>
+
+  <!-- SKILL LEVEL UP POPUP OVERLAY -->
+  <div id="skill-levelup-overlay" class="levelup-overlay">
+    <div class="levelup-card" style="border-color:var(--neon-green); box-shadow:0 0 35px rgba(16,185,129,0.5);">
+      <div class="levelup-banner" style="color:var(--neon-green); text-shadow:0 0 15px rgba(16,185,129,0.8);">[ SKILL LEVEL UP! ]</div>
+      <div class="levelup-sub" style="font-size:18px; margin-top:8px;">
+        <span id="skill-levelup-icon" style="font-size:24px;">⚡</span>
+        <span id="skill-levelup-title" style="color:var(--neon-green); font-weight:900;">שליטה תזונתית</span>
+      </div>
+      <div style="font-size:14px; color:#ffffff; margin-top:4px;">
+        עלתה לרמה <span id="skill-levelup-val" style="color:var(--hud-cyan); font-weight:900; font-size:20px;">2</span>!
+      </div>
+      <p id="skill-levelup-reward" style="font-size:12px; color:#a7f3d0; margin-top:8px; font-weight:700;">
+        בונוס שודרג: +2 כוח (STR)!
+      </p>
+    </div>
+  </div>
+
   <!-- LEVEL UP POPUP OVERLAY -->
   <div id="levelup-overlay" class="levelup-overlay">
     <div class="levelup-card">
@@ -819,6 +1010,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=7"></script>
+  <script src="/app.js?v=8"></script>
 </body>
 </html>

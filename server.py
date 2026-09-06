@@ -300,6 +300,69 @@ class Database:
             )
             """)
 
+            # Hunter skills table (Starts at Level 1 with dynamic RPG progression)
+            c.execute("""
+            CREATE TABLE IF NOT EXISTS hunter_skills (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                skill_code TEXT NOT NULL UNIQUE,
+                name_he TEXT NOT NULL,
+                name_en TEXT NOT NULL,
+                level INTEGER DEFAULT 1,
+                current_exp INTEGER DEFAULT 0,
+                exp_to_next INTEGER DEFAULT 100,
+                stat_boost_type TEXT NOT NULL,
+                stat_boost_val INTEGER DEFAULT 2,
+                icon TEXT DEFAULT '⚡',
+                description_he TEXT NOT NULL
+            )
+            """)
+
+            # Workout logs table (Strength, Run, Cardio)
+            c.execute("""
+            CREATE TABLE IF NOT EXISTS workout_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                workout_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                duration_min INTEGER NOT NULL,
+                calories_burned INTEGER DEFAULT 0,
+                notes TEXT DEFAULT '',
+                timestamp TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+
+            # Supplements and Vitamins log table
+            c.execute("""
+            CREATE TABLE IF NOT EXISTS supplements_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                name TEXT NOT NULL,
+                dosage TEXT NOT NULL,
+                unit TEXT DEFAULT 'mg',
+                category TEXT DEFAULT 'vitamin',
+                notes TEXT DEFAULT '',
+                timestamp TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+
+            # Initialize Hunter Skills if empty (All start at Level 1)
+            c.execute("SELECT COUNT(*) FROM hunter_skills")
+            if c.fetchone()[0] == 0:
+                default_skills = [
+                    ("colossus_strength", "כוח ענקים", "Colossus Strength", 1, 0, 100, "STR", 2, "🏋️‍♂️", "מתחזק באימוני כוח ומשקולות. מעניק +2 כוח (STR) בכל עליית שלב."),
+                    ("shadow_sprint", "צעדי צללים וסיבולת", "Shadow Sprint", 1, 0, 100, "AGI", 2, "⚡", "מתחזק בריצות, אירובי ויעדי צעדים בגרמין. מעניק +2 זריזות (AGI) וסיבולת."),
+                    ("nutrition_mastery", "שליטה תזונתית", "Nutrition Mastery", 1, 0, 100, "INT", 2, "🥗", "מתחזק בדיוק יומי ביעדי הקלוריות והחלבון. מעניק +2 תבונה (INT) וחיוניות."),
+                    ("regeneration", "התאוששות ומנוחת לילה", "Cellular Regeneration", 1, 0, 100, "VIT", 2, "🌙", "מתחזק בשינה איכותית מעל 7 שעות וציון גרמין גבוה. מעניק +2 חיוניות (VIT)."),
+                    ("alchemy_discipline", "משמעת שיקויים ותוספים", "Alchemy Discipline", 1, 0, 100, "PER", 2, "🧪", "מתחזק בנטילת ויטמינים ותוספים בזמן ושתיית מים. מעניק +2 תפיסה (PER).")
+                ]
+                for s in default_skills:
+                    c.execute("""
+                    INSERT INTO hunter_skills (skill_code, name_he, name_en, level, current_exp, exp_to_next, stat_boost_type, stat_boost_val, icon, description_he)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, s)
+
             # Initialize profile if empty
             c.execute("SELECT COUNT(*) FROM hunter_profile WHERE id=1")
             if c.fetchone()[0] == 0:
@@ -393,6 +456,67 @@ class HunterLevelingEngine:
             "exp": exp,
             "exp_to_next": exp_to_next
         }
+
+    @staticmethod
+    def add_skill_exp(conn, skill_code, amount):
+        c = conn.cursor()
+        c.execute("SELECT * FROM hunter_skills WHERE skill_code = ?", (skill_code,))
+        row = c.fetchone()
+        if not row:
+            return None
+        skill = dict(row)
+        lvl = skill["level"]
+        exp = skill["current_exp"] + amount
+        exp_next = skill["exp_to_next"]
+        leveled_up = False
+        stat_type = skill["stat_boost_type"]
+        stat_boost = skill["stat_boost_val"]
+        levels_gained = 0
+
+        while exp >= exp_next:
+            exp -= exp_next
+            lvl += 1
+            levels_gained += 1
+            exp_next = round(exp_next * 1.35 + 35)
+            leveled_up = True
+
+        if leveled_up:
+            stat_col_map = {
+                "STR": "stats_str",
+                "AGI": "stats_agi",
+                "VIT": "stats_vit",
+                "INT": "stats_int",
+                "PER": "stats_per"
+            }
+            col = stat_col_map.get(stat_type)
+            if col:
+                total_stat_gain = stat_boost * levels_gained
+                c.execute(f"UPDATE hunter_profile SET {col} = {col} + ? WHERE id=1", (total_stat_gain,))
+
+        c.execute("""
+        UPDATE hunter_skills 
+        SET level = ?, current_exp = ?, exp_to_next = ? 
+        WHERE skill_code = ?
+        """, (lvl, exp, exp_next, skill_code))
+        conn.commit()
+
+        # Also award partial EXP to player level
+        player_exp_gain = max(10, int(amount * 0.7))
+        player_res = HunterLevelingEngine.add_exp(conn, player_exp_gain)
+
+        return {
+            "skill_code": skill_code,
+            "name_he": skill["name_he"],
+            "leveled_up": leveled_up,
+            "level": lvl,
+            "levels_gained": levels_gained,
+            "stat_boost_type": stat_type,
+            "stat_boost_val": stat_boost,
+            "current_exp": exp,
+            "exp_to_next": exp_next,
+            "player_leveling": player_res
+        }
+
 
 # -------------------------------------------------------------
 # Garmin Biometrics & Attent AI Physiological Advisor
@@ -647,6 +771,289 @@ class HunterHealthAIAdvisor:
             "calculated_fatigue": calculated_fatigue
         }
 
+    @classmethod
+    def generate_daily_debrief(cls, conn, today):
+        c = conn.cursor()
+        c.execute("SELECT * FROM hunter_profile WHERE id=1")
+        profile = dict(c.fetchone())
+
+        c.execute("""
+        SELECT COALESCE(SUM(calories), 0) as calories,
+               COALESCE(SUM(protein), 0) as protein,
+               COALESCE(SUM(carbs), 0) as carbs,
+               COALESCE(SUM(fats), 0) as fats,
+               COALESCE(SUM(magnesium_mg), 0) as magnesium,
+               COALESCE(SUM(zinc_mg), 0) as zinc,
+               COALESCE(SUM(vit_c_mg), 0) as vit_c
+        FROM daily_logs WHERE date = ?
+        """, (today,))
+        nutrition = dict(c.fetchone())
+
+        c.execute("SELECT COALESCE(SUM(amount_ml), 0) as water_ml FROM water_logs WHERE date = ?", (today,))
+        water_ml = c.fetchone()["water_ml"]
+        nutrition["water_ml"] = water_ml
+
+        c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
+        g_row = c.fetchone()
+        garmin = dict(g_row) if g_row else {
+            "heart_rate": 68, "resting_hr": 58, "sleep_score": 82, "sleep_hours": 7.2,
+            "stress_level": 28, "body_battery": 75, "steps": 8500, "active_calories": 450
+        }
+
+        c.execute("SELECT * FROM medication_logs WHERE date = ? ORDER BY id DESC", (today,))
+        meds = [dict(r) for r in c.fetchall()]
+        attent_taken = any(m["med_name"].lower() == "attent" for m in meds)
+        attent_dose = meds[0]["dose_mg"] if attent_taken else 0
+        attent_time = meds[0]["timestamp"] if attent_taken else None
+
+        c.execute("SELECT * FROM supplements_log WHERE date = ? ORDER BY id ASC", (today,))
+        supps = [dict(r) for r in c.fetchall()]
+        supp_names = [s["name"].lower() for s in supps]
+
+        has_magnesium = any("מגנזיום" in n or "magnesium" in n for n in supp_names)
+        has_omega3 = any("אומגה" in n or "omega" in n for n in supp_names)
+        has_vit_d = any("ויטמין d" in n or "d3" in n or "vitamin d" in n for n in supp_names)
+        has_zinc = any("אבץ" in n or "zinc" in n for n in supp_names)
+        has_creatine = any("קריאטין" in n or "creatine" in n for n in supp_names)
+
+        shift_mode = profile.get("shift_mode", "standard")
+        is_night = shift_mode == "night"
+
+        # Biological scoring synthesis (0 - 100)
+        sleep_score = garmin.get("sleep_score", 75)
+        stress_level = garmin.get("stress_level", 30)
+        hr_rest = garmin.get("resting_hr", 60)
+
+        sleep_component = (sleep_score / 100.0) * 30.0
+        stress_factor = max(0.0, min(1.0, (100.0 - stress_level) / 100.0))
+        stress_component = stress_factor * 25.0
+
+        target_cals = max(1, profile.get("target_calories", 2200))
+        target_p = max(1, profile.get("target_protein", 160))
+        p_ratio = min(1.2, nutrition["protein"] / target_p)
+        c_ratio = min(1.3, nutrition["calories"] / target_cals)
+        nutrition_factor = (min(1.0, p_ratio) * 0.6) + (1.0 - abs(1.0 - c_ratio) * 0.4)
+        nutrition_component = max(5.0, nutrition_factor * 25.0)
+
+        water_target = max(1, profile.get("target_water", 3000))
+        water_ratio = min(1.0, water_ml / water_target)
+        supp_count = len(supps)
+        vitality_component = (water_ratio * 12.0) + (min(4, supp_count) * 2.0)
+
+        total_health_score = round(sleep_component + stress_component + nutrition_component + vitality_component)
+        total_health_score = max(35, min(99, total_health_score))
+
+        if total_health_score >= 85:
+            score_status_he = "מצב פיזיולוגי מעולה (Optimal Vitality)"
+            status_desc = "הגוף שלך נמצא במצב אנבולי יציב והתאוששות מיטבית. מערכת העצבים מאוזנת ורמות האנרגיה מתוחזקות היטב."
+        elif total_health_score >= 70:
+            score_status_he = "איזון פיזיולוגי יציב (Balanced State)"
+            status_desc = "מרבית המדדים החיוניים יציבים. קיימת התאוששות סבירה עם נקודות בודדות למיקוד ותיקון."
+        else:
+            score_status_he = "עומס סימפתטי והתאוששות לקויה (Recovery Debt)"
+            status_desc = "מזוהה עומס מוגבר על מערכת העצבים האוטונומית (HRV נמוך או גירעון שינה). נדרשת התערבות מנוחה והזנה."
+
+        ans_state = "איזון פארא-סימפתטי תקין"
+        if attent_taken:
+            if stress_level > 40:
+                ans_state = "דומיננטיות סימפתטית מוגברת עקב שילוב של אטנט (פעילות אדרנרגית) ועומס פיזי/משמרת."
+            else:
+                ans_state = "איזון סימפתטי מבוקר היטב - העלייה בדופק מתונה הודות לניהול מתחים והידרציה."
+        elif stress_level > 40:
+            ans_state = "סטרס גופני/נפשי מוגבר הדורש שחרור ופריקת עומסים."
+
+        phys_status_he = (
+            f"דופק מנוחה של {hr_rest} פעימות לדקה וציון סטרס יומי של {stress_level}/100. "
+            f"מצב מערכת העצבים: {ans_state} "
+            f"התאוששות שינה: {garmin.get('sleep_hours', 7.0)} שעות (ציון {sleep_score}/100, Body Battery: {garmin.get('body_battery', 70)}%). "
+            f"צריכת חלבון עומדת על {round(nutrition['protein'])} גרם מתוך יעד של {target_p} גרם ({round(p_ratio*100)}%). "
+            f"{'נמצא במצב משמרת לילה: חלון איפוס והורמונים מוסטים בהתאם.' if is_night else 'משמרת יום סדירה.'}"
+        )
+
+        strengths = []
+        if nutrition["protein"] >= target_p * 0.8:
+            strengths.append({
+                "icon": "🥩",
+                "title": "שמירה על מסת שריר ומאזן חנקן חיובי",
+                "desc": f"צריכת {round(nutrition['protein'])}g חלבון מונעת קטבוליזם (פירוק שריר) ומספקת חומצות אמינו לסינתזת דופמין (טירוזין).",
+                "tag": "ISSN Protocol"
+            })
+        if water_ml >= 2500:
+            strengths.append({
+                "icon": "💧",
+                "title": "הידרציה אופטימלית ודילול אלקטרוליטים",
+                "desc": f"שתיית {water_ml} מ\"ל מים מסייעת בפינוי מטבוליטים כלייתיים, מונעת יובש בריריות ומאזנת לחץ דם תחת אטנט.",
+                "tag": "Hydration Balance"
+            })
+        if has_magnesium:
+            strengths.append({
+                "icon": "🌙",
+                "title": "סינרגיית מגנזיום פעילה",
+                "desc": "נטילת מגנזיום חוסמת פעילות יתר של קולטני NMDA, מונעת כיווצי שרירים/נעילת לסת ומשפרת משמעותית את איכות שנת ה-Deep Sleep.",
+                "tag": "Neuro-Protection"
+            })
+        if has_omega3:
+            strengths.append({
+                "icon": "🐟",
+                "title": "הגנה קרדיווסקולרית ואנטי-דלקתית",
+                "desc": "אומגה 3 (EPA/DHA) מייצבת את תאי שריר הלב, מסייעת לגמישות כלי הדם ומאזנת את השפעות הדופק.",
+                "tag": "Cardioprotective"
+            })
+        if garmin.get("sleep_score", 70) >= 75:
+            strengths.append({
+                "icon": "⚡",
+                "title": "ארכיטקטורת שינה משקמת",
+                "desc": f"ציון שינה {sleep_score}/100 מעיד על שלבי REM וגלים איטיים (SWS) מספקים לחידוש מלאי הדופמין במערכת התגמול.",
+                "tag": "Recovery State"
+            })
+        if not strengths:
+            strengths.append({
+                "icon": "🛡️",
+                "title": "בסיס התמדה ברישום",
+                "desc": "מעקב עקבי אחר תזונה ומדדים ביולוגיים הוא השלב הקריטי ביותר בשיפור ארוך טווח.",
+                "tag": "Consistency"
+            })
+
+        improvements = []
+        if attent_taken:
+            improvements.append({
+                "icon": "⏰",
+                "title": "תזמון נטילת אטנט מול שעת השינה",
+                "desc": "זמן מחצית החיים של אמפטמין בגוף הוא כ-10-12 שעות. ודא נטילה לפחות 8-10 שעות לפני השינה (גם במשמרת לילה) כדי לא לפגוע בשנת REM.",
+                "priority": "גבוהה",
+                "tag": "Pharmacokinetics"
+            })
+            if not has_magnesium:
+                improvements.append({
+                    "icon": "💊",
+                    "title": "הוספת מגנזיום גליצינאט בערב",
+                    "desc": "תרופות מעוררות מאיצות הפרשת מגנזיום בשתן. מומלץ ליטול 200-400 מ\"ג מגנזיום גליצינאט לפני השינה להרפיית שרירים והורדת סטרס.",
+                    "priority": "בינונית",
+                    "tag": "Mineral Support"
+                })
+        if nutrition["protein"] < target_p * 0.8:
+            improvements.append({
+                "icon": "🍳",
+                "title": "השלמת חלבון להגעה ליעד היומי",
+                "desc": f"חסרים לך כ-{round(target_p - nutrition['protein'])} גרם חלבון ליעד המומלץ לפי ISSN (1.6-2.2 גרם לק\"ג). מומלץ להוסיף שייק חלבון, ביצים או קוטג'.",
+                "priority": "גבוהה",
+                "tag": "ISSN Standard"
+            })
+        if water_ml < 2200:
+            improvements.append({
+                "icon": "🥤",
+                "title": "הגברת צריכת נוזלים",
+                "desc": f"נצרכו רק {water_ml} מ\"ל מתוך יעד של {water_target} מ\"ל. הידרציה נמוכה מעלה דופק במנוחה ומגבירה עייפות.",
+                "priority": "בינונית",
+                "tag": "Hydration Target"
+            })
+        if is_night:
+            improvements.append({
+                "icon": "🕶️",
+                "title": "חסימת אור כחול ביציאה ממשמרת לילה",
+                "desc": "ביציאה מהמשמרת בשעות הבוקר, חבישת משקפי שמש מונעת מאור השמש לדכא את ייצור המלטונין הטבעי ומאפשרת הירדמות מהירה יותר ביום.",
+                "priority": "בינונית",
+                "tag": "Circadian Rhythm"
+            })
+        if garmin.get("stress_level", 25) > 40:
+            improvements.append({
+                "icon": "🧘‍♂️",
+                "title": "הורדת טון סימפתטי (תרגיל נשימה)",
+                "desc": "רמת הסטרס בשעון גבוהה (HRV נמוך). בצע 4 דקות של נשימת 4-7-8 או נשימת ריבוע (Box Breathing) להפעלת עצב הוואגוס.",
+                "priority": "גבוהה",
+                "tag": "Vagal Tone"
+            })
+
+        citations = [
+            {
+                "title": "International Society of Sports Nutrition Position Stand: Protein and Exercise",
+                "journal": "Journal of the International Society of Sports Nutrition (JISSN)",
+                "year": "2017",
+                "takeaway": "צריכת 1.6-2.2 גרם חלבון לכל ק\"ג משקל גוף מביאה למקסום סינתזת שריר ומניעת קטבוליזם בגירעון קלורי."
+            },
+            {
+                "title": "Cardiovascular Effects and Monitoring of Psychostimulants in Adults",
+                "journal": "Circulation / American Heart Association (AHA)",
+                "year": "2019",
+                "takeaway": "תרופות מעוררות מסוג אמפטמין מעלות דופק מנוחה ב-3-8 פעימות בממוצע; הידרציה נכונה ואיזון אלקטרוליטים שומרים על יציבות לחץ הדם."
+            },
+            {
+                "title": "The Role of Magnesium in Sleep Health and Autonomic Regulation",
+                "journal": "Nutrients & Sleep Medicine Reviews",
+                "year": "2021",
+                "takeaway": "מגנזיום מווסת נוירוטרנסמיטורים מעוררים (GABA agonist / NMDA antagonist), משפר HRV ומפחית זמני הירדמות."
+            },
+            {
+                "title": "Circadian Disruption in Shift Workers and Dietary Countermeasures",
+                "journal": "The Lancet Public Health / Sleep Foundation",
+                "year": "2022",
+                "takeaway": "שמירה על חלונות אכילה מוגדרים במשמרת לילה ומניעת פחמימות פשוטות לפני שנת היום מונעות תנגודת לאינסולין ועייפות כרונית."
+            }
+        ]
+
+        status_analysis = [
+            {
+                "domain": "מערכת העצבים ומדדי Garmin",
+                "icon": "❤️",
+                "status_level": "optimal" if stress_level <= 40 else "warning",
+                "status_label": f"HR: {hr_rest}bpm | Stress: {stress_level}",
+                "summary": ans_state
+            },
+            {
+                "domain": "תזונה וחלבון (ISSN)",
+                "icon": "🥩",
+                "status_level": "optimal" if nutrition["protein"] >= target_p * 0.8 else "warning",
+                "status_label": f"{round(nutrition['protein'])}g / {target_p}g",
+                "summary": f"נצרכו {round(nutrition['calories'])} קק\"ל מתוך יעד מדעי של {target_cals} קק\"ל."
+            },
+            {
+                "domain": "שיקוי ריכוז (Attent)",
+                "icon": "💊",
+                "status_level": "info",
+                "status_label": f"{attent_dose}mg" if attent_taken else "לא נלקח",
+                "summary": f"נלקח ב-{attent_time} • השפעה מנוטרת ע\"י מנוע ה-AI" if attent_taken else "לא נרשמה נטילת אטנט היום."
+            },
+            {
+                "domain": "הידרציה ותוספי צייד",
+                "icon": "🧪",
+                "status_level": "optimal" if water_ml >= 2500 else "info",
+                "status_label": f"{water_ml}ml | {len(supps)} תוספים",
+                "summary": f"נרשמו: {', '.join([s['name'] for s in supps]) if supps else 'טרם נרשמו תוספים להיום'}"
+            }
+        ]
+
+        research_citations = [
+            {
+                "title": c["title"],
+                "source": f"{c['journal']} ({c['year']})",
+                "finding": c["takeaway"],
+                "system_application": "הנחיות תזונה, תזמון שינה ומעקב פיזיולוגי ב-HUD"
+            } for c in citations
+        ]
+
+        return {
+            "today": today,
+            "overall_health_score": total_health_score,
+            "composite_score": total_health_score,
+            "score_status_he": score_status_he,
+            "status_title": score_status_he,
+            "status_summary": status_desc,
+            "status_sub": status_desc,
+            "physiological_status_he": phys_status_he,
+            "status_analysis": status_analysis,
+            "biometrics_snapshot": garmin,
+            "nutrition_snapshot": nutrition,
+            "medication_snapshot": {"attent_taken": attent_taken, "dose_mg": attent_dose, "time": attent_time},
+            "supplements_snapshot": [s["name"] for s in supps],
+            "strengths_to_keep": strengths,
+            "maintain_list": strengths,
+            "improvements_targeted": improvements,
+            "improve_list": improvements,
+            "scientific_citations": citations,
+            "research_citations": research_citations
+        }
+
+
 # -------------------------------------------------------------
 # HTTP Request Handler & REST API
 # -------------------------------------------------------------
@@ -695,6 +1102,14 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.handle_garmin_status()
         elif path == "/api/garmin/health":
             self.handle_get_garmin_health()
+        elif path == "/api/skills":
+            self.handle_get_skills()
+        elif path == "/api/workouts/today":
+            self.handle_get_workouts()
+        elif path == "/api/supplements/today":
+            self.handle_get_supplements()
+        elif path == "/api/health-synergy/daily-debrief":
+            self.handle_get_daily_debrief()
         elif path.startswith("/api/barcode/"):
             barcode = path.split("/")[-1]
             self.handle_get_barcode(barcode)
@@ -737,6 +1152,10 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.handle_post_garmin_sync(body)
         elif path == "/api/medication/attent":
             self.handle_post_attent(body)
+        elif path == "/api/workouts/log":
+            self.handle_post_workout(body)
+        elif path == "/api/supplements/log":
+            self.handle_post_supplement(body)
         else:
             self._set_headers(404)
             self.wfile.write(json.dumps({"error": "Endpoint not found"}).encode("utf-8"))
@@ -753,10 +1172,142 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
         elif path == "/api/medication/attent":
             self.handle_delete_attent()
+        elif path.startswith("/api/supplements/log/"):
+            try:
+                supp_id = int(path.split("/")[-1])
+                self.handle_delete_supplement(supp_id)
+            except Exception as e:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+        elif path.startswith("/api/workouts/log/"):
+            try:
+                workout_id = int(path.split("/")[-1])
+                self.handle_delete_workout(workout_id)
+            except Exception as e:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
         else:
             self._set_headers(404)
 
     # ------------------ Handlers ------------------
+    # --- Skills & Workouts ---
+    def handle_get_skills(self):
+        with Database.get_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM hunter_skills ORDER BY id ASC")
+            skills = [dict(r) for r in c.fetchall()]
+        self._set_headers()
+        self.wfile.write(json.dumps({"skills": skills}, ensure_ascii=False).encode("utf-8"))
+
+    def handle_get_workouts(self):
+        with Database.get_connection() as conn:
+            today = get_hunter_shift_date(conn)
+            c = conn.cursor()
+            c.execute("SELECT * FROM workout_logs WHERE date = ? ORDER BY id DESC", (today,))
+            workouts = [dict(r) for r in c.fetchall()]
+        self._set_headers()
+        self.wfile.write(json.dumps({"workouts": workouts}, ensure_ascii=False).encode("utf-8"))
+
+    def handle_post_workout(self, body):
+        w_type = body.get("workout_type", "strength")
+        title = body.get("title") or ("אימון כוח (Hypertrophy)" if w_type == "strength" else "אימון ריצה וסיבולת")
+        duration = int(body.get("duration_min", 45))
+        calories = int(body.get("calories_burned", duration * 7))
+        notes = body.get("notes", "")
+        now_time = datetime.datetime.now().strftime("%H:%M")
+
+        with Database.get_connection() as conn:
+            today = get_hunter_shift_date(conn)
+            c = conn.cursor()
+            c.execute("""
+            INSERT INTO workout_logs (date, workout_type, title, duration_min, calories_burned, notes, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (today, w_type, title, duration, calories, notes, now_time))
+            w_id = c.lastrowid
+
+            skill_code = "colossus_strength" if w_type == "strength" else "shadow_sprint"
+            skill_exp = 30 + int(duration * 0.8)
+            skill_res = HunterLevelingEngine.add_skill_exp(conn, skill_code, skill_exp)
+
+            c.execute("UPDATE hunter_profile SET fatigue = max(0, fatigue - 10) WHERE id=1")
+            conn.commit()
+
+            c.execute("SELECT * FROM hunter_profile WHERE id=1")
+            profile = dict(c.fetchone())
+
+        self._set_headers(201)
+        self.wfile.write(json.dumps({
+            "status": "workout_logged",
+            "id": w_id,
+            "skill_leveling": skill_res,
+            "profile": profile
+        }, ensure_ascii=False).encode("utf-8"))
+
+    def handle_delete_workout(self, w_id):
+        with Database.get_connection() as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM workout_logs WHERE id=?", (w_id,))
+            conn.commit()
+        self._set_headers(200)
+        self.wfile.write(json.dumps({"status": "deleted", "id": w_id}).encode("utf-8"))
+
+    # --- Supplements & Vitamins ---
+    def handle_get_supplements(self):
+        with Database.get_connection() as conn:
+            today = get_hunter_shift_date(conn)
+            c = conn.cursor()
+            c.execute("SELECT * FROM supplements_log WHERE date = ? ORDER BY id DESC", (today,))
+            supps = [dict(r) for r in c.fetchall()]
+        self._set_headers()
+        self.wfile.write(json.dumps({"supplements": supps}, ensure_ascii=False).encode("utf-8"))
+
+    def handle_post_supplement(self, body):
+        name = body.get("name", "תוסף ויטמין")
+        dosage = str(body.get("dosage", "1 מנה"))
+        unit = body.get("unit", "mg")
+        category = body.get("category", "vitamin")
+        notes = body.get("notes", "")
+        now_time = datetime.datetime.now().strftime("%H:%M")
+
+        with Database.get_connection() as conn:
+            today = get_hunter_shift_date(conn)
+            c = conn.cursor()
+            c.execute("""
+            INSERT INTO supplements_log (date, name, dosage, unit, category, notes, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (today, name, dosage, unit, category, notes, now_time))
+            s_id = c.lastrowid
+
+            skill_res = HunterLevelingEngine.add_skill_exp(conn, "alchemy_discipline", 20)
+            conn.commit()
+
+            c.execute("SELECT * FROM hunter_profile WHERE id=1")
+            profile = dict(c.fetchone())
+
+        self._set_headers(201)
+        self.wfile.write(json.dumps({
+            "status": "supplement_logged",
+            "id": s_id,
+            "skill_leveling": skill_res,
+            "profile": profile
+        }, ensure_ascii=False).encode("utf-8"))
+
+    def handle_delete_supplement(self, s_id):
+        with Database.get_connection() as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM supplements_log WHERE id=?", (s_id,))
+            conn.commit()
+        self._set_headers(200)
+        self.wfile.write(json.dumps({"status": "deleted", "id": s_id}).encode("utf-8"))
+
+    # --- Daily Health Debrief ---
+    def handle_get_daily_debrief(self):
+        with Database.get_connection() as conn:
+            today = get_hunter_shift_date(conn)
+            debrief = HunterHealthAIAdvisor.generate_daily_debrief(conn, today)
+        self._set_headers()
+        self.wfile.write(json.dumps(debrief, ensure_ascii=False).encode("utf-8"))
+
     def handle_get_profile(self):
         with Database.get_connection() as conn:
             c = conn.cursor()
@@ -1016,12 +1567,16 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             exp_awarded = 25 + int(protein * 0.5)
             lvl_res = HunterLevelingEngine.add_exp(conn, exp_awarded)
 
+            # Award XP to Nutrition Mastery skill
+            skill_res = HunterLevelingEngine.add_skill_exp(conn, "nutrition_mastery", 15 + int(protein * 0.3))
+
         self._set_headers(201)
         self.wfile.write(json.dumps({
             "status": "success",
             "log_id": log_id,
             "exp_awarded": exp_awarded,
-            "leveling": lvl_res
+            "leveling": lvl_res,
+            "skill_leveling": skill_res
         }, ensure_ascii=False).encode("utf-8"))
 
     def handle_delete_log(self, log_id):
@@ -1345,6 +1900,12 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                     vals.append(today)
                     c.execute(f"UPDATE garmin_health_logs SET {', '.join(updates)} WHERE date = ?", vals)
                     conn.commit()
+
+                # Award skill XP based on sleep quality and steps
+                if float(body.get("sleep_score", 0)) >= 75 or float(body.get("sleep_hours", 0)) >= 7.0:
+                    HunterLevelingEngine.add_skill_exp(conn, "regeneration", 25)
+                if int(body.get("steps", 0)) >= 8000:
+                    HunterLevelingEngine.add_skill_exp(conn, "shadow_sprint", 20)
 
                 health_data = HunterHealthAIAdvisor.analyze_and_generate_insights(conn, today)
 
