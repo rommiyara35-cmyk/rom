@@ -1353,31 +1353,71 @@ const AppState = {
   renderGarminBiometrics() {
     if (!this.healthAdvisor || !this.healthAdvisor.biometrics) return;
     const b = this.healthAdvisor.biometrics;
+    const normMeta = this.healthAdvisor.attent_normalization;
+    const isNorm = normMeta && normMeta.is_active;
 
+    // 0. Normalization Pill in Header & Badges
+    const normPill = document.getElementById('attent-norm-pill');
+    const hrBadge = document.getElementById('garmin-hr-badge');
+    const stressBadge = document.getElementById('garmin-stress-badge');
+    const bbBadge = document.getElementById('garmin-bb-badge');
+
+    if (normPill) {
+      if (isNorm) {
+        normPill.style.display = 'flex';
+        const pillText = document.getElementById('attent-norm-pill-text');
+        if (pillText) pillText.innerText = normMeta.status_badge_he || '💊 פילטר אטנט פעיל (מנוקה מדעית)';
+      } else {
+        normPill.style.display = 'none';
+      }
+    }
+
+    if (hrBadge) hrBadge.style.display = isNorm ? 'inline-block' : 'none';
+    if (stressBadge) stressBadge.style.display = isNorm ? 'inline-block' : 'none';
+    if (bbBadge) bbBadge.style.display = isNorm ? 'inline-block' : 'none';
+
+    // 1. Heart Rate
     const hrEl = document.getElementById('garmin-hr-val');
     if (hrEl) hrEl.innerText = b.heart_rate || 68;
     const rhrEl = document.getElementById('garmin-resting-hr');
-    if (rhrEl) rhrEl.innerText = `מנוחה: ${b.resting_hr || 58} bpm`;
+    if (rhrEl) {
+      if (isNorm && b.raw_rhr) {
+        rhrEl.innerHTML = `מנוחה מנורמלת: <strong>${b.resting_hr} bpm</strong> <span style="font-size:10px; color:#f87171; text-decoration:line-through;">(${b.raw_rhr} bpm)</span>`;
+      } else {
+        rhrEl.innerText = `מנוחה: ${b.resting_hr || 58} bpm`;
+      }
+    }
 
+    // 2. Sleep Quality
     const sleepEl = document.getElementById('garmin-sleep-val');
     if (sleepEl) sleepEl.innerText = b.sleep_score || 82;
     const sleepHEl = document.getElementById('garmin-sleep-hours');
     if (sleepHEl) sleepHEl.innerText = `${b.sleep_hours || 7.2} שעות שינה`;
 
+    // 3. Stress Level
     const stressEl = document.getElementById('garmin-stress-val');
     if (stressEl) stressEl.innerText = b.stress_level || 28;
     const stressStatEl = document.getElementById('garmin-stress-status');
     if (stressStatEl) {
-      const s = b.stress_level || 28;
-      stressStatEl.innerText = s < 25 ? 'מנוחה (נמוך)' : (s < 50 ? 'נמוך-בינוני' : (s < 75 ? 'בינוני' : 'גבוה'));
+      if (isNorm && b.raw_stress !== undefined) {
+        stressStatEl.innerHTML = `${b.stress_state_he || 'מנוחה'} <span style="font-size:10px; color:#f87171; text-decoration:line-through;">(שעון: ${b.raw_stress})</span>`;
+      } else {
+        const s = b.stress_level || 28;
+        stressStatEl.innerText = s < 25 ? 'מנוחה (נמוך)' : (s < 50 ? 'נמוך-בינוני' : (s < 75 ? 'בינוני' : 'גבוה'));
+      }
     }
 
+    // 4. Body Battery
     const bbEl = document.getElementById('garmin-battery-val');
     if (bbEl) bbEl.innerText = `${b.body_battery || 75}%`;
     const bbStatEl = document.getElementById('garmin-battery-status');
     if (bbStatEl) {
-      const bb = b.body_battery || 75;
-      bbStatEl.innerText = bb > 70 ? 'אנרגיה טעונה' : (bb > 40 ? 'רמה בינונית' : 'מאגר נמוך');
+      if (isNorm && b.raw_bb !== undefined) {
+        bbStatEl.innerHTML = `מוגן משחיקת אטנט <span style="font-size:10px; color:#f87171; text-decoration:line-through;">(${b.raw_bb}%)</span>`;
+      } else {
+        const bb = b.body_battery || 75;
+        bbStatEl.innerText = bb > 70 ? 'אנרגיה טעונה' : (bb > 40 ? 'רמה בינונית' : 'מאגר נמוך');
+      }
     }
 
     const stepsEl = document.getElementById('garmin-steps-val');
@@ -1386,6 +1426,31 @@ const AppState = {
     if (activeEl) activeEl.innerText = `+${b.active_calories || 450}`;
     const spo2El = document.getElementById('garmin-spo2-val');
     if (spo2El) spo2El.innerText = `${b.spo2_pct || 98}%`;
+  },
+
+  openAttentNormModal() {
+    sfx.playClick();
+    const b = this.healthAdvisor?.biometrics;
+    const meta = this.healthAdvisor?.attent_normalization;
+    if (meta && meta.is_active && b) {
+      const sub = document.getElementById('norm-modal-subtitle');
+      if (sub) sub.innerText = `נטילה לפני ${meta.elapsed_hours.toFixed(1)} שעות • מינון ${meta.dose_mg}mg (עוצמה פרמקולוגית ${meta.potency_pct}%)`;
+
+      const stressReal = document.getElementById('norm-comp-stress-real');
+      const stressRaw = document.getElementById('norm-comp-stress-raw');
+      const stressDesc = document.getElementById('norm-comp-stress-desc');
+      if (stressReal) stressReal.innerText = b.stress_level;
+      if (stressRaw) stressRaw.innerText = `${b.raw_stress} (שעון)`;
+      if (stressDesc) stressDesc.innerText = `הטיה של ${meta.stress_offset}+ נקודות נוטרלה מדעית`;
+
+      const rhrReal = document.getElementById('norm-comp-rhr-real');
+      const rhrRaw = document.getElementById('norm-comp-rhr-raw');
+      const rhrDesc = document.getElementById('norm-comp-rhr-desc');
+      if (rhrReal) rhrReal.innerText = `${b.resting_hr} bpm`;
+      if (rhrRaw) rhrRaw.innerText = `${b.raw_rhr} bpm`;
+      if (rhrDesc) rhrDesc.innerText = `הטיה כרונוטרופית של ${meta.rhr_offset}+ bpm נוטרלה`;
+    }
+    this.openModal('attent-norm-modal');
   },
 
   renderAttentBanner() {

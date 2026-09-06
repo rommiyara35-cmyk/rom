@@ -10,7 +10,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
   <title>Solo Leveling | The System</title>
-  <link rel="stylesheet" href="/styles.css?v=8">
+  <link rel="stylesheet" href="/styles.css?v=9">
   <!-- ZXing Industry-Standard Multi-Format Barcode Scanner (EAN-13, EAN-8, UPC, Code 128) -->
   <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 </head>
@@ -134,6 +134,10 @@
         <div class="garmin-hud-title-wrap">
           <span class="garmin-pulse-dot" title="Garmin Venu 4 מחובר"></span>
           <span class="garmin-hud-title">GARMIN VENU 4 • BIOMETRICS HUD</span>
+          <div id="attent-norm-pill" class="attent-norm-pill" onclick="AppState.openAttentNormModal()" style="display:none;" title="לחץ להסבר מדעי על ניטרול הטיית אטנט ב-HRV">
+            <span class="norm-pulse-dot"></span>
+            <span id="attent-norm-pill-text">💊 פילטר אטנט פעיל (מנוקה מדעית)</span>
+          </div>
         </div>
         <button class="garmin-sync-btn" onclick="AppState.openGarminModal()" title="עדכן מדדי שעון">
           <span>⚡ סנכרן שעון</span>
@@ -147,6 +151,7 @@
           <div class="bio-top">
             <span class="bio-icon">❤️</span>
             <span class="bio-name">דופק</span>
+            <span id="garmin-hr-badge" class="bio-norm-badge" style="display:none;">מנורמל</span>
           </div>
           <div class="bio-value-row">
             <span id="garmin-hr-val" class="bio-main-val">68</span>
@@ -173,6 +178,7 @@
           <div class="bio-top">
             <span class="bio-icon">⚡</span>
             <span class="bio-name">מדד סטרס</span>
+            <span id="garmin-stress-badge" class="bio-norm-badge" style="display:none;">מנורמל</span>
           </div>
           <div class="bio-value-row">
             <span id="garmin-stress-val" class="bio-main-val">28</span>
@@ -186,6 +192,7 @@
           <div class="bio-top">
             <span class="bio-icon">🔋</span>
             <span class="bio-name">Body Battery</span>
+            <span id="garmin-bb-badge" class="bio-norm-badge" style="display:none;">מוגן</span>
           </div>
           <div class="bio-value-row">
             <span id="garmin-battery-val" class="bio-main-val">75%</span>
@@ -983,6 +990,62 @@
     </div>
   </div>
 
+  <!-- ATTENT BIOMETRIC NORMALIZATION EXPLANATION MODAL -->
+  <div id="attent-norm-modal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <span class="modal-title">💊 מנוע ניטרול הטיית אטנט במדדי Garmin</span>
+        <button class="close-modal-btn" onclick="AppState.closeModal('attent-norm-modal')">✕</button>
+      </div>
+
+      <div class="norm-modal-body">
+        <div class="norm-status-banner">
+          <div style="font-size:22px;">⚡</div>
+          <div>
+            <div style="font-weight:800; font-size:13px; color:#c084fc;">כיול פרמקולוגי דינמי פעיל (Firstbeat De-biasing)</div>
+            <div id="norm-modal-subtitle" style="font-size:11px; color:#cbd5e1;">מדדי הסטרס והדופק של השעון מנוקים מהשפעה אדרנרגית מלאכותית</div>
+          </div>
+        </div>
+
+        <div class="norm-metric-compare-grid">
+          <div class="norm-compare-card">
+            <div class="norm-compare-title">מדד סטרס (0-100)</div>
+            <div class="norm-compare-vals">
+              <span id="norm-comp-stress-real" class="norm-val-real">26</span>
+              <span class="norm-arrow">←</span>
+              <span id="norm-comp-stress-raw" class="norm-val-raw">52 (שעון)</span>
+            </div>
+            <div id="norm-comp-stress-desc" class="norm-compare-sub">הטיה של 24+ נקודות נוטרלה</div>
+          </div>
+
+          <div class="norm-compare-card">
+            <div class="norm-compare-title">דופק מנוחה (RHR)</div>
+            <div class="norm-compare-vals">
+              <span id="norm-comp-rhr-real" class="norm-val-real">58 bpm</span>
+              <span class="norm-arrow">←</span>
+              <span id="norm-comp-rhr-raw" class="norm-val-raw">65 bpm</span>
+            </div>
+            <div id="norm-comp-rhr-desc" class="norm-compare-sub">הטיה כרונוטרופית של 7+ bpm נוטרלה</div>
+          </div>
+        </div>
+
+        <div class="norm-science-box">
+          <div style="font-weight:700; color:#38bdf8; margin-bottom:4px;">🔬 מדוע השעון מזייף כשלוקחים אטנט?</div>
+          <p style="font-size:11px; color:#94a3b8; line-height:1.6; margin:0;">
+            שעוני Garmin מודדים סטרס באמצעות אלגוריתם <strong>Firstbeat Analytics</strong> המבוסס על שונות פעימות הלב (HRV / RMSSD). 
+            אטנט (Amphetamine Salts) מפעיל קולטנים אדרנרגיים פריפריאליים ($\alpha_1, \beta_1$), מה שמוריד את ה-HRV ומעלה את הדופק באופן צפוי. 
+            <strong>השעון אינו יודע להבדיל בין עוררות תרופתית לבין סטרס נפשי אמיתי או עייפות כרונית</strong>, ומציג שווא של סטרס גבוה ושחיקת סוללת גוף (Body Battery). 
+            מערכת ה-AI מחשבת את עקומת פירוק התרופה בדם ומחזירה לך את מדדי ההתאוששות והבסיס האמיתיים שלך!
+          </p>
+        </div>
+
+        <div class="norm-citation-mini">
+          <strong>מקור קליני:</strong> <em>Autonomic Neuroscience & Firstbeat Clinical Analytics (2023)</em>: Confounding effects of psychostimulants on wearable autonomic algorithms.
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- SKILL LEVEL UP POPUP OVERLAY -->
   <div id="skill-levelup-overlay" class="levelup-overlay">
     <div class="levelup-card" style="border-color:var(--neon-green); box-shadow:0 0 35px rgba(16,185,129,0.5);">
@@ -1010,6 +1073,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=8"></script>
+  <script src="/app.js?v=9"></script>
 </body>
 </html>

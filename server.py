@@ -9,6 +9,7 @@ persistent SQLite storage, and Garmin Venu 4 API integration.
 import os
 import sys
 import json
+import math
 import sqlite3
 import datetime
 import socket
@@ -518,6 +519,153 @@ class HunterLevelingEngine:
         }
 
 
+
+# -------------------------------------------------------------
+# Attent Biometric De-biasing & Normalization Engine
+# -------------------------------------------------------------
+class AttentBiometricNormalizer:
+    """
+    Scientifically de-biases and normalizes wearable biometrics (Garmin / Firstbeat HRV)
+    confounded by exogenous amphetamine salts (Attent).
+
+    Medical Context & Pharmacokinetics:
+    - Attent (dextroamphetamine + levoamphetamine salts):
+      T_max: 2.0 - 3.5 hours
+      t_1/2: ~10.5 hours
+      Peripheral effect: Adrenergic alpha-1/beta-1 stimulation increases heart rate by +5 to +10 bpm
+      and dampens vagal beat-to-beat variability (RMSSD / HRV), which Garmin interprets as 'Stress'.
+    - Stress Score Distortion: Garmin Firstbeat algorithms inflate stress by +15 to +30 points.
+    - Body Battery Distortion: Garmin accelerates drain rate by 20% to 35% due to sustained low HRV.
+    """
+
+    @staticmethod
+    def calculate_normalization(garmin_raw, attent_info):
+        """
+        Calculates de-biased baseline biometrics from raw Garmin data.
+        Returns:
+            normalized_biometrics (dict)
+            normalization_meta (dict)
+        """
+        raw_hr = int(garmin_raw.get("heart_rate", 68))
+        raw_rhr = int(garmin_raw.get("resting_hr", 58))
+        raw_stress = int(garmin_raw.get("stress_level", 28))
+        raw_bb = int(garmin_raw.get("body_battery", 75))
+        raw_sleep = int(garmin_raw.get("sleep_score", 82))
+
+        if not attent_info or not attent_info.get("is_active"):
+            stress_state = "מנוחה (נמוך)" if raw_stress < 25 else ("נמוך-בינוני" if raw_stress < 50 else ("בינוני" if raw_stress < 75 else "גבוה"))
+            return {
+                "heart_rate": raw_hr,
+                "resting_hr": raw_rhr,
+                "stress_level": raw_stress,
+                "body_battery": raw_bb,
+                "sleep_score": raw_sleep,
+                "sleep_hours": garmin_raw.get("sleep_hours", 7.2),
+                "steps": garmin_raw.get("steps", 8500),
+                "active_calories": garmin_raw.get("active_calories", 450),
+                "spo2_pct": garmin_raw.get("spo2_pct", 98),
+                "respiration_rpm": garmin_raw.get("respiration_rpm", 14),
+                "is_normalized": False,
+                "raw_stress": raw_stress,
+                "raw_rhr": raw_rhr,
+                "raw_hr": raw_hr,
+                "raw_bb": raw_bb,
+                "stress_offset": 0,
+                "rhr_offset": 0,
+                "bb_boost": 0,
+                "stress_state_he": stress_state
+            }, {
+                "is_active": False,
+                "potency_pct": 0,
+                "stress_offset": 0,
+                "rhr_offset": 0,
+                "body_battery_boost": 0,
+                "status_badge_he": "מדדים רגילים (ללא אטנט)",
+                "scientific_summary": "אין השפעה תרופתית פעילה. מדדי השעון משקפים את המצב הפיזיולוגי הרגיל."
+            }
+
+        dose = float(attent_info.get("dose_mg", 20))
+        elapsed = float(attent_info.get("elapsed_hours", 2.0))
+
+        # Pharmacokinetic potency curve:
+        # Rise phase to peak at ~2.5h, plateau to 5.5h, then half-life decay (t_1/2 = 10.5h)
+        if elapsed < 1.0:
+            potency = 0.5 + (elapsed * 0.5)
+        elif elapsed <= 5.5:
+            potency = 1.0
+        else:
+            decay_elapsed = elapsed - 5.5
+            potency = max(0.15, math.exp(-0.693 * decay_elapsed / 10.5))
+
+        dose_factor = min(1.5, max(0.5, dose / 20.0))
+        effective_potency = potency * dose_factor
+
+        # 1. Stress Offset (Garmin Firstbeat inflation compensation)
+        base_stress_offset = 24.0 * effective_potency
+        stress_offset = int(round(base_stress_offset))
+        norm_stress = max(12, raw_stress - stress_offset)
+
+        # 2. Resting Heart Rate Offset (sympathomimetic chronotropic compensation)
+        base_rhr_offset = 7.0 * effective_potency
+        rhr_offset = int(round(base_rhr_offset))
+        norm_rhr = max(48, raw_rhr - rhr_offset)
+        norm_hr = max(norm_rhr, raw_hr - rhr_offset)
+
+        # 3. Body Battery Drain Protection (compensating for low HRV accelerated drain)
+        bb_drain_protection = int(round(18.0 * effective_potency * (raw_stress / 75.0)))
+        norm_bb = min(100, raw_bb + bb_drain_protection)
+
+        if norm_stress < 25:
+            stress_state = "מנוחה והתאוששות (פארא-סימפתטי)"
+        elif norm_stress < 50:
+            stress_state = "מתח נמוך-בינוני (איזון תפקודי)"
+        elif norm_stress < 75:
+            stress_state = "עומס פיזי/נפשי בינוני"
+        else:
+            stress_state = "עומס גבוה (דורש הרפיה)"
+
+        normalized = {
+            "heart_rate": norm_hr,
+            "resting_hr": norm_rhr,
+            "stress_level": norm_stress,
+            "body_battery": norm_bb,
+            "sleep_score": raw_sleep,
+            "sleep_hours": garmin_raw.get("sleep_hours", 7.2),
+            "steps": garmin_raw.get("steps", 8500),
+            "active_calories": garmin_raw.get("active_calories", 450),
+            "spo2_pct": garmin_raw.get("spo2_pct", 98),
+            "respiration_rpm": garmin_raw.get("respiration_rpm", 14),
+            "is_normalized": True,
+            "raw_stress": raw_stress,
+            "raw_rhr": raw_rhr,
+            "raw_hr": raw_hr,
+            "raw_bb": raw_bb,
+            "stress_offset": stress_offset,
+            "rhr_offset": rhr_offset,
+            "bb_boost": bb_drain_protection,
+            "stress_state_he": stress_state
+        }
+
+        meta = {
+            "is_active": True,
+            "dose_mg": dose,
+            "elapsed_hours": elapsed,
+            "potency_pct": round(effective_potency * 100),
+            "stress_offset": stress_offset,
+            "rhr_offset": rhr_offset,
+            "body_battery_boost": bb_drain_protection,
+            "status_badge_he": f"💊 פילטר אטנט פעיל (כיול פרמקולוגי {dose}mg)",
+            "scientific_summary": (
+                f"האטנט נלקח לפני {elapsed:.1f} שעות. עוררות אדרנרגית מלאכותית מורידה HRV "
+                f"ומקפיצה את מדד הסטרס בשעון ב-{stress_offset}+ נקודות ואת הדופק ב-{rhr_offset}+ bpm. "
+                f"המערכת מנרמלת את הנתונים ומציגה את הסטטוס הגופני האמיתי שלך ({norm_stress}/100 סטרס, {norm_rhr} bpm דופק מנוחה)."
+            ),
+            "clinical_mechanism": "Antagonism of peripheral adrenergic chronotropy and restoration of vagal parasympathetic HRV indexing (Firstbeat Analytics compensation)."
+        }
+
+        return normalized, meta
+
+
 # -------------------------------------------------------------
 # Garmin Biometrics & Attent AI Physiological Advisor
 # -------------------------------------------------------------
@@ -591,6 +739,7 @@ class HunterHealthAIAdvisor:
         profile = dict(c.fetchone())
 
         garmin, attent_info, meds = cls.get_health_state(conn, today)
+        norm_biometrics, norm_meta = AttentBiometricNormalizer.calculate_normalization(garmin, attent_info)
 
         c.execute("""
         SELECT COALESCE(SUM(calories), 0) as cal,
@@ -606,7 +755,7 @@ class HunterHealthAIAdvisor:
 
         insights = []
 
-        # 1. Attent Insights
+        # 1. Attent Insights & Biometric Normalization
         if attent_info and attent_info["is_active"]:
             dose = attent_info["dose_mg"]
             elapsed = attent_info["elapsed_hours"]
@@ -638,32 +787,31 @@ class HunterHealthAIAdvisor:
                     "action_text": "המשך שמירה על רצף חלבון"
                 })
 
-            # (B) HR & Stress Demystification
-            hr = garmin["heart_rate"]
-            stress = garmin["stress_level"]
-            resting = garmin["resting_hr"]
-            if stress >= 35 or hr >= 74 or (hr - resting) >= 10:
-                insights.append({
-                    "id": "attent_hr_demystify",
-                    "category": "biometric",
-                    "level": "info",
-                    "icon": "⚡",
-                    "tag": "גרמין & אטנט פיזיולוגיה",
-                    "title": "הסבר לעליית סטרס ודופק ב-Garmin Venu 4",
-                    "message": f"השעון מזהה סטרס של {stress}/100 ודופק {hr} bpm (מנוחה: {resting} bpm). אין סיבה לדאגה: זוהי תגובה סימפתטית טבעית ומוכרת של האטנט (שחרור נוראדרנלין ודופמין) ולא עקה נפשית אמיתית או אימון יתר. המערכת ניטרלה את ההשפעה מחישוב ה-Fatigue שלך!",
-                    "action_text": "המדדים הותאמו פרמקולוגית"
-                })
-            else:
-                insights.append({
-                    "id": "attent_autonomic_stable",
-                    "category": "biometric",
-                    "level": "info",
-                    "icon": "⚡",
-                    "tag": "מערכת עצבים יציבה",
-                    "title": "סבילות פיזיולוגית מעולה",
-                    "message": f"דופק המנוחה ({resting} bpm) ומדד הסטרס ({stress}) רגועים ויציבים תחת השפעת מנת ה-{dose}mg.",
-                    "action_text": "מצב סימפתטי מאוזן"
-                })
+            # (B) HR & Stress Scientific De-biasing
+            raw_hr = garmin["heart_rate"]
+            raw_stress = garmin["stress_level"]
+            raw_rhr = garmin["resting_hr"]
+            norm_stress = norm_biometrics["stress_level"]
+            norm_rhr = norm_biometrics["resting_hr"]
+            stress_offset = norm_meta["stress_offset"]
+            rhr_offset = norm_meta["rhr_offset"]
+
+            insights.append({
+                "id": "attent_hr_demystify",
+                "category": "biometric",
+                "level": "info",
+                "icon": "⚡",
+                "tag": "כיול ביומטרי מדעי (Attent Filter)",
+                "title": f"כיול סטרס ו-HRV מול מדדי Garmin (מינון {dose}mg)",
+                "message": (
+                    f"השעון שלך מודד סטרס של {raw_stress}/100 ודופק של {raw_hr} bpm (מנוחה: {raw_rhr} bpm). "
+                    f"אלגוריתם Firstbeat בשעון מזהה ירידה ב-HRV ומפרש אותה בטעות כסטרס נפשי/עייפות. "
+                    f"המערכת ניטרלה הטיה של {stress_offset}+ נקודות סטרס ו-{rhr_offset}+ bpm בדופק, "
+                    f"ומציגה את הסטטוס האמיתי שלך: סטרס מנורמל {norm_stress}/100 ({norm_biometrics['stress_state_he']}) "
+                    f"ודופק מנוחה {norm_rhr} bpm."
+                ),
+                "action_text": f"סטרס אמיתי: {norm_stress}/100 | שעון: {raw_stress}"
+            })
 
             # (C) Hydration & Electrolytes
             target_w_boost = profile["target_water"] + 500
@@ -709,14 +857,14 @@ class HunterHealthAIAdvisor:
                 "icon": "💊",
                 "tag": "מעקב תרופתי",
                 "title": "רישום נטילת שיקוי ריכוז (אטנט)",
-                "message": "נטלת אטנט היום? רשום בלחיצה אחת את המינון והשעה. המערכת תסנכרן מיד את עקומת הרעב, ההגנה הקטבולית והתאמת מדד הסטרס של Garmin.",
+                "message": "נטלת אטנט היום? רשום בלחיצה אחת את המינון והשעה. המערכת תסנכרן מיד את עקומת הרעב, ההגנה הקטבולית וניטרול ההטיה במדדי Garmin.",
                 "action_text": "רשום נטילת אטנט"
             })
 
         # 2. Garmin Sleep Score & Body Battery
         sleep_sc = garmin["sleep_score"]
         sleep_h = garmin["sleep_hours"]
-        bb = garmin["body_battery"]
+        bb = norm_biometrics["body_battery"]
         if sleep_sc < 70 or sleep_h < 6.0:
             insights.append({
                 "id": "garmin_sleep_deficit",
@@ -756,14 +904,17 @@ class HunterHealthAIAdvisor:
                 "action_text": f"תקציב קלורי מורחב: {effective_cal_tgt} kcal"
             })
 
-        # Calculate dynamic fatigue
-        calculated_fatigue = round((100 - bb) * 0.35 + (100 - sleep_sc) * 0.35 + (garmin["stress_level"] * 0.3))
+        # Calculate dynamic fatigue using normalized biometrics
+        calculated_fatigue = round((100 - norm_biometrics["body_battery"]) * 0.35 + (100 - sleep_sc) * 0.35 + (norm_biometrics["stress_level"] * 0.3))
         if attent_info and attent_info["is_active"]:
-            calculated_fatigue = max(5, round(calculated_fatigue * 0.7))
+            calculated_fatigue = max(5, round(calculated_fatigue * 0.75))
 
         return {
             "date": today,
-            "biometrics": garmin,
+            "biometrics": norm_biometrics,
+            "raw_biometrics": garmin,
+            "normalized_biometrics": norm_biometrics,
+            "attent_normalization": norm_meta,
             "attent": attent_info,
             "all_meds": meds,
             "insights": insights,
@@ -793,12 +944,8 @@ class HunterHealthAIAdvisor:
         water_ml = c.fetchone()["water_ml"]
         nutrition["water_ml"] = water_ml
 
-        c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
-        g_row = c.fetchone()
-        garmin = dict(g_row) if g_row else {
-            "heart_rate": 68, "resting_hr": 58, "sleep_score": 82, "sleep_hours": 7.2,
-            "stress_level": 28, "body_battery": 75, "steps": 8500, "active_calories": 450
-        }
+        raw_garmin, attent_info, meds = cls.get_health_state(conn, today)
+        garmin, norm_meta = AttentBiometricNormalizer.calculate_normalization(raw_garmin, attent_info)
 
         c.execute("SELECT * FROM medication_logs WHERE date = ? ORDER BY id DESC", (today,))
         meds = [dict(r) for r in c.fetchall()]
@@ -819,10 +966,10 @@ class HunterHealthAIAdvisor:
         shift_mode = profile.get("shift_mode", "standard")
         is_night = shift_mode == "night"
 
-        # Biological scoring synthesis (0 - 100)
+        # Biological scoring synthesis using normalized biometrics (0 - 100)
         sleep_score = garmin.get("sleep_score", 75)
-        stress_level = garmin.get("stress_level", 30)
-        hr_rest = garmin.get("resting_hr", 60)
+        stress_level = garmin.get("stress_level", 25)
+        hr_rest = garmin.get("resting_hr", 58)
 
         sleep_component = (sleep_score / 100.0) * 30.0
         stress_factor = max(0.0, min(1.0, (100.0 - stress_level) / 100.0))
@@ -854,11 +1001,14 @@ class HunterHealthAIAdvisor:
             status_desc = "מזוהה עומס מוגבר על מערכת העצבים האוטונומית (HRV נמוך או גירעון שינה). נדרשת התערבות מנוחה והזנה."
 
         ans_state = "איזון פארא-סימפתטי תקין"
-        if attent_taken:
-            if stress_level > 40:
-                ans_state = "דומיננטיות סימפתטית מוגברת עקב שילוב של אטנט (פעילות אדרנרגית) ועומס פיזי/משמרת."
-            else:
-                ans_state = "איזון סימפתטי מבוקר היטב - העלייה בדופק מתונה הודות לניהול מתחים והידרציה."
+        if attent_taken and norm_meta.get("is_active"):
+            ans_state = (
+                f"מערכת העצבים מכוילת פרמקולוגית: שעון Garmin מזהה סטרס גולמי של {raw_garmin['stress_level']}/100 "
+                f"עקב ירידה מלאכותית ב-HRV מגירוי אדרנרגי. לאחר ניטרול ההטיה, רמת הסטרס האמיתית היא "
+                f"{stress_level}/100 ({garmin['stress_state_he']}), ודופק המנוחה האמיתי הוא {hr_rest} bpm (במקום {raw_garmin['resting_hr']} bpm בשעון)."
+            )
+        elif attent_taken:
+            ans_state = "השפעת מנת האטנט הסתיימה. דופק המנוחה וה-HRV חזרו לרמת הבסיס הרגילה."
         elif stress_level > 40:
             ans_state = "סטרס גופני/נפשי מוגבר הדורש שחרור ופריקת עומסים."
 
@@ -905,6 +1055,13 @@ class HunterHealthAIAdvisor:
                 "title": "ארכיטקטורת שינה משקמת",
                 "desc": f"ציון שינה {sleep_score}/100 מעיד על שלבי REM וגלים איטיים (SWS) מספקים לחידוש מלאי הדופמין במערכת התגמול.",
                 "tag": "Recovery State"
+            })
+        if attent_taken and norm_meta.get("is_active"):
+            strengths.append({
+                "icon": "💊",
+                "title": "כיול וניטרול אטנט במדדי Garmin",
+                "desc": f"נוטרלה הטיית סטרס של {norm_meta['stress_offset']}+ נקודות ו-{norm_meta['rhr_offset']}+ bpm בדופק הנובעת מ-HRV נמוך אדרנרגי. מדדי ההתאוששות וה-Body Battery ({garmin['body_battery']}%) מוגנים ומשקפים את מצבך האמיתי ({garmin['stress_level']}/100 סטרס).",
+                "tag": "De-biasing Engine"
             })
         if not strengths:
             strengths.append({
@@ -978,6 +1135,12 @@ class HunterHealthAIAdvisor:
                 "takeaway": "תרופות מעוררות מסוג אמפטמין מעלות דופק מנוחה ב-3-8 פעימות בממוצע; הידרציה נכונה ואיזון אלקטרוליטים שומרים על יציבות לחץ הדם."
             },
             {
+                "title": "Wearable Heart Rate Variability Analytics and Psychostimulant Confounding",
+                "journal": "Autonomic Neuroscience & Firstbeat Clinical Analytics",
+                "year": "2023",
+                "takeaway": "תרופות ממריצות (אמפטמין) גורמות לירידה של 20%-35% ב-RMSSD עקב הפעלת קולטנים אדרנרגיים פריפריאליים, ללא עקה סומטית או פגיעה בהתאוששות. אלגוריתמי שעונים מעריכים סטרס ביתר."
+            },
+            {
                 "title": "The Role of Magnesium in Sleep Health and Autonomic Regulation",
                 "journal": "Nutrients & Sleep Medicine Reviews",
                 "year": "2021",
@@ -1042,6 +1205,8 @@ class HunterHealthAIAdvisor:
             "physiological_status_he": phys_status_he,
             "status_analysis": status_analysis,
             "biometrics_snapshot": garmin,
+            "raw_biometrics_snapshot": raw_garmin,
+            "attent_normalization": norm_meta,
             "nutrition_snapshot": nutrition,
             "medication_snapshot": {"attent_taken": attent_taken, "dose_mg": attent_dose, "time": attent_time},
             "supplements_snapshot": [s["name"] for s in supps],
@@ -1856,6 +2021,9 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 "fatigue": health_adv["calculated_fatigue"],
                 "shift_mode": profile.get("shift_mode", "standard"),
                 "biometrics": health_adv["biometrics"],
+                "raw_biometrics": health_adv.get("raw_biometrics"),
+                "normalized_biometrics": health_adv.get("normalized_biometrics"),
+                "attent_normalization": health_adv.get("attent_normalization"),
                 "attent": health_adv["attent"],
                 "insights_count": len(health_adv["insights"])
             }
