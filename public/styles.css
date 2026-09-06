@@ -39,9 +39,12 @@ body {
   color: var(--text-primary);
   font-family: var(--font-system);
   min-height: 100vh;
-  padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 24px) 16px;
+  min-height: -webkit-fill-available;
+  padding: max(env(safe-area-inset-top, 12px), 12px) 14px calc(80px + env(safe-area-inset-bottom, 16px)) 14px;
   overflow-x: hidden;
   direction: rtl; /* Hebrew first, clean English terms */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* System Container */
@@ -4510,6 +4513,200 @@ body {
   gap: 6px;
 }
 
+/* =============================================================
+   IPHONE & MOBILE OPTIMIZATIONS (iOS Native Feel)
+   ============================================================= */
 
+/* Prevent iOS Safari unwanted zoom on text inputs */
+input[type="text"],
+input[type="number"],
+input[type="password"],
+input[type="search"],
+input[type="time"],
+select,
+textarea {
+  font-size: 16px !important; /* iOS triggers zoom if font < 16px */
+}
 
+/* Fixed Bottom Navigation Bar - iOS Floating Glass Style */
+.bottom-nav-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(64px + env(safe-area-inset-bottom, 12px));
+  padding-bottom: env(safe-area-inset-bottom, 12px);
+  background: rgba(8, 14, 28, 0.88);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border-top: 1px solid rgba(56, 189, 248, 0.28);
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.65);
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start;
+  padding-top: 6px;
+  z-index: 9999;
+}
 
+.bottom-nav-item {
+  flex: 1;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px 0;
+  position: relative;
+  transition: transform 0.15s ease, color 0.2s ease;
+  touch-action: manipulation;
+}
+
+.bottom-nav-item:active {
+  transform: scale(0.92);
+}
+
+.bottom-nav-item.active {
+  color: #00f0ff;
+}
+
+.bottom-nav-item.active .nav-icon {
+  transform: translateY(-2px) scale(1.15);
+  filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.75));
+}
+
+.nav-icon {
+  font-size: 20px;
+  line-height: 1;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.nav-text {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+/* Minimal Top HUD Action Bar on iPhone */
+.system-top-minimal-bar {
+  position: sticky;
+  top: 0;
+  z-index: 500;
+  margin-top: -4px;
+  padding: 8px 12px;
+  background: rgba(6, 12, 24, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 240, 255, 0.18);
+  border-radius: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+}
+
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hud-btn-icon {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border-radius: 10px;
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+}
+
+/* Mobile Friendly Modals (Bottom Sheet on iPhone) */
+@media (max-width: 600px) {
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end; /* Bottom sheet on mobile */
+  }
+
+  .modal-content {
+    max-width: 100% !important;
+    max-height: 88vh !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-top-left-radius: 24px !important;
+    border-top-right-radius: 24px !important;
+    padding: 20px 18px calc(24px + env(safe-area-inset-bottom, 16px)) 18px !important;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(0, 240, 255, 0.25) !important;
+    animation: slideUpModal 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes slideUpModal {
+    from {
+      transform: translateY(100%);
+      opacity: 0.6;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  /* Handle bar indicator for bottom sheet */
+  .modal-header::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 44px;
+    height: 4.5px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+  }
+
+  /* Touch-friendly buttons and inputs */
+  button, 
+  .action-btn-primary, 
+  .action-btn-secondary,
+  .quick-potion-btn,
+  .dose-pill-btn {
+    min-height: 44px; /* Apple Human Interface Guidelines 44x44 target */
+    touch-action: manipulation;
+  }
+
+  /* Food chat input on iPhone */
+  #food-chat-input {
+    font-size: 16px !important;
+    padding: 12px 14px !important;
+  }
+
+  /* Gauges grid compact spacing */
+  .hud-gauges-row {
+    gap: 8px !important;
+  }
+
+  .gauge-card {
+    padding: 8px 4px !important;
+  }
+
+  .gauge-circle-ring,
+  .gauge-hex-outer {
+    width: 58px !important;
+    height: 58px !important;
+  }
+
+  /* Better readability for cards */
+  .hunter-hero-card,
+  .hunter-char-bio-box,
+  .nutrition-dashboard,
+  .garmin-hud-card {
+    border-radius: 16px !important;
+    padding: 14px 16px !important;
+  }
+}
