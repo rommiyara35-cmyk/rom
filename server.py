@@ -14,8 +14,23 @@ import sqlite3
 import datetime
 import socket
 import calendar
+import base64
+import urllib.request
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+
+# Load .env file if present (for local development)
+_env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+if os.path.exists(_env_path):
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip())
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PUBLIC_DIR = os.path.join(BASE_DIR, "public")
@@ -2199,6 +2214,98 @@ class HunterLongTermScienceEngine:
 
 
 # -------------------------------------------------------------
+# Food Vision AI — Gemini-powered food recognition from images
+# -------------------------------------------------------------
+class FoodVisionAI:
+    """Sends an image to Gemini Vision and returns detected food items with nutrition estimates."""
+
+    GEMINI_URL = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        "gemini-1.5-flash:generateContent?key={key}"
+    )
+
+    PROMPT = """אתה מנתח תמונות אוכל לאפליקציית כושר.
+תתבונן בתמונה ותזהה את כל פריטי המזון הנראים.
+החזר תשובה ב-JSON בלבד, ללא טקסט נוסף, בפורמט הבא:
+{
+  "items": [
+    {
+      "name_he": "שם בעברית",
+      "name_en": "name in English",
+      "estimated_grams": 100,
+      "calories": 200,
+      "protein": 10.0,
+      "carbs": 25.0,
+      "fats": 5.0,
+      "confidence": "high"
+    }
+  ],
+  "meal_description": "תיאור קצר של הארוחה בעברית",
+  "total_calories": 200,
+  "total_protein": 10.0,
+  "total_carbs": 25.0,
+  "total_fats": 5.0
+}
+הערכות הגרמים צריכות להיות ריאליסטיות לגודל המנה הנראה בתמונה.
+אם לא ברור מה הגודל, הניח מנה רגילה אחת.
+confidence יכול להיות: high / medium / low"""
+
+    @classmethod
+    def recognize(cls, image_b64: str, mime_type: str = "image/jpeg") -> dict:
+        """Call Gemini Vision API and return parsed food items dict."""
+        if not GEMINI_API_KEY:
+            return {"error": "GEMINI_API_KEY not configured", "items": []}
+
+        url = cls.GEMINI_URL.format(key=GEMINI_API_KEY)
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": cls.PROMPT},
+                        {
+                            "inline_data": {
+                                "mime_type": mime_type,
+                                "data": image_b64
+                            }
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.2,
+                "maxOutputTokens": 1024
+            }
+        }
+        payload_bytes = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=payload_bytes,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                raw = resp.read().decode("utf-8")
+            data = json.loads(raw)
+            # Extract text from Gemini response structure
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+            # Strip possible markdown code fences
+            text = text.strip()
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+            result = json.loads(text)
+            return result
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="replace")
+            return {"error": "Gemini API error: " + err_body[:300], "items": []}
+        except Exception as e:
+            return {"error": str(e), "items": []}
+
+
+# -------------------------------------------------------------
 # HTTP Request Handler & REST API
 # -------------------------------------------------------------
 class SystemApiHandler(SimpleHTTPRequestHandler):
@@ -2321,6 +2428,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.handle_reset_today()
         elif path == "/api/reset/full":
             self.handle_reset_full()
+        elif path == "/api/food/recognize":
+            self.handle_food_recognize(body)
         else:
             self._set_headers(404)
             self.wfile.write(json.dumps({"error": "Endpoint not found"}).encode("utf-8"))
@@ -3555,6 +3664,27 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self._set_headers(400)
             self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+    # ------------------ Food Vision AI ------------------
+    def handle_food_recognize(self, body):
+        """Recognize food from a base64-encoded image using Gemini Vision."""
+        try:
+            image_b64 = body.get("image_b64", "")
+            mime_type = body.get("mime_type", "image/jpeg")
+            if not image_b64:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": "image_b64 is required"}, ensure_ascii=False).encode("utf-8"))
+                return
+            result = FoodVisionAI.recognize(image_b64, mime_type)
+            if "error" in result and not result.get("items"):
+                self._set_headers(502)
+                self.wfile.write(json.dumps({"error": result["error"]}, ensure_ascii=False).encode("utf-8"))
+                return
+            self._set_headers(200)
+            self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(500)
+            self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
 
     # ------------------ Garmin & Health Integration ------------------
     def handle_garmin_status(self):

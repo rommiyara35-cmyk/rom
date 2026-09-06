@@ -2468,6 +2468,180 @@ const AppState = {
     }
   },
 
+  // ============================================================
+  // 📷 FOOD VISION AI — recognize food from photo
+  // ============================================================
+  openFoodCamera() {
+    // Trigger the hidden file/camera input
+    const inp = document.getElementById('food-camera-input');
+    if (inp) inp.click();
+  },
+
+  handleCameraFile(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    // Reset input so same file can be picked again
+    input.value = '';
+    this.recognizeFoodImage(file);
+  },
+
+  async recognizeFoodImage(file) {
+    // Show modal in loading state
+    const modal = document.getElementById('vision-modal');
+    const loading = document.getElementById('vision-loading');
+    const resultsBody = document.getElementById('vision-results-body');
+    const errorDiv = document.getElementById('vision-error');
+    modal.style.display = 'flex';
+    loading.style.display = 'block';
+    resultsBody.style.display = 'none';
+    errorDiv.style.display = 'none';
+
+    try {
+      // Convert file to base64
+      const b64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          // e.target.result is data:mime;base64,xxxx
+          const parts = e.target.result.split(',');
+          resolve(parts[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch('/api/food/recognize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_b64: b64, mime_type: file.type || 'image/jpeg' })
+      });
+      const data = await res.json();
+      loading.style.display = 'none';
+      if (!res.ok) {
+        throw new Error(data.error || 'שגיאת שרת בזיהוי תמונה');
+      }
+      this.showVisionResults(data);
+    } catch (e) {
+      loading.style.display = 'none';
+      errorDiv.style.display = 'block';
+      document.getElementById('vision-error-msg').textContent = 'שגיאה: ' + (e.message || String(e));
+    }
+  },
+
+  showVisionResults(data) {
+    const resultsBody = document.getElementById('vision-results-body');
+    const descEl = document.getElementById('vision-meal-desc');
+    const listEl = document.getElementById('vision-items-list');
+    const totalsEl = document.getElementById('vision-totals');
+
+    // Store recognized items for later use
+    this._visionItems = data.items || [];
+
+    descEl.textContent = data.meal_description || 'ארוחה מזוהה על ידי AI';
+
+    // Render each item card
+    listEl.innerHTML = '';
+    (data.items || []).forEach((item, idx) => {
+      const conf = item.confidence === 'high' ? '🟢' : item.confidence === 'medium' ? '🟡' : '🔴';
+      const card = document.createElement('div');
+      card.style.cssText = 'background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px; display:flex; align-items:center; gap:12px;';
+      card.innerHTML = `
+        <div style="flex:1;">
+          <div style="font-weight:600; font-size:14px;">${conf} ${item.name_he || item.name_en}</div>
+          <div style="font-size:11px; color:var(--text-dim); margin-top:3px;">
+            ~${item.estimated_grams}g · ${item.calories} קל' · P:${item.protein}g · C:${item.carbs}g · F:${item.fats}g
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <input type="number" value="${item.estimated_grams}" min="1" step="5"
+            style="width:62px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; padding:4px 6px; font-size:12px; text-align:center;"
+            onchange="AppState.updateVisionItemGrams(${idx}, this.value)"
+            title="שנה כמות בגרמים">
+          <span style="font-size:10px; color:var(--text-dim);">g</span>
+        </div>
+      `;
+      listEl.appendChild(card);
+    });
+
+    // Totals summary
+    const tc = data.total_calories || 0;
+    const tp = data.total_protein || 0;
+    const tca = data.total_carbs || 0;
+    const tf = data.total_fats || 0;
+    totalsEl.innerHTML = `
+      <div style="font-size:13px; font-weight:700; color:#10b981; margin-bottom:6px;">סה"כ ארוחה:</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; text-align:center;">
+        <div><div style="font-size:18px; font-weight:700; color:#f59e0b;">${Math.round(tc)}</div><div style="font-size:10px; color:var(--text-dim);">קלוריות</div></div>
+        <div><div style="font-size:18px; font-weight:700; color:#60a5fa;">${tp.toFixed(1)}</div><div style="font-size:10px; color:var(--text-dim);">חלבון</div></div>
+        <div><div style="font-size:18px; font-weight:700; color:#a78bfa;">${tca.toFixed(1)}</div><div style="font-size:10px; color:var(--text-dim);">פחמימות</div></div>
+        <div><div style="font-size:18px; font-weight:700; color:#f472b6;">${tf.toFixed(1)}</div><div style="font-size:10px; color:var(--text-dim);">שומן</div></div>
+      </div>
+    `;
+
+    resultsBody.style.display = 'block';
+  },
+
+  updateVisionItemGrams(idx, newGrams) {
+    if (!this._visionItems || !this._visionItems[idx]) return;
+    const item = this._visionItems[idx];
+    const ratio = parseFloat(newGrams) / (item.estimated_grams || 100);
+    item.estimated_grams = parseFloat(newGrams);
+    item.calories = Math.round(item.calories * ratio);
+    item.protein = parseFloat((item.protein * ratio).toFixed(1));
+    item.carbs = parseFloat((item.carbs * ratio).toFixed(1));
+    item.fats = parseFloat((item.fats * ratio).toFixed(1));
+    // Recalculate totals
+    const tc = this._visionItems.reduce((s, i) => s + i.calories, 0);
+    const tp = this._visionItems.reduce((s, i) => s + i.protein, 0);
+    const tca = this._visionItems.reduce((s, i) => s + i.carbs, 0);
+    const tf = this._visionItems.reduce((s, i) => s + i.fats, 0);
+    this.showVisionResults({
+      items: this._visionItems,
+      meal_description: document.getElementById('vision-meal-desc').textContent,
+      total_calories: tc, total_protein: tp, total_carbs: tca, total_fats: tf
+    });
+  },
+
+  closeVisionModal() {
+    const modal = document.getElementById('vision-modal');
+    if (modal) modal.style.display = 'none';
+    this._visionItems = null;
+  },
+
+  async addAllVisionItems() {
+    if (!this._visionItems || this._visionItems.length === 0) {
+      this.closeVisionModal();
+      return;
+    }
+    let addedCount = 0;
+    for (const item of this._visionItems) {
+      try {
+        const body = {
+          food_name: item.name_he || item.name_en,
+          calories: item.calories,
+          protein: item.protein,
+          carbs: item.carbs,
+          fats: item.fats,
+          serving_size: item.estimated_grams,
+          meal_type: 'ai_vision',
+          notes: 'זוהה על ידי AI מתמונה'
+        };
+        const res = await fetch('/api/nutrition/log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (res.ok) addedCount++;
+      } catch (e) {
+        console.error('Error adding vision item:', e);
+      }
+    }
+    this.closeVisionModal();
+    this.showToast('📷 נוספו ' + addedCount + ' פריטי מזון לביומן!', 'success');
+    // Refresh nutrition data
+    await this.fetchNutrition();
+    if (this.calendarDaysData) await this.fetchCalendarData(this.calendarCurrentMonth);
+  },
+
   async cancelAttent() {
     sfx.playClick();
     if (!confirm('האם לנקות ולבטל את כל מנות האטנט שנרשמו להיום?')) return;
