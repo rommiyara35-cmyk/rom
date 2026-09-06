@@ -887,6 +887,20 @@ body {
   color: var(--neon-red);
 }
 
+/* Global Button & Interactive Element Optimizations */
+button, .btn, .potion-btn, .dose-pill-btn, .biometric-tile, .bottom-nav-item, .preset-pill, .badge-button, .garmin-strip-btn, .copy-url-btn, .close-modal-btn {
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.15s ease, filter 0.15s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:active, .preset-pill:active, .garmin-strip-btn:active {
+  transform: scale(0.96) !important;
+  filter: brightness(1.2) !important;
+}
+
 /* Modals (Awakening Assessment & Settings) */
 .modal-overlay {
   position: fixed;
@@ -902,6 +916,12 @@ body {
   align-items: center;
   justify-content: center;
   padding: 16px;
+  pointer-events: none;
+}
+
+.modal-overlay.active {
+  display: flex !important;
+  pointer-events: auto !important;
 }
 
 .modal-content {
@@ -4013,6 +4033,481 @@ body {
     font-size: 7.5px;
     padding: 0 3px;
   }
+}
+
+/* =============================================================
+   ACTIVITY & PROGRESSION CALENDAR STYLES (לוח שנה היסטורי)
+   ============================================================= */
+.calendar-modal-content {
+  max-width: 540px;
+  background: #091326;
+  border: 1.5px solid var(--hud-cyan);
+  border-radius: 16px;
+  box-shadow: 0 0 35px rgba(0, 240, 255, 0.25);
+  max-height: 92vh;
+  overflow-y: auto;
+}
+
+.calendar-nav-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  border-radius: 10px;
+}
+
+.calendar-month-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--hud-cyan);
+  letter-spacing: 0.5px;
+}
+
+.cal-nav-btn {
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cal-nav-btn:hover {
+  background: rgba(0, 240, 255, 0.25);
+  color: #ffffff;
+}
+
+.cal-nav-today-btn {
+  background: rgba(168, 85, 247, 0.2);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #e9d5ff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.calendar-weekdays-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-secondary);
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.calendar-days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  padding: 8px 0;
+}
+
+.cal-day-cell {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  min-height: 52px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.cal-day-cell:hover {
+  border-color: rgba(0, 240, 255, 0.4);
+  background: rgba(15, 23, 42, 0.85);
+  transform: translateY(-1px);
+}
+
+.cal-day-cell.empty-cell {
+  background: transparent;
+  border-color: transparent;
+  cursor: default;
+  min-height: 52px;
+}
+
+.cal-day-cell.is-today {
+  border: 1.5px solid var(--hud-cyan);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.35);
+}
+
+.cal-day-cell.is-selected {
+  border: 1.5px solid #a855f7 !important;
+  background: rgba(168, 85, 247, 0.2) !important;
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.45) !important;
+}
+
+.cal-day-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cal-day-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.cal-day-cell.is-today .cal-day-num {
+  color: var(--hud-cyan);
+  font-weight: 900;
+}
+
+.cal-day-score-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+.cal-badges-mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-items: center;
+}
+
+.cal-mini-icon {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.calendar-day-detail-wrap {
+  margin-top: 10px;
+  background: rgba(10, 18, 36, 0.85);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.cal-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.cal-detail-date {
+  font-size: 13px;
+  font-weight: 800;
+  color: #e2e8f0;
+}
+
+.cal-detail-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(0, 240, 255, 0.15);
+  color: var(--hud-cyan);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+}
+
+.cal-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.cal-detail-box {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.cal-detail-box-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 3px;
+}
+
+.cal-detail-box-val {
+  font-size: 13px;
+  font-weight: 800;
+  color: #f1f5f9;
+}
+
+.cal-detail-box-sub {
+  font-size: 9.5px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* =============================================================
+   LONG-TERM EVIDENCE-BASED RESEARCH ENGINE STYLES
+   ============================================================= */
+.long-term-science-section {
+  background: rgba(11, 20, 38, 0.75);
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  border-radius: 16px;
+  padding: 16px;
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.long-term-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.long-term-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.long-term-icon {
+  font-size: 24px;
+}
+
+.long-term-title {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--hud-cyan);
+  letter-spacing: 0.3px;
+  display: block;
+}
+
+.long-term-sub {
+  font-size: 10px;
+  color: var(--text-secondary);
+  display: block;
+  margin-top: 1px;
+}
+
+.long-term-window-toggles {
+  display: flex;
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.7);
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lt-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.lt-toggle-btn.active {
+  background: rgba(0, 240, 255, 0.2);
+  color: var(--hud-cyan);
+  border: 1px solid rgba(0, 240, 255, 0.4);
+}
+
+.lt-composite-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 27, 75, 0.4) 100%);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.lt-composite-left {
+  flex-shrink: 0;
+}
+
+.lt-score-circle {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 2px solid #a855f7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.35);
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.lt-score-num {
+  font-size: 18px;
+  font-weight: 900;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.lt-score-sub {
+  font-size: 7.5px;
+  color: #c084fc;
+  margin-top: 2px;
+  text-align: center;
+}
+
+.lt-status-headline {
+  font-size: 14px;
+  font-weight: 800;
+  color: #f3e8ff;
+}
+
+.lt-status-summary {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.lt-pillars-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.lt-pillar-card {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.lt-pillar-card:hover {
+  border-color: rgba(0, 240, 255, 0.3);
+}
+
+.lt-pillar-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.lt-pillar-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lt-pillar-icon {
+  font-size: 18px;
+}
+
+.lt-pillar-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #e2e8f0;
+}
+
+.lt-pillar-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.lt-pillar-badge.success {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.lt-pillar-badge.warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.lt-pillar-badge.alert {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.lt-pillar-badge.info {
+  background: rgba(0, 240, 255, 0.15);
+  color: var(--hud-cyan);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+}
+
+.lt-pillar-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.lt-stat-chip {
+  font-size: 10.5px;
+  color: #cbd5e1;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.lt-stat-chip strong {
+  color: var(--hud-cyan);
+}
+
+.lt-pillar-insight {
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+.lt-pillar-evidence-box {
+  background: rgba(0, 240, 255, 0.04);
+  border-left: 2px solid var(--hud-cyan);
+  padding: 6px 8px;
+  border-radius: 0 6px 6px 0;
+  font-size: 9.5px;
+  color: #7dd3fc;
+  font-style: italic;
+}
+
+.lt-pillar-action-box {
+  background: rgba(168, 85, 247, 0.08);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  color: #e9d5ff;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 

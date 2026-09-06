@@ -146,6 +146,7 @@ const AppState = {
     await this.fetchSupplements();
     await this.fetchDailyDebrief();
     await this.fetchFoods();
+    await this.fetchLongTermInsights(14);
 
     // Setup input listeners
     this.bindEvents();
@@ -262,6 +263,7 @@ const AppState = {
     this.renderQuests();
     this.renderMicronutrients();
     this.renderMealsList();
+    if (this.longTermData) this.renderLongTermInsights(this.longTermData);
   },
 
   renderProfile() {
@@ -725,6 +727,24 @@ const AppState = {
       const el = document.getElementById(id);
       if (el) el.addEventListener('input', () => this.updateAwakeningPreview());
     });
+
+    // Close any modal on backdrop click
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          AppState.closeModal(modal.id);
+        }
+      });
+    });
+
+    // Close active modal on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+          AppState.closeModal(modal.id);
+        });
+      }
+    });
   },
 
   selectFood(item) {
@@ -874,7 +894,9 @@ const AppState = {
     sfx.playClick();
     const m = document.getElementById(id);
     if (m) {
+      m.classList.add('active');
       m.style.display = 'flex';
+      m.style.pointerEvents = 'auto';
       if (id === 'awakening-modal') {
         this.updateAwakeningPreview();
       }
@@ -884,7 +906,11 @@ const AppState = {
   closeModal(id) {
     sfx.playClick();
     const m = document.getElementById(id);
-    if (m) m.style.display = 'none';
+    if (m) {
+      m.classList.remove('active');
+      m.style.display = 'none';
+      m.style.pointerEvents = 'none';
+    }
   },
 
   // --- Auto-Snapshotting & Multi-Layer Persistence ---
@@ -1842,7 +1868,10 @@ const AppState = {
                 <div class="attent-buff-sub">נלקח ב-${takenAt} • עברו ${elapsed.toFixed(1)} שעות • נותרו כ-${rem.toFixed(1)} שעות שיא</div>
               </div>
             </div>
-            <button class="attent-cancel-btn" onclick="AppState.cancelAttent()" title="בטל רישום">✕ ביטול</button>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <button type="button" class="attent-cancel-btn" onclick="AppState.openAttentModal()" style="border-color:#c084fc; color:#f3e8ff; background:rgba(168,85,247,0.25);" title="ערוך מינון או שעת נטילה">✏️ ערוך</button>
+              <button type="button" class="attent-cancel-btn" onclick="AppState.cancelAttent()" title="בטל רישום">✕ ביטול</button>
+            </div>
           </div>
           <div class="attent-badges-row">
             <span class="attent-badge-chip ${pConsumed < (pTarget * 0.5) ? 'alert' : 'success'}">
@@ -1864,10 +1893,10 @@ const AppState = {
             <span style="font-size:18px;">💊</span>
             <div>
               <span style="font-size:12px; font-weight:700; color:#e9d5ff;">שיקוי ריכוז (אטנט / Attent)</span>
-              <span style="font-size:10px; color:var(--text-secondary); display:block;">נטלת אטנט היום? לחץ כאן לרישום מהיר והפעלת מעקב AI</span>
+              <span style="font-size:10px; color:var(--text-secondary); display:block;">נטלת אטנט היום? לחץ כאן לבחירת מינון (10, 15, 20, 30mg) ושעת נטילה</span>
             </div>
           </div>
-          <button class="badge-button" style="background:rgba(168,85,247,0.25); border:1px solid #c084fc; color:#f3e8ff; font-size:11px; padding:4px 10px; border-radius:6px; cursor:pointer;">
+          <button type="button" class="badge-button" onclick="event.stopPropagation(); AppState.openAttentModal();" style="background:rgba(168,85,247,0.25); border:1px solid #c084fc; color:#f3e8ff; font-size:11px; padding:6px 12px; border-radius:6px; cursor:pointer;">
             + רשום נטילה
           </button>
         </div>
@@ -2200,15 +2229,32 @@ const AppState = {
     }
   },
 
-  openAttentModal() {
+  openAttentModal(targetDate = null) {
     sfx.playClick();
+    const activeAttent = this.healthAdvisor?.attent;
+    const timeInput = document.getElementById('attent-input-time');
+    const dateInput = document.getElementById('attent-input-date');
+    const submitBtn = document.getElementById('attent-submit-btn');
+
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, '0');
     const mm = String(now.getMinutes()).padStart(2, '0');
-    const timeInput = document.getElementById('attent-input-time');
-    if (timeInput) timeInput.value = `${hh}:${mm}`;
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 
-    this.selectAttentDose(this.selectedAttentDose || 20);
+    if (dateInput) {
+      dateInput.value = targetDate || todayStr;
+    }
+
+    if (timeInput) {
+      timeInput.value = (activeAttent && activeAttent.timestamp) ? activeAttent.timestamp : `${hh}:${mm}`;
+    }
+
+    const currentDose = (activeAttent && activeAttent.dose_mg) ? activeAttent.dose_mg : (this.selectedAttentDose || 20);
+    this.selectAttentDose(currentDose);
+
+    if (submitBtn) {
+      submitBtn.innerText = (activeAttent && activeAttent.is_active) ? '💾 שמור עדכון מנת אטנט' : '✨ הפעל BUFF שיקוי ריכוז (רשום נטילה)';
+    }
 
     const cancelWrap = document.getElementById('attent-active-cancel-wrap');
     if (cancelWrap) {
@@ -2216,7 +2262,35 @@ const AppState = {
       cancelWrap.style.display = isActive ? 'block' : 'none';
     }
 
-    document.getElementById('attent-modal').classList.add('active');
+    this.openModal('attent-modal');
+  },
+
+  setAttentTime(timeStr) {
+    sfx.playClick();
+    const timeInput = document.getElementById('attent-input-time');
+    if (timeInput) timeInput.value = timeStr;
+    document.querySelectorAll('.time-presets-row .preset-pill').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    const idMap = { '07:30': 'attent-time-0730', '09:00': 'attent-time-0900', '11:00': 'attent-time-1100', '13:30': 'attent-time-1330', '20:00': 'attent-time-2000' };
+    if (idMap[timeStr]) {
+      const btn = document.getElementById(idMap[timeStr]);
+      if (btn) btn.classList.add('active');
+    }
+  },
+
+  setAttentTimeNow() {
+    sfx.playClick();
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const timeInput = document.getElementById('attent-input-time');
+    if (timeInput) timeInput.value = `${hh}:${mm}`;
+    document.querySelectorAll('.time-presets-row .preset-pill').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    const nowBtn = document.getElementById('attent-time-now');
+    if (nowBtn) nowBtn.classList.add('active');
   },
 
   selectAttentDose(mg) {
@@ -2233,9 +2307,10 @@ const AppState = {
   async saveAttentLog() {
     sfx.playClick();
     const dose = this.selectedAttentDose || 20;
-    const timeVal = document.getElementById('attent-input-time').value || '09:00';
-    const duration = parseFloat(document.getElementById('attent-input-duration').value) || 7.0;
-    const notes = document.getElementById('attent-input-notes').value || 'שיקוי ריכוז והיפר-פוקוס';
+    const timeVal = document.getElementById('attent-input-time')?.value || '09:00';
+    const duration = parseFloat(document.getElementById('attent-input-duration')?.value) || 7.0;
+    const notes = document.getElementById('attent-input-notes')?.value || 'שיקוי ריכוז והיפר-פוקוס';
+    const dateVal = document.getElementById('attent-input-date')?.value || '';
 
     try {
       const res = await fetch('/api/medication/attent', {
@@ -2245,7 +2320,8 @@ const AppState = {
           dose_mg: dose,
           timestamp: timeVal,
           duration_hours: duration,
-          notes: notes
+          notes: notes,
+          date: dateVal
         })
       });
       const data = await res.json();
@@ -2254,7 +2330,12 @@ const AppState = {
         this.renderAll();
         sfx.playPotion();
         this.closeModal('attent-modal');
-        alert(`[SYSTEM: שיקוי ריכוז (אטנט ${dose}mg) הופעל בהצלחה! מנוע ה-AI הותאם לדיכוי תיאבון ולנטרול סטרס Garmin]`);
+        this.showToast(`[SYSTEM: שיקוי ריכוז (${dose}mg) נרשם בהצלחה ב-${timeVal}!]`);
+        await this.fetchDailyDebrief();
+        await this.fetchLongTermInsights(this.longTermWindow || 14);
+        if (this.calendarDaysData) {
+          await this.fetchCalendarData(this.calendarCurrentMonth);
+        }
       }
     } catch (e) {
       alert('שגיאה ברישום נטילת אטנט');
@@ -2263,7 +2344,7 @@ const AppState = {
 
   async cancelAttent() {
     sfx.playClick();
-    if (!confirm('האם לבטל את רישום האטנט של היום?')) return;
+    if (!confirm('האם לבטל את רישום מנת האטנט של היום?')) return;
     try {
       const res = await fetch('/api/medication/attent', { method: 'DELETE' });
       const data = await res.json();
@@ -2272,10 +2353,411 @@ const AppState = {
         this.renderAll();
         sfx.playSystemNotification();
         this.closeModal('attent-modal');
+        this.showToast('✕ רישום אטנט פעיל בוטל');
+        await this.fetchDailyDebrief();
+        await this.fetchLongTermInsights(this.longTermWindow || 14);
+        if (this.calendarDaysData) {
+          await this.fetchCalendarData(this.calendarCurrentMonth);
+        }
       }
     } catch (e) {
       alert('שגיאה בביטול רישום אטנט');
     }
+  },
+
+  // ==========================================
+  // ACTIVITY CALENDAR & CHRONIC PROGRESSION
+  // ==========================================
+  calendarCurrentMonth: '',
+  calendarSelectedDay: '',
+  calendarDaysData: null,
+
+  openCalendarModal(targetMonth = null) {
+    sfx.playClick();
+    if (!this.calendarCurrentMonth || targetMonth) {
+      const now = new Date();
+      this.calendarCurrentMonth = targetMonth || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    }
+    this.openModal('calendar-modal');
+    this.fetchCalendarData(this.calendarCurrentMonth);
+  },
+
+  async changeCalendarMonth(delta) {
+    sfx.playClick();
+    const parts = this.calendarCurrentMonth.split('-').map(Number);
+    let year = parts[0];
+    let month = parts[1] + delta;
+    if (month < 1) {
+      month = 12;
+      year -= 1;
+    } else if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+    this.calendarCurrentMonth = `${year}-${String(month).padStart(2,'0')}`;
+    await this.fetchCalendarData(this.calendarCurrentMonth);
+  },
+
+  async resetCalendarToToday() {
+    sfx.playClick();
+    const now = new Date();
+    this.calendarCurrentMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    await this.fetchCalendarData(this.calendarCurrentMonth);
+    const todayStr = `${this.calendarCurrentMonth}-${String(now.getDate()).padStart(2,'0')}`;
+    this.selectCalendarDay(todayStr);
+  },
+
+  async fetchCalendarData(monthStr) {
+    try {
+      const res = await fetch(`/api/history/calendar?month=${monthStr}`);
+      const data = await res.json();
+      this.calendarDaysData = data.days || {};
+      this.renderCalendar();
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const defaultSelect = this.calendarDaysData[todayStr] ? todayStr : Object.keys(this.calendarDaysData)[0];
+      if (defaultSelect && !this.calendarSelectedDay) {
+        this.selectCalendarDay(defaultSelect);
+      } else if (this.calendarSelectedDay && this.calendarDaysData[this.calendarSelectedDay]) {
+        this.selectCalendarDay(this.calendarSelectedDay);
+      }
+    } catch (e) {
+      console.error('Error fetching calendar data:', e);
+    }
+  },
+
+  renderCalendar() {
+    const grid = document.getElementById('calendar-days-grid');
+    const titleEl = document.getElementById('calendar-month-title');
+    if (!grid || !this.calendarCurrentMonth) return;
+
+    const parts = this.calendarCurrentMonth.split('-').map(Number);
+    const year = parts[0];
+    const month = parts[1];
+
+    const monthNames = ['', 'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+    if (titleEl) {
+      titleEl.innerText = `${monthNames[month]} ${year}`;
+    }
+
+    const firstDayIndex = new Date(year, month - 1, 1).getDay(); // 0 is Sunday
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+
+    let html = '';
+
+    // Empty leading offset cells
+    for (let i = 0; i < firstDayIndex; i++) {
+      html += `<div class="cal-day-cell empty-cell"></div>`;
+    }
+
+    // Days in month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateKey = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      const dayData = this.calendarDaysData ? this.calendarDaysData[dateKey] : null;
+      const isToday = (dateKey === todayStr);
+      const isSelected = (dateKey === this.calendarSelectedDay);
+
+      let badgesHtml = '';
+      let scoreDotHtml = '';
+
+      if (dayData && dayData.has_data) {
+        if (dayData.daily_score >= 80) {
+          scoreDotHtml = `<span class="cal-day-score-dot" style="background:#10b981;" title="ציון יום: ${dayData.daily_score}"></span>`;
+        } else if (dayData.daily_score >= 50) {
+          scoreDotHtml = `<span class="cal-day-score-dot" style="background:#f59e0b;" title="ציון יום: ${dayData.daily_score}"></span>`;
+        }
+
+        if (dayData.has_attent) {
+          badgesHtml += `<span class="cal-mini-icon" title="אטנט ${dayData.attent?.dose_mg || 20}mg">💊</span>`;
+        }
+        if (dayData.nutrition && dayData.nutrition.logged) {
+          const hitTarget = dayData.nutrition.protein >= (dayData.nutrition.target_protein * 0.9);
+          badgesHtml += `<span class="cal-mini-icon" title="חלבון: ${dayData.nutrition.protein}g">${hitTarget ? '🎯' : '🍏'}</span>`;
+        }
+        if (dayData.workout_count > 0) {
+          badgesHtml += `<span class="cal-mini-icon" title="${dayData.workout_count} אימונים">⚔️</span>`;
+        }
+        if (dayData.garmin && dayData.garmin.sleep_hours) {
+          badgesHtml += `<span class="cal-mini-icon" title="שינה: ${dayData.garmin.sleep_hours}h">💤</span>`;
+        }
+      }
+
+      html += `
+        <div class="cal-day-cell ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" onclick="AppState.selectCalendarDay('${dateKey}')">
+          <div class="cal-day-top">
+            <span class="cal-day-num">${day}</span>
+            ${scoreDotHtml}
+          </div>
+          <div class="cal-badges-mini">
+            ${badgesHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    grid.innerHTML = html;
+  },
+
+  async selectCalendarDay(dateStr) {
+    sfx.playClick();
+    this.calendarSelectedDay = dateStr;
+    this.renderCalendar();
+
+    const dateHeader = document.getElementById('cal-detail-date');
+    const badgeHeader = document.getElementById('cal-detail-badge');
+    const contentEl = document.getElementById('cal-detail-content');
+
+    if (dateHeader) dateHeader.innerText = `פירוט יום: ${dateStr}`;
+
+    try {
+      const res = await fetch(`/api/history/calendar/day?date=${dateStr}`);
+      const data = await res.json();
+
+      const daySummary = this.calendarDaysData ? this.calendarDaysData[dateStr] : null;
+      if (badgeHeader) {
+        badgeHeader.innerText = daySummary ? `ציון יום: ${daySummary.daily_score || 0}/100` : '--';
+      }
+
+      if (!contentEl) return;
+
+      const hasActivity = (data.meals && data.meals.length > 0) || (data.total_water_ml > 0) || (data.garmin) || (data.medications && data.medications.length > 0) || (data.workouts && data.workouts.length > 0) || (data.supplements && data.supplements.length > 0);
+
+      if (!hasActivity) {
+        contentEl.innerHTML = `
+          <div style="padding:12px; text-align:center; color:var(--text-secondary); font-size:12px;">
+            <div>אין פעילות רשומה ביום זה.</div>
+            <div style="margin-top:8px; display:flex; gap:8px; justify-content:center;">
+              <button type="button" class="preset-pill" onclick="AppState.openAttentModal('${dateStr}')">+ רשום אטנט</button>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      const totalCals = data.meals ? Math.round(data.meals.reduce((s, m) => s + (m.calories || 0), 0)) : 0;
+      const totalP = data.meals ? Math.round(data.meals.reduce((s, m) => s + (m.protein || 0), 0)) : 0;
+      const targetCals = data.profile?.target_calories || 2200;
+      const targetP = data.profile?.target_protein || 160;
+
+      const attentLog = (data.medications || []).find(m => m.med_name.toLowerCase() === 'attent');
+
+      contentEl.innerHTML = `
+        <div class="cal-detail-grid">
+          <div class="cal-detail-box">
+            <div class="cal-detail-box-title"><span>💊</span> אטנט / Attent</div>
+            <div class="cal-detail-box-val" style="color:#c084fc;">
+              ${attentLog ? `${attentLog.dose_mg}mg` : 'יום חופש (Drug Holiday)'}
+            </div>
+            <div class="cal-detail-box-sub">
+              ${attentLog ? `נלקח ב-${attentLog.timestamp}` : 'רגישות קולטנים נשמרת'}
+            </div>
+          </div>
+
+          <div class="cal-detail-box">
+            <div class="cal-detail-box-title"><span>🥩</span> חלבון וקלוריות</div>
+            <div class="cal-detail-box-val">
+              ${totalP}g / ${totalCals} kcal
+            </div>
+            <div class="cal-detail-box-sub">
+              יעד: ${targetP}g חלבון • ${targetCals} קק"ל
+            </div>
+          </div>
+
+          <div class="cal-detail-box">
+            <div class="cal-detail-box-title"><span>💧</span> מאזן מים</div>
+            <div class="cal-detail-box-val" style="color:#38bdf8;">
+              ${data.total_water_ml || 0} ml
+            </div>
+            <div class="cal-detail-box-sub">
+              יעד: ${data.profile?.target_water || 3000} ml
+            </div>
+          </div>
+
+          <div class="cal-detail-box">
+            <div class="cal-detail-box-title"><span>⌚</span> Garmin Venu 4</div>
+            <div class="cal-detail-box-val" style="color:#34d399;">
+              ${data.garmin ? `${data.garmin.sleep_hours || 0}h שינה • ${data.garmin.steps || 0} צעדים` : 'ללא סנכרון'}
+            </div>
+            <div class="cal-detail-box-sub">
+              ${data.garmin ? `דופק מנוחה: ${data.garmin.resting_hr || '--'} bpm • סטרס: ${data.garmin.stress_level || '--'}` : '--'}
+            </div>
+          </div>
+        </div>
+
+        ${data.workouts && data.workouts.length > 0 ? `
+          <div style="margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06);">
+            <div style="font-size:11px; font-weight:800; color:#e2e8f0; margin-bottom:4px;">⚔️ אימונים שבוצעו (${data.workouts.length}):</div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              ${data.workouts.map(w => `
+                <div style="font-size:11px; color:var(--text-secondary); background:rgba(0,0,0,0.2); padding:4px 8px; border-radius:4px;">
+                  <strong style="color:#f1f5f9;">${w.title}</strong> • ${w.duration_min} דק׳ • ${w.calories_burned} קק"ל
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        ${data.meals && data.meals.length > 0 ? `
+          <div style="margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06);">
+            <div style="font-size:11px; font-weight:800; color:#e2e8f0; margin-bottom:4px;">🍽️ ארוחות שנרשמו (${data.meals.length}):</div>
+            <div style="display:flex; flex-wrap:wrap; gap:4px;">
+              ${data.meals.map(m => `
+                <span style="font-size:10px; color:#cbd5e1; background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px;">
+                  ${m.food_name} (${Math.round(m.calories)} kcal)
+                </span>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+      `;
+    } catch (e) {
+      console.error('Error loading day detail:', e);
+    }
+  },
+
+  // ==========================================
+  // LONG-TERM EVIDENCE-BASED RESEARCH ENGINE
+  // ==========================================
+  longTermWindow: 14,
+  longTermData: null,
+
+  async switchLongTermWindow(days) {
+    sfx.playClick();
+    this.longTermWindow = days;
+    [7, 14, 30].forEach(d => {
+      const btn = document.getElementById(`lt-btn-${d}`);
+      if (btn) {
+        if (d === days) btn.classList.add('active');
+        else btn.classList.remove('active');
+      }
+    });
+    await this.fetchLongTermInsights(days);
+  },
+
+  async fetchLongTermInsights(window = 14) {
+    try {
+      const res = await fetch(`/api/history/long-term-insights?window=${window}`);
+      const data = await res.json();
+      this.longTermData = data;
+      this.renderLongTermInsights(data);
+    } catch (e) {
+      console.error('Error fetching long-term insights:', e);
+    }
+  },
+
+  renderLongTermInsights(data) {
+    if (!data) return;
+    const scoreVal = document.getElementById('lt-score-val');
+    const headlineEl = document.getElementById('lt-status-headline');
+    const summaryEl = document.getElementById('lt-status-summary');
+    const gridEl = document.getElementById('lt-pillars-grid');
+
+    if (scoreVal) scoreVal.innerText = data.composite_score;
+    if (headlineEl) headlineEl.innerText = data.headline;
+    if (summaryEl) summaryEl.innerText = data.summary;
+
+    if (!gridEl || !data.pillars) return;
+
+    const p = data.pillars;
+
+    gridEl.innerHTML = `
+      <!-- Pillar 1: Dopamine & Attent Tolerance -->
+      <div class="lt-pillar-card">
+        <div class="lt-pillar-top">
+          <div class="lt-pillar-title-wrap">
+            <span class="lt-pillar-icon">💊</span>
+            <span class="lt-pillar-title">${p.dopamine.title}</span>
+          </div>
+          <span class="lt-pillar-badge ${p.dopamine.badge_type}">${p.dopamine.badge}</span>
+        </div>
+        <div class="lt-pillar-stats-row">
+          <span class="lt-stat-chip">נטילה: <strong>${p.dopamine.days_taken} ימים</strong></span>
+          <span class="lt-stat-chip">חופש: <strong>${p.dopamine.drug_holidays} ימים</strong></span>
+          <span class="lt-stat-chip">מנה ממוצעת: <strong>${p.dopamine.avg_dose_mg}mg</strong></span>
+        </div>
+        <div class="lt-pillar-insight">${p.dopamine.insight}</div>
+        <div class="lt-pillar-evidence-box">🔬 מחקר: ${p.dopamine.citation}</div>
+        <div class="lt-pillar-action-box">👉 ${p.dopamine.action}</div>
+      </div>
+
+      <!-- Pillar 2: Muscle Protein Synthesis -->
+      <div class="lt-pillar-card">
+        <div class="lt-pillar-top">
+          <div class="lt-pillar-title-wrap">
+            <span class="lt-pillar-icon">🥩</span>
+            <span class="lt-pillar-title">${p.protein.title}</span>
+          </div>
+          <span class="lt-pillar-badge ${p.protein.badge_type}">${p.protein.badge}</span>
+        </div>
+        <div class="lt-pillar-stats-row">
+          <span class="lt-stat-chip">ממוצע: <strong>${p.protein.avg_daily_protein}g/יום</strong></span>
+          <span class="lt-stat-chip">יחס משקל: <strong>${p.protein.protein_per_kg} g/kg</strong></span>
+          <span class="lt-stat-chip">עמידה ביעד: <strong>${p.protein.days_hit_target}/${p.protein.total_logged_days} ימים</strong></span>
+        </div>
+        <div class="lt-pillar-insight">${p.protein.insight}</div>
+        <div class="lt-pillar-evidence-box">🔬 מחקר: ${p.protein.citation}</div>
+        <div class="lt-pillar-action-box">👉 ${p.protein.action}</div>
+      </div>
+
+      <!-- Pillar 3: Autonomic Nervous System & HRV Allostasis -->
+      <div class="lt-pillar-card">
+        <div class="lt-pillar-top">
+          <div class="lt-pillar-title-wrap">
+            <span class="lt-pillar-icon">🫀</span>
+            <span class="lt-pillar-title">${p.autonomic.title}</span>
+          </div>
+          <span class="lt-pillar-badge ${p.autonomic.badge_type}">${p.autonomic.status}</span>
+        </div>
+        <div class="lt-pillar-stats-row">
+          <span class="lt-stat-chip">דופק אטנט: <strong>${p.autonomic.avg_rhr_attent ? p.autonomic.avg_rhr_attent + ' bpm' : '--'}</strong></span>
+          <span class="lt-stat-chip">דופק חופש: <strong>${p.autonomic.avg_rhr_off ? p.autonomic.avg_rhr_off + ' bpm' : '--'}</strong></span>
+          <span class="lt-stat-chip">הפרש: <strong>${p.autonomic.rhr_delta_bpm > 0 ? '+' : ''}${p.autonomic.rhr_delta_bpm} bpm</strong></span>
+        </div>
+        <div class="lt-pillar-insight">${p.autonomic.insight}</div>
+        <div class="lt-pillar-evidence-box">🔬 מחקר: ${p.autonomic.citation}</div>
+        <div class="lt-pillar-action-box">👉 ${p.autonomic.action}</div>
+      </div>
+
+      <!-- Pillar 4: Chronic Sleep Debt -->
+      <div class="lt-pillar-card">
+        <div class="lt-pillar-top">
+          <div class="lt-pillar-title-wrap">
+            <span class="lt-pillar-icon">💤</span>
+            <span class="lt-pillar-title">${p.sleep.title}</span>
+          </div>
+          <span class="lt-pillar-badge ${p.sleep.badge_type}">${p.sleep.badge}</span>
+        </div>
+        <div class="lt-pillar-stats-row">
+          <span class="lt-stat-chip">ממוצע שינה: <strong>${p.sleep.avg_hours} שעות</strong></span>
+          <span class="lt-stat-chip">ציון Garmin: <strong>${p.sleep.avg_score}/100</strong></span>
+          <span class="lt-stat-chip">חוב שינה: <strong>${p.sleep.sleep_debt_hours}h</strong></span>
+        </div>
+        <div class="lt-pillar-insight">${p.sleep.insight}</div>
+        <div class="lt-pillar-evidence-box">🔬 מחקר: ${p.sleep.citation}</div>
+        <div class="lt-pillar-action-box">👉 ${p.sleep.action}</div>
+      </div>
+
+      <!-- Pillar 5: Training Stimulus -->
+      <div class="lt-pillar-card">
+        <div class="lt-pillar-top">
+          <div class="lt-pillar-title-wrap">
+            <span class="lt-pillar-icon">⚔️</span>
+            <span class="lt-pillar-title">${p.training.title}</span>
+          </div>
+          <span class="lt-pillar-badge ${p.training.badge_type}">${p.training.badge}</span>
+        </div>
+        <div class="lt-pillar-stats-row">
+          <span class="lt-stat-chip">אימונים שבוצעו: <strong>${p.training.total_workouts}</strong></span>
+          <span class="lt-stat-chip">קצב שבועי: <strong>${p.training.weekly_frequency} אימונים/שבוע</strong></span>
+        </div>
+        <div class="lt-pillar-insight">${p.training.insight}</div>
+        <div class="lt-pillar-evidence-box">🔬 מחקר: ${p.training.citation}</div>
+        <div class="lt-pillar-action-box">👉 ${p.training.action}</div>
+      </div>
+    `;
   },
 
   // ==========================================

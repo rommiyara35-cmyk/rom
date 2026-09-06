@@ -13,6 +13,7 @@ import math
 import sqlite3
 import datetime
 import socket
+import calendar
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
@@ -1767,6 +1768,372 @@ class HunterHealthAIAdvisor:
         }
 
 
+class HunterLongTermScienceEngine:
+    @classmethod
+    def analyze_long_term_trends(cls, conn, window_days=14):
+        c = conn.cursor()
+        today = get_hunter_shift_date(conn)
+        today_dt = datetime.datetime.strptime(today, "%Y-%m-%d")
+        start_dt = today_dt - datetime.timedelta(days=window_days - 1)
+        start_date_str = start_dt.strftime("%Y-%m-%d")
+
+        c.execute("SELECT * FROM hunter_profile WHERE id = 1")
+        prof_row = c.fetchone()
+        profile = dict(prof_row) if prof_row else {}
+        weight_kg = float(profile.get("weight_kg", 75.0))
+        target_calories = int(profile.get("target_calories", 2200))
+        target_protein = int(profile.get("target_protein", 160))
+        target_water = int(profile.get("target_water", 3000))
+
+        # Dates list
+        all_dates = []
+        curr = start_dt
+        while curr <= today_dt:
+            all_dates.append(curr.strftime("%Y-%m-%d"))
+            curr += datetime.timedelta(days=1)
+        total_days = len(all_dates)
+
+        # 1. Nutrition logs
+        c.execute("""
+        SELECT date, 
+               COUNT(id) as meal_count,
+               COALESCE(SUM(calories), 0) as calories,
+               COALESCE(SUM(protein), 0) as protein,
+               COALESCE(SUM(carbs), 0) as carbs,
+               COALESCE(SUM(fats), 0) as fats
+        FROM daily_logs
+        WHERE date >= ? AND date <= ?
+        GROUP BY date
+        ORDER BY date ASC
+        """, (start_date_str, today))
+        nutrition_map = {r["date"]: dict(r) for r in c.fetchall()}
+
+        # 2. Water logs
+        c.execute("""
+        SELECT date, COALESCE(SUM(amount_ml), 0) as water_ml
+        FROM water_logs
+        WHERE date >= ? AND date <= ?
+        GROUP BY date
+        """, (start_date_str, today))
+        water_map = {r["date"]: r["water_ml"] for r in c.fetchall()}
+
+        # 3. Garmin logs
+        c.execute("""
+        SELECT * FROM garmin_health_logs
+        WHERE date >= ? AND date <= ?
+        ORDER BY date ASC
+        """, (start_date_str, today))
+        garmin_map = {r["date"]: dict(r) for r in c.fetchall()}
+
+        # 4. Medication (Attent)
+        c.execute("""
+        SELECT * FROM medication_logs
+        WHERE date >= ? AND date <= ? AND LOWER(med_name) = 'attent'
+        ORDER BY date ASC
+        """, (start_date_str, today))
+        attent_map = {}
+        for r in c.fetchall():
+            attent_map[r["date"]] = dict(r)
+
+        # 5. Workouts
+        c.execute("""
+        SELECT * FROM workout_logs
+        WHERE date >= ? AND date <= ?
+        ORDER BY date ASC
+        """, (start_date_str, today))
+        workout_map = {}
+        for r in c.fetchall():
+            d = r["date"]
+            if d not in workout_map:
+                workout_map[d] = []
+            workout_map[d].append(dict(r))
+
+        # 6. Supplements
+        c.execute("""
+        SELECT * FROM supplements_log
+        WHERE date >= ? AND date <= ?
+        ORDER BY date ASC
+        """, (start_date_str, today))
+        supp_map = {}
+        for r in c.fetchall():
+            d = r["date"]
+            if d not in supp_map:
+                supp_map[d] = []
+            supp_map[d].append(dict(r))
+
+        # Pillar 1: Attent & Dopamine Dynamics
+        attent_days_count = len(attent_map)
+        drug_holidays_count = total_days - attent_days_count
+        attent_pct = round((attent_days_count / max(1, total_days)) * 100)
+        doses = [a["dose_mg"] for a in attent_map.values()]
+        avg_dose = round(sum(doses) / len(doses), 1) if doses else 0.0
+
+        if attent_days_count == 0:
+            attent_status = "ללא שימוש בטווח זה"
+            attent_badge = "חופש מוחלט"
+            attent_badge_type = "info"
+            attent_insight = "לא נרשמה נטילת אטנט בתקופה זו. רגישות קולטני הדופמין (D2/DAT) נמצאת בבייסליין פיזיולוגי מלא ללא אדפטציה תרופתית."
+            attent_action = "במידה ומשמרת או מטלה תדרוש ריכוז עמוק, מינון בסיס נמוך (10-15mg) יניב אפקט מירבי הודות לבייסליין הנקי."
+        elif attent_days_count >= total_days:
+            attent_status = "סיכון להצטברות עמידות (Tolerance Drift)"
+            attent_badge = "אזהרת עמידות"
+            attent_badge_type = "alert"
+            attent_insight = (
+                f"נטלת אטנט בכל {total_days} הימים האחרונים (100% רציפות). מחקרים קלאסיים של Volkow et al. (2004) ו-Madras et al. (2005) "
+                "הוכיחו שחשיפה אמפטמינית רציפה מביאה ל-Up-regulation של הטרנספורטר DAT ול-Downregulation של קולטני דופמין D2/D3, "
+                "מה שגורם לתחושת 'התרגלות' (Tachyphylaxis) ולצורך פיזיולוגי בהעלאת מינונים."
+            )
+            attent_action = "המלצה מדעית: תזמן 1-2 ימי Drug Holiday (הפסקת תרופה יזומה) בסופ״ש הקרוב כדי לאפשר רה-סנסיטיזציה לקולטנים."
+        elif drug_holidays_count >= max(1, window_days // 4):
+            attent_status = "פרוטוקול עמידות אופטימלי (Resensitized)"
+            attent_badge = "רגישות נשמרת"
+            attent_badge_type = "success"
+            attent_insight = (
+                f"שילבת {drug_holidays_count} ימי חופש תרופתי (Drug Holidays) מתוך {total_days} ימים ({100 - attent_pct}% מנוחה). "
+                "פרוטוקול זה תואם במדויק את המלצות הספרות הנוירו-פרמקולוגית לשמירה על צפיפות תקינה של קולטנים ולמניעת ירידה באפקטיביות."
+            )
+            attent_action = "המשך בפרוטוקול המחזורי הנוכחי. הוא משמר אפקט שיא במינונים מתונים ללא צורך בהעלאת מינון."
+        else:
+            attent_status = "רציפות גבוהה - מעקב מומלץ"
+            attent_badge = "מעקב טולרנס"
+            attent_badge_type = "warning"
+            attent_insight = (
+                f"נטלת אטנט ב-{attent_days_count} מתוך {total_days} ימים ({attent_pct}%). "
+                "כדי למנוע שחיקה של רגישות הקולטנים הסינפטיים, רצוי לתכנן יום חופש קבוע שבועי."
+            )
+            attent_action = "שמור על ימי סוף שבוע נקיים או ימי התאוששות ללא גירוי סימפתטי."
+
+        # Pillar 2: Muscle Protein Synthesis (MPS) & Nitrogen Balance
+        logged_days_nutr = [d for d in all_dates if d in nutrition_map and nutrition_map[d]["meal_count"] > 0]
+        total_p = sum(nutrition_map[d]["protein"] for d in logged_days_nutr)
+        total_cals = sum(nutrition_map[d]["calories"] for d in logged_days_nutr)
+        avg_protein = round(total_p / max(1, len(logged_days_nutr)), 1) if logged_days_nutr else 0.0
+        avg_calories = round(total_cals / max(1, len(logged_days_nutr)), 1) if logged_days_nutr else 0.0
+        protein_per_kg = round(avg_protein / max(40.0, weight_kg), 2)
+        target_p_per_kg = round(target_protein / max(40.0, weight_kg), 2)
+        p_hit_days = sum(1 for d in logged_days_nutr if nutrition_map[d]["protein"] >= (target_protein * 0.9))
+        p_adherence_pct = round((p_hit_days / max(1, total_days)) * 100)
+
+        if protein_per_kg >= 1.6:
+            mps_status = "היפרטרופיה מוגנת במלואה (Optimal MPS)"
+            mps_badge = "סף מורטון הושג"
+            mps_badge_type = "success"
+            mps_insight = (
+                f"ממוצע החלבון שלך עומד על {avg_protein}g ליום ({protein_per_kg}g/kg). "
+                "מטא-אנליזה מקיפה של Morton et al. (2018, BJSM) קבעה שסף 1.62-2.2 גרם/ק\"ג ממצה במלואו את פוטנציאל בניית השריר (MPS). "
+                "העקביות שלך מגנה על מסת השריר מפני פירוק קטבולי, גם בשעות שבהן אטנט מדכא את התיאבון."
+            )
+            mps_action = "המשך בחלוקת מנות חלבון ל-3-4 מנות יומיות של לפחות 30-40 גרם לגירוי חוזר של mTOR."
+        elif protein_per_kg >= 1.2:
+            mps_status = "שימור מסת שריר בסיסי (Maintenance)"
+            mps_badge = "שימור תקין"
+            mps_badge_type = "warning"
+            mps_insight = (
+                f"ממוצע חלבון יומי: {avg_protein}g ({protein_per_kg}g/kg) מול יעד של {target_protein}g ({target_p_per_kg}g/kg). "
+                "על פי Phillips et al. (2016), כמות זו מספקת למניעת איבוד שריר, אך אינה ממצה גירוי היפרטרופי מקסימלי לאימוני כוח."
+            )
+            mps_action = "הוסף שייק חלבון או שיקוי כוח בימים שבהם האטנט גורם לדיכוי תיאבון."
+        else:
+            mps_status = "סיכון קטבולי תחת דיכוי תיאבון"
+            mps_badge = "חוסר חלבון כרוני"
+            mps_badge_type = "alert"
+            mps_insight = (
+                f"ממוצע חלבון: {avg_protein}g/יום בלבד ({protein_per_kg}g/kg). "
+                "דיכוי התיאבון התרופתי מאטנט גורם לפער חלבוני מצטבר שמכניס את הגוף למאזן חנקן שלילי (Negative Nitrogen Balance) ופגיעה ברקמת שריר."
+            )
+            mps_action = "קבע יעדי חלבון נוזליים (יוגורט חלבון, שייקים) בשעות הבוקר לפני תחילת השפעת האטנט."
+
+        # Pillar 3: Autonomic Nervous System & Cardiovascular Allostasis
+        rhr_attent = [garmin_map[d]["resting_hr"] for d in all_dates if d in garmin_map and d in attent_map and garmin_map[d].get("resting_hr")]
+        rhr_off = [garmin_map[d]["resting_hr"] for d in all_dates if d in garmin_map and d not in attent_map and garmin_map[d].get("resting_hr")]
+        avg_rhr_attent = round(sum(rhr_attent) / len(rhr_attent), 1) if rhr_attent else None
+        avg_rhr_off = round(sum(rhr_off) / len(rhr_off), 1) if rhr_off else None
+        rhr_delta = round(avg_rhr_attent - avg_rhr_off, 1) if (avg_rhr_attent is not None and avg_rhr_off is not None) else 0.0
+
+        stress_attent = [garmin_map[d]["stress_level"] for d in all_dates if d in garmin_map and d in attent_map and garmin_map[d].get("stress_level")]
+        stress_off = [garmin_map[d]["stress_level"] for d in all_dates if d in garmin_map and d not in attent_map and garmin_map[d].get("stress_level")]
+        avg_stress_attent = round(sum(stress_attent) / len(stress_attent), 1) if stress_attent else None
+        avg_stress_off = round(sum(stress_off) / len(stress_off), 1) if stress_off else None
+
+        if avg_rhr_attent and avg_rhr_off:
+            cardio_insight = (
+                f"דופק מנוחה ממוצע בימי אטנט: {avg_rhr_attent} bpm לעומת {avg_rhr_off} bpm בימי חופש (הפרש אדרנרגי של {rhr_delta:+} bpm). "
+                "מחקר Task Force of ESC/NASPE (1996) מדגיש שעלייה מתונה זו נובעת מגירוי סימפתטי תרופתי. "
+                f"העובדה שדופק המנוחה צונח בחזרה בימי חופש ל-{avg_rhr_off} bpm מעידה על גמישות וגאלית (Vagal Tone) מצוינת והעדר שחיקה קרדיווסקולרית כרונית."
+            )
+            cardio_badge_type = "success" if rhr_delta <= 7.0 else "warning"
+            cardio_status = "התאוששות וגאלית תקינה" if rhr_delta <= 7.0 else "עומס סימפתטי מוגבר"
+        else:
+            all_rhr = [garmin_map[d]["resting_hr"] for d in all_dates if d in garmin_map and garmin_map[d].get("resting_hr")]
+            avg_rhr = round(sum(all_rhr) / len(all_rhr), 1) if all_rhr else 58.0
+            cardio_insight = (
+                f"דופק מנוחה כרוני ממוצע: {avg_rhr} bpm. המערכת מנטרת את העומס האלוסטטי (McEwen 1998) ומבודדת "
+                "השפעות גירוי סימפתטי מאטנט לחישוב התאוששות אמינה."
+            )
+            cardio_badge_type = "info"
+            cardio_status = "מעקב בייסליין אוטונומי"
+
+        # Pillar 4: Chronic Sleep Debt & Neuro-Recovery Architecture
+        sleep_hours_list = [garmin_map[d]["sleep_hours"] for d in all_dates if d in garmin_map and garmin_map[d].get("sleep_hours")]
+        sleep_scores_list = [garmin_map[d]["sleep_score"] for d in all_dates if d in garmin_map and garmin_map[d].get("sleep_score")]
+        avg_sleep_h = round(sum(sleep_hours_list) / len(sleep_hours_list), 1) if sleep_hours_list else 7.2
+        avg_sleep_score = round(sum(sleep_scores_list) / len(sleep_scores_list), 1) if sleep_scores_list else 80.0
+        sleep_target = 7.5
+        sleep_debt = max(0.0, round(sum((sleep_target - h) for h in sleep_hours_list), 1)) if sleep_hours_list else 0.0
+
+        if sleep_debt <= 2.0:
+            sleep_status = "חוב שינה אפסי - התאוששות שיא"
+            sleep_badge = "שינה אידיאלית"
+            sleep_badge_type = "success"
+            sleep_insight = (
+                f"ממוצע שינה יומי: {avg_sleep_h} שעות (ציון שינה {avg_sleep_score}/100) עם חוב שינה מזערי של {sleep_debt} שעות. "
+                "מחקר Boonstra et al. (2007) מוכיח ששינה מספקת כזו שומרת על רמות קורטיזול מאוזנות, חדות קוגניטיבית ורמות הורמון גדילה (GH) מקסימליות בלילה."
+            )
+            sleep_action = "המשך בהקפדה על נטילת אטנט מוקדמת כדי לשמור על ארכיטקטורת שנת ה-SWS (גלים איטיים)."
+        elif sleep_debt <= 6.0:
+            sleep_status = "חוב שינה קל עד מתון"
+            sleep_badge = "חוב מתון"
+            sleep_badge_type = "warning"
+            sleep_insight = (
+                f"הצטבר חוב שינה של {sleep_debt} שעות בתקופה זו (ממוצע {avg_sleep_h} שעות/לילה). "
+                "על פי Van Dongen et al. (2003), גרעון שינה כרוני מצטבר פוגע בזמן תגובה ובוויסות רעב (עליית גרלין וירידה בלפטין)."
+            )
+            sleep_action = "הוסף שנת השלמה של 45-60 דקות בימי מנוחה, והימנע מנטילת אטנט לאחר 11:00 בבוקר."
+        else:
+            sleep_status = "גרעון שינה כרוני משמעותי"
+            sleep_badge = "חוב שינה חמור"
+            sleep_badge_type = "alert"
+            sleep_insight = (
+                f"חוב שינה מצטבר חמור של {sleep_debt} שעות (ממוצע {avg_sleep_h} שעות בלבד). "
+                "גרעון כרוני כזה גורם לעלייה של 25%-35% בקורטיזול הבוקר, מעכב סינתזת חלבון ומחייב שימוש מוגבר במינוני ריכוז."
+            )
+            sleep_action = "תעדוף עליון להארכת שנת הלילה ב-60-90 דקות ונטילת תוסף מגנזיום גליצינאט לפני השינה."
+
+        # Pillar 5: Training Frequency & Athletic Progressive Overload
+        total_workouts = sum(len(workout_map.get(d, [])) for d in all_dates)
+        weekly_workout_rate = round((total_workouts / max(1, total_days)) * 7, 1)
+
+        if weekly_workout_rate >= 3.0:
+            train_status = "תדירות אופטימלית לגירוי שרירי"
+            train_badge = "עומס מעולה"
+            train_badge_type = "success"
+            train_insight = (
+                f"ביצעת {total_workouts} אימונים בטווח זה (קצב של {weekly_workout_rate} אימונים בשבוע). "
+                "מטא-אנליזות של Schoenfeld et al. (2016, 2019) הראו שתדירות של 3-4 אימוני התנגדות שבועיים מבטיחה גירוי mTOR ופוטנציאל עומס יתר מתקדם (Progressive Overload)."
+            )
+        elif weekly_workout_rate >= 1.5:
+            train_status = "תדירות מתונה לשימור"
+            train_badge = "שימור כושר"
+            train_badge_type = "warning"
+            train_insight = (
+                f"קצב אימונים שבועי: {weekly_workout_rate} אימונים. מספק לשמירה על כושר ורמת כוח בסיסית, אך מומלץ להעלות ל-3 בשבוע לטובת עליית רמות וסקילים."
+            )
+        else:
+            train_status = "תדירות נמוכה מהיעד"
+            train_badge = "דרוש גירוי"
+            train_badge_type = "alert"
+            train_insight = (
+                f"נרשמו {total_workouts} אימונים בלבד ב-{total_days} ימים. כדי לקדם את סקיל הכוח והמהירות ולמקסם ספיגת חלבון ברקמות, נדרש גירוי מכני תדיר יותר."
+            )
+
+        # Long-Term Composite Score Calculation (0-100)
+        score_protein = min(25, int((avg_protein / max(1, target_protein)) * 25))
+        score_sleep = max(0, 20 - int(sleep_debt * 1.5))
+        score_attent = 20 if (attent_days_count == 0 or drug_holidays_count >= 1) else 12
+        score_cardio = 20 if rhr_delta <= 6.0 else 14
+        score_train = min(15, int((weekly_workout_rate / 3.0) * 15))
+        composite_score = min(100, max(20, score_protein + score_sleep + score_attent + score_cardio + score_train))
+
+        if composite_score >= 88:
+            grade = "S-Rank Adaptation"
+            headline = "אדפטציה פיזיולוגית ברמת עילית (S-Rank)"
+        elif composite_score >= 75:
+            grade = "A-Rank Progression"
+            headline = "התקדמות יציבה ומאוזנת היטב (A-Rank)"
+        elif composite_score >= 60:
+            grade = "B-Rank Steady"
+            headline = "שליטה תקינה עם מקום לשיפור עקביות (B-Rank)"
+        else:
+            grade = "C-Rank Focus Needed"
+            headline = "נדרש מיקוד ביעדי חלבון ושעות שינה (C-Rank)"
+
+        return {
+            "window_days": window_days,
+            "start_date": start_date_str,
+            "end_date": today,
+            "composite_score": composite_score,
+            "grade": grade,
+            "headline": headline,
+            "summary": f"ניתוח {window_days} הימים האחרונים מציג ציון אדפטציה של {composite_score}/100. המערכת סנכרנה בהצלחה מדדי תרופה, שינה, חלבון ודופק.",
+            "pillars": {
+                "dopamine": {
+                    "title": "רגישות דופמינרגית ואיזון אטנט",
+                    "status": attent_status,
+                    "badge": attent_badge,
+                    "badge_type": attent_badge_type,
+                    "days_taken": attent_days_count,
+                    "drug_holidays": drug_holidays_count,
+                    "adherence_pct": attent_pct,
+                    "avg_dose_mg": avg_dose,
+                    "insight": attent_insight,
+                    "action": attent_action,
+                    "citation": "Volkow et al. (2004) / Madras et al. (2005) - DAT occupancy & resensitization"
+                },
+                "protein": {
+                    "title": "סינתזת חלבון כרונית ומגן שריר (MPS)",
+                    "status": mps_status,
+                    "badge": mps_badge,
+                    "badge_type": mps_badge_type,
+                    "avg_daily_protein": avg_protein,
+                    "target_protein": target_protein,
+                    "protein_per_kg": protein_per_kg,
+                    "days_hit_target": p_hit_days,
+                    "total_logged_days": len(logged_days_nutr),
+                    "insight": mps_insight,
+                    "action": mps_action,
+                    "citation": "Morton et al. (2018, BJSM) / Phillips et al. (2016) - 1.62-2.2g/kg threshold"
+                },
+                "autonomic": {
+                    "title": "מערכת אוטונומית ועומס אלוסטטי (Garmin HRV)",
+                    "status": cardio_status,
+                    "badge": "דופק & סטרס",
+                    "badge_type": cardio_badge_type,
+                    "avg_rhr_attent": avg_rhr_attent,
+                    "avg_rhr_off": avg_rhr_off,
+                    "rhr_delta_bpm": rhr_delta,
+                    "avg_stress_attent": avg_stress_attent,
+                    "avg_stress_off": avg_stress_off,
+                    "insight": cardio_insight,
+                    "action": "המשך ניטור סטרס אוטונומי. בימי נטילה השתמש במדדי הדופק המנורמלים.",
+                    "citation": "McEwen (1998) - Allostatic load / ESC Task Force (1996) - HRV & sympathetic tone"
+                },
+                "sleep": {
+                    "title": "חוב שינה מצטבר וארכיטקטורת מנוחה",
+                    "status": sleep_status,
+                    "badge": sleep_badge,
+                    "badge_type": sleep_badge_type,
+                    "avg_hours": avg_sleep_h,
+                    "avg_score": avg_sleep_score,
+                    "sleep_debt_hours": sleep_debt,
+                    "insight": sleep_insight,
+                    "action": sleep_action,
+                    "citation": "Boonstra et al. (2007) / Van Dongen et al. (2003) - Cumulative sleep debt dose-response"
+                },
+                "training": {
+                    "title": "תדירות אימונים וגירוי שרירי מתקדם",
+                    "status": train_status,
+                    "badge": train_badge,
+                    "badge_type": train_badge_type,
+                    "total_workouts": total_workouts,
+                    "weekly_frequency": weekly_workout_rate,
+                    "insight": train_insight,
+                    "action": "שמור על גירוי עקבי תוך התאמת עצימות לרמת הסוללה הגופנית (Body Battery).",
+                    "citation": "Schoenfeld et al. (2016, 2019) - Resistance training volume & frequency meta-analysis"
+                }
+            }
+        }
+
+
 # -------------------------------------------------------------
 # HTTP Request Handler & REST API
 # -------------------------------------------------------------
@@ -1827,6 +2194,15 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.handle_get_supplements()
         elif path == "/api/health-synergy/daily-debrief":
             self.handle_get_daily_debrief()
+        elif path == "/api/history/calendar":
+            month = query.get("month", [""])[0]
+            self.handle_get_calendar_history(month)
+        elif path == "/api/history/calendar/day":
+            day_str = query.get("date", [""])[0]
+            self.handle_get_calendar_day_detail(day_str)
+        elif path == "/api/history/long-term-insights":
+            window = query.get("window", ["14"])[0]
+            self.handle_get_long_term_insights(window)
         elif path.startswith("/api/barcode/"):
             barcode = path.split("/")[-1]
             self.handle_get_barcode(barcode)
@@ -2564,6 +2940,200 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         self._set_headers()
         self.wfile.write(json.dumps(days, ensure_ascii=False).encode("utf-8"))
 
+    def handle_get_calendar_history(self, month_str):
+        with Database.get_connection() as conn:
+            c = conn.cursor()
+            if not month_str or len(month_str) < 7:
+                month_str = get_hunter_shift_date(conn)[:7]
+
+            c.execute("SELECT * FROM hunter_profile WHERE id=1")
+            prof_row = c.fetchone()
+            profile = dict(prof_row) if prof_row else {}
+
+            # Daily meals aggregated
+            c.execute("""
+            SELECT date, 
+                   COUNT(id) as meal_count,
+                   COALESCE(SUM(calories), 0) as total_calories,
+                   COALESCE(SUM(protein), 0) as total_protein,
+                   COALESCE(SUM(carbs), 0) as total_carbs,
+                   COALESCE(SUM(fats), 0) as total_fats
+            FROM daily_logs
+            WHERE date LIKE ?
+            GROUP BY date
+            """, (f"{month_str}%",))
+            nutrition_map = {r["date"]: dict(r) for r in c.fetchall()}
+
+            # Water aggregated
+            c.execute("""
+            SELECT date, COALESCE(SUM(amount_ml), 0) as total_water
+            FROM water_logs
+            WHERE date LIKE ?
+            GROUP BY date
+            """, (f"{month_str}%",))
+            water_map = {r["date"]: r["total_water"] for r in c.fetchall()}
+
+            # Garmin biometrics
+            c.execute("""
+            SELECT * FROM garmin_health_logs
+            WHERE date LIKE ?
+            """, (f"{month_str}%",))
+            garmin_map = {r["date"]: dict(r) for r in c.fetchall()}
+
+            # Medication (Attent)
+            c.execute("""
+            SELECT * FROM medication_logs
+            WHERE date LIKE ? AND LOWER(med_name) = 'attent'
+            ORDER BY id DESC
+            """, (f"{month_str}%",))
+            attent_map = {}
+            for r in c.fetchall():
+                if r["date"] not in attent_map:
+                    attent_map[r["date"]] = dict(r)
+
+            # Workouts
+            c.execute("""
+            SELECT * FROM workout_logs
+            WHERE date LIKE ?
+            ORDER BY id ASC
+            """, (f"{month_str}%",))
+            workout_map = {}
+            for r in c.fetchall():
+                d = r["date"]
+                if d not in workout_map:
+                    workout_map[d] = []
+                workout_map[d].append(dict(r))
+
+            # Supplements
+            c.execute("""
+            SELECT * FROM supplements_log
+            WHERE date LIKE ?
+            ORDER BY id ASC
+            """, (f"{month_str}%",))
+            supp_map = {}
+            for r in c.fetchall():
+                d = r["date"]
+                if d not in supp_map:
+                    supp_map[d] = []
+                supp_map[d].append(dict(r))
+
+            try:
+                year, month = map(int, month_str.split("-")[:2])
+                _, num_days = calendar.monthrange(year, month)
+            except Exception:
+                num_days = 31
+
+            days_data = {}
+            for day_num in range(1, num_days + 1):
+                day_key = f"{month_str}-{day_num:02d}"
+                nutr = nutrition_map.get(day_key, {
+                    "meal_count": 0, "total_calories": 0, "total_protein": 0, "total_carbs": 0, "total_fats": 0
+                })
+                g = garmin_map.get(day_key, None)
+                att = attent_map.get(day_key, None)
+                w_list = workout_map.get(day_key, [])
+                s_list = supp_map.get(day_key, [])
+                water_ml = water_map.get(day_key, 0)
+
+                has_data = (nutr["meal_count"] > 0) or (water_ml > 0) or (g is not None) or (att is not None) or (len(w_list) > 0) or (len(s_list) > 0)
+
+                p_target = profile.get("target_protein", 160)
+                c_target = profile.get("target_calories", 2200)
+                w_target = profile.get("target_water", 3000)
+
+                score = 0
+                if has_data:
+                    p_pts = min(30, int((nutr["total_protein"] / max(1, p_target)) * 30))
+                    c_pts = max(0, 25 - int(abs(nutr["total_calories"] - c_target) / 60))
+                    w_pts = min(20, int((water_ml / max(1, w_target)) * 20))
+                    train_pts = 15 if len(w_list) > 0 else 0
+                    sleep_pts = 10 if (g and g.get("sleep_hours", 0) >= 7.0) else 5
+                    score = min(100, max(20, p_pts + c_pts + w_pts + train_pts + sleep_pts))
+
+                days_data[day_key] = {
+                    "date": day_key,
+                    "has_data": has_data,
+                    "has_attent": att is not None,
+                    "attent": att,
+                    "nutrition": {
+                        "logged": nutr["meal_count"] > 0,
+                        "meal_count": nutr["meal_count"],
+                        "calories": round(nutr["total_calories"], 1),
+                        "protein": round(nutr["total_protein"], 1),
+                        "carbs": round(nutr["total_carbs"], 1),
+                        "fats": round(nutr["total_fats"], 1),
+                        "target_calories": c_target,
+                        "target_protein": p_target
+                    },
+                    "water_ml": water_ml,
+                    "target_water": w_target,
+                    "garmin": g,
+                    "workouts": w_list,
+                    "workout_count": len(w_list),
+                    "supplements": s_list,
+                    "supplements_count": len(s_list),
+                    "daily_score": score
+                }
+
+        self._set_headers()
+        self.wfile.write(json.dumps({
+            "month": month_str,
+            "days": days_data
+        }, ensure_ascii=False).encode("utf-8"))
+
+    def handle_get_calendar_day_detail(self, day_str):
+        with Database.get_connection() as conn:
+            c = conn.cursor()
+            if not day_str:
+                day_str = get_hunter_shift_date(conn)
+
+            c.execute("SELECT * FROM hunter_profile WHERE id=1")
+            prof_row = c.fetchone()
+            profile = dict(prof_row) if prof_row else {}
+
+            c.execute("SELECT * FROM daily_logs WHERE date = ? ORDER BY id ASC", (day_str,))
+            meals = [dict(r) for r in c.fetchall()]
+
+            c.execute("SELECT * FROM water_logs WHERE date = ? ORDER BY id ASC", (day_str,))
+            water_logs = [dict(r) for r in c.fetchall()]
+            total_water = sum(w["amount_ml"] for w in water_logs)
+
+            c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (day_str,))
+            garmin_row = c.fetchone()
+            garmin = dict(garmin_row) if garmin_row else None
+
+            c.execute("SELECT * FROM medication_logs WHERE date = ? ORDER BY id ASC", (day_str,))
+            meds = [dict(r) for r in c.fetchall()]
+
+            c.execute("SELECT * FROM workout_logs WHERE date = ? ORDER BY id ASC", (day_str,))
+            workouts = [dict(r) for r in c.fetchall()]
+
+            c.execute("SELECT * FROM supplements_log WHERE date = ? ORDER BY id ASC", (day_str,))
+            supplements = [dict(r) for r in c.fetchall()]
+
+        self._set_headers()
+        self.wfile.write(json.dumps({
+            "date": day_str,
+            "profile": profile,
+            "meals": meals,
+            "water_logs": water_logs,
+            "total_water_ml": total_water,
+            "garmin": garmin,
+            "medications": meds,
+            "workouts": workouts,
+            "supplements": supplements
+        }, ensure_ascii=False).encode("utf-8"))
+
+    def handle_get_long_term_insights(self, window_str):
+        try:
+            window = int(window_str) if str(window_str) in ["7", "14", "30"] else 14
+        except Exception:
+            window = 14
+        with Database.get_connection() as conn:
+            insights = HunterLongTermScienceEngine.analyze_long_term_trends(conn, window)
+        self._set_headers()
+        self.wfile.write(json.dumps(insights, ensure_ascii=False).encode("utf-8"))
+
     def handle_get_backup(self):
         with Database.get_connection() as conn:
             c = conn.cursor()
@@ -3135,23 +3705,34 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             dose_time = body.get("timestamp", datetime.datetime.now().strftime("%H:%M"))
             duration = float(body.get("duration_hours", 7.0))
             notes = body.get("notes", "שיקוי ריכוז והיפר-פוקוס")
+            target_date = body.get("date")
 
             with Database.get_connection() as conn:
-                today = get_hunter_shift_date(conn)
+                shift_date = get_hunter_shift_date(conn)
+                date_to_log = target_date if target_date else shift_date
                 c = conn.cursor()
-                c.execute("""
-                INSERT INTO medication_logs (date, med_name, dose_mg, timestamp, duration_hours, notes)
-                VALUES (?, 'Attent', ?, ?, ?, ?)
-                """, (today, dose_mg, dose_time, duration, notes))
+                c.execute("SELECT id FROM medication_logs WHERE date = ? AND LOWER(med_name) = 'attent'", (date_to_log,))
+                existing = c.fetchone()
+                if existing:
+                    c.execute("""
+                    UPDATE medication_logs 
+                    SET dose_mg = ?, timestamp = ?, duration_hours = ?, notes = ?
+                    WHERE id = ?
+                    """, (dose_mg, dose_time, duration, notes, existing["id"]))
+                else:
+                    c.execute("""
+                    INSERT INTO medication_logs (date, med_name, dose_mg, timestamp, duration_hours, notes)
+                    VALUES (?, 'Attent', ?, ?, ?, ?)
+                    """, (date_to_log, dose_mg, dose_time, duration, notes))
                 conn.commit()
 
                 lvl_res = HunterLevelingEngine.add_exp(conn, 35)
-                health_data = HunterHealthAIAdvisor.analyze_and_generate_insights(conn, today)
+                health_data = HunterHealthAIAdvisor.analyze_and_generate_insights(conn, shift_date)
 
             self._set_headers()
             self.wfile.write(json.dumps({
                 "status": "buff_activated",
-                "message": f"[SYSTEM: Concentration Potion (Attent {dose_mg}mg) Active Buff Registered!]",
+                "message": f"[SYSTEM: שיקוי ריכוז (Attent {dose_mg}mg) עודכן/הופעל בהצלחה ב-{dose_time}!]",
                 "leveling": lvl_res,
                 "data": health_data
             }, ensure_ascii=False).encode("utf-8"))

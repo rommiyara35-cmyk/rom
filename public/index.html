@@ -41,6 +41,7 @@
       <div class="top-bar-actions">
         <button id="shift-toggle-btn" class="hud-btn-icon" onclick="AppState.toggleShiftMode()" title="החלף בין משמרת יום למשמרת לילה">☀️</button>
         <button id="sound-toggle-btn" class="hud-btn-icon" title="השתק/הפעל סאונד">🔊</button>
+        <button id="calendar-toggle-btn" class="hud-btn-icon" onclick="AppState.openCalendarModal()" title="לוח שנה ומעקב היסטורי כרוני" style="border-color:rgba(56,189,248,0.4); color:#38bdf8;">📅</button>
         <button class="hud-btn-icon" onclick="AppState.openModal('awakening-modal')" title="מבדק התעוררות מדעי">⚡</button>
         <button class="hud-btn-icon" onclick="AppState.openResetModal()" title="איפוס יומי / התחלה מחדש (Rebirth)" style="border-color:rgba(239,68,68,0.4); color:#fca5a5;">🔄</button>
         <button class="hud-btn-icon" onclick="AppState.openModal('settings-modal')" title="הגדרות, סנכרון וגיבוי">⚙️</button>
@@ -636,6 +637,43 @@
           </div>
         </section>
 
+        <!-- HUNTER LONG-TERM EVIDENCE-BASED PROGRESSION & RESEARCH ENGINE (7, 14, 30 DAYS) -->
+        <section class="long-term-science-section" id="long-term-science-section">
+          <div class="long-term-header">
+            <div class="long-term-title-wrap">
+              <span class="long-term-icon">📈</span>
+              <div>
+                <span class="long-term-title">מסקנות כרוניות ומגמות מדעיות (Long-Term Evidence Engine)</span>
+                <span class="long-term-sub">ניתוח מתמשך: עמידות דופמינרגית, סינתזת חלבון, חוב שינה ועומס אלוסטטי</span>
+              </div>
+            </div>
+            <div class="long-term-window-toggles">
+              <button type="button" class="lt-toggle-btn" id="lt-btn-7" onclick="AppState.switchLongTermWindow(7)">7 ימים</button>
+              <button type="button" class="lt-toggle-btn active" id="lt-btn-14" onclick="AppState.switchLongTermWindow(14)">14 ימים</button>
+              <button type="button" class="lt-toggle-btn" id="lt-btn-30" onclick="AppState.switchLongTermWindow(30)">30 ימים</button>
+            </div>
+          </div>
+
+          <!-- Composite Hunter Adaptation Score Bar -->
+          <div class="lt-composite-card" id="lt-composite-card">
+            <div class="lt-composite-left">
+              <div class="lt-score-circle">
+                <span id="lt-score-val" class="lt-score-num">--</span>
+                <span class="lt-score-sub">ציון אדפטציה</span>
+              </div>
+            </div>
+            <div class="lt-composite-right">
+              <div class="lt-status-headline" id="lt-status-headline">מחשב מגמות כרוניות מבוססות מחקר...</div>
+              <div class="lt-status-summary" id="lt-status-summary">מערכת ה-AI מצליבה את כל נתוני ההיסטוריה השמורים</div>
+            </div>
+          </div>
+
+          <!-- Deep Science Pillars Cards Grid -->
+          <div class="lt-pillars-grid" id="lt-pillars-grid">
+            <!-- Rendered dynamically by AppState.renderLongTermInsights() -->
+          </div>
+        </section>
+
         <!-- HUNTER ELIXIRS & VITAMINS SECTION -->
         <section class="supplements-hud-section" id="supplements-hud-section">
           <div class="supplements-hud-header">
@@ -1211,15 +1249,25 @@
 
       <label class="form-label" style="margin-top:10px;">בחר מינון מנה שנלקחה:</label>
       <div class="dose-pills-row">
-        <div class="dose-pill-btn" onclick="AppState.selectAttentDose(10)" id="dose-pill-10">10mg</div>
-        <div class="dose-pill-btn" onclick="AppState.selectAttentDose(15)" id="dose-pill-15">15mg</div>
-        <div class="dose-pill-btn selected" onclick="AppState.selectAttentDose(20)" id="dose-pill-20">20mg</div>
-        <div class="dose-pill-btn" onclick="AppState.selectAttentDose(30)" id="dose-pill-30">30mg</div>
+        <button type="button" class="dose-pill-btn" onclick="AppState.selectAttentDose(10)" id="dose-pill-10">10mg</button>
+        <button type="button" class="dose-pill-btn" onclick="AppState.selectAttentDose(15)" id="dose-pill-15">15mg</button>
+        <button type="button" class="dose-pill-btn selected" onclick="AppState.selectAttentDose(20)" id="dose-pill-20">20mg</button>
+        <button type="button" class="dose-pill-btn" onclick="AppState.selectAttentDose(30)" id="dose-pill-30">30mg</button>
+      </div>
+
+      <label class="form-label" style="margin-top:12px;">שעת נטילה מדויקת:</label>
+      <div class="time-presets-row" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+        <button type="button" class="preset-pill active" onclick="AppState.setAttentTimeNow()" id="attent-time-now">⚡ עכשיו</button>
+        <button type="button" class="preset-pill" onclick="AppState.setAttentTime('07:30')" id="attent-time-0730">07:30</button>
+        <button type="button" class="preset-pill" onclick="AppState.setAttentTime('09:00')" id="attent-time-0900">09:00</button>
+        <button type="button" class="preset-pill" onclick="AppState.setAttentTime('11:00')" id="attent-time-1100">11:00</button>
+        <button type="button" class="preset-pill" onclick="AppState.setAttentTime('13:30')" id="attent-time-1330">13:30</button>
+        <button type="button" class="preset-pill" onclick="AppState.setAttentTime('20:00')" id="attent-time-2000">20:00 (לילה)</button>
       </div>
 
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">שעת נטילה</label>
+          <label class="form-label">שעה מותאמת</label>
           <input type="time" id="attent-input-time" class="form-input">
         </div>
         <div class="form-group">
@@ -1233,12 +1281,18 @@
         </div>
       </div>
 
-      <div class="form-group">
-        <label class="form-label">הערות / הקשר (לפני משמרת, אימון, לימודים)</label>
-        <input type="text" id="attent-input-notes" class="form-input" placeholder="לדוגמה: נלקח בתחילת משמרת לילה">
+      <div class="form-row">
+        <div class="form-group" style="flex:1;">
+          <label class="form-label">תאריך נטילה</label>
+          <input type="date" id="attent-input-date" class="form-input">
+        </div>
+        <div class="form-group" style="flex:2;">
+          <label class="form-label">הערות / הקשר</label>
+          <input type="text" id="attent-input-notes" class="form-input" placeholder="לדוגמה: משמרת לילה / לפני אימון">
+        </div>
       </div>
 
-      <button class="action-btn-primary" onclick="AppState.saveAttentLog()" style="background:linear-gradient(90deg, #7c3aed, #a855f7); color:#ffffff; font-weight:900;">
+      <button id="attent-submit-btn" class="action-btn-primary" onclick="AppState.saveAttentLog()" style="background:linear-gradient(90deg, #7c3aed, #a855f7); color:#ffffff; font-weight:900;">
         ✨ הפעל BUFF שיקוי ריכוז (רשום נטילה)
       </button>
 
@@ -1543,6 +1597,55 @@
         <p class="ach-intro-subtitle">עמוד ביעדי אימונים, תזונה, סטרייק ורמות כדי לפתוח גביעים ולהתעורר:</p>
         <div id="achievements-hex-grid" class="achievements-hex-grid">
           <!-- Dynamic rendering via AppState.renderAchievements() -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTIVITY & PROGRESSION CALENDAR MODAL (לוח שנה היסטורי) -->
+  <div id="calendar-modal" class="modal-overlay">
+    <div class="modal-content calendar-modal-content" style="max-width: 540px;">
+      <div class="modal-header">
+        <span class="modal-title">📅 יומן פעילות והתקדמות צייד כרונית</span>
+        <button class="close-modal-btn" onclick="AppState.closeModal('calendar-modal')">✕</button>
+      </div>
+
+      <!-- Month Navigation Bar -->
+      <div class="calendar-nav-bar">
+        <button type="button" class="cal-nav-btn" onclick="AppState.changeCalendarMonth(-1)" title="חודש קודם">◀ קודם</button>
+        <span id="calendar-month-title" class="calendar-month-title">ספטמבר 2026</span>
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="cal-nav-today-btn" onclick="AppState.resetCalendarToToday()" title="חזור להיום">היום</button>
+          <button type="button" class="cal-nav-btn" onclick="AppState.changeCalendarMonth(1)" title="חודש הבא">הבא ▶</button>
+        </div>
+      </div>
+
+      <!-- Days of Week Row (Sun to Sat in Hebrew) -->
+      <div class="calendar-weekdays-row">
+        <span>א׳</span>
+        <span>ב׳</span>
+        <span>ג׳</span>
+        <span>ד׳</span>
+        <span>ה׳</span>
+        <span>ו׳</span>
+        <span>ש׳</span>
+      </div>
+
+      <!-- 7-Column Days Grid -->
+      <div id="calendar-days-grid" class="calendar-days-grid">
+        <!-- Rendered dynamically by AppState.renderCalendar() -->
+      </div>
+
+      <!-- Selected Day Detail Inspector Card -->
+      <div id="calendar-day-detail-wrap" class="calendar-day-detail-wrap">
+        <div class="cal-detail-header">
+          <span id="cal-detail-date" class="cal-detail-date">בחר יום בלוח השנה לצפייה בפירוט המלא</span>
+          <span id="cal-detail-badge" class="cal-detail-badge">--</span>
+        </div>
+        <div id="cal-detail-content" class="cal-detail-content">
+          <p style="color:var(--text-secondary); font-size:12px; margin:0;">
+            לחץ על כל תא בלוח השנה כדי לראות את כל הארוחות, מנת האטנט שנלקחה, אימונים, תוספים ומדדי שעון גרמין שנשמרו לאורך זמן.
+          </p>
         </div>
       </div>
     </div>
