@@ -15,9 +15,21 @@ import datetime
 import socket
 import calendar
 import base64
+import ssl
 import urllib.request
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+
+def _get_ssl_context():
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+
 
 # Load .env file if present (for local development)
 _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
@@ -2221,7 +2233,7 @@ class FoodVisionAI:
 
     GEMINI_URL = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
-        "gemini-1.5-flash:generateContent?key={key}"
+        "gemini-flash-latest:generateContent?key={key}"
     )
 
     PROMPT = """אתה מנתח תמונות אוכל לאפליקציית כושר.
@@ -2250,13 +2262,18 @@ class FoodVisionAI:
 אם לא ברור מה הגודל, הניח מנה רגילה אחת.
 confidence יכול להיות: high / medium / low"""
 
+    MODELS = [
+        "gemini-flash-latest",
+        "gemini-3.1-flash-lite",
+        "gemini-3.1-flash-lite-preview"
+    ]
+
     @classmethod
     def recognize(cls, image_b64: str, mime_type: str = "image/jpeg") -> dict:
         """Call Gemini Vision API and return parsed food items dict."""
         if not GEMINI_API_KEY:
             return {"error": "GEMINI_API_KEY not configured", "items": []}
 
-        url = cls.GEMINI_URL.format(key=GEMINI_API_KEY)
         payload = {
             "contents": [
                 {
@@ -2273,36 +2290,44 @@ confidence יכול להיות: high / medium / low"""
             ],
             "generationConfig": {
                 "temperature": 0.2,
-                "maxOutputTokens": 1024
+                "maxOutputTokens": 2048,
+                "thinkingConfig": {"thinkingBudget": 0}
             }
         }
         payload_bytes = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
-            url,
-            data=payload_bytes,
-            headers={"Content-Type": "application/json"},
-            method="POST"
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                raw = resp.read().decode("utf-8")
-            data = json.loads(raw)
-            # Extract text from Gemini response structure
-            text = data["candidates"][0]["content"]["parts"][0]["text"]
-            # Strip possible markdown code fences
-            text = text.strip()
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
+
+        last_error = "Unknown error"
+        for model in cls.MODELS:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+            req = urllib.request.Request(
+                url,
+                data=payload_bytes,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=25, context=_get_ssl_context()) as resp:
+                    raw = resp.read().decode("utf-8")
+                data = json.loads(raw)
+                text = ""
+                for part in data.get("candidates", [{}])[0].get("content", {}).get("parts", []):
+                    if "text" in part:
+                        text += part["text"]
                 text = text.strip()
-            result = json.loads(text)
-            return result
-        except urllib.error.HTTPError as e:
-            err_body = e.read().decode("utf-8", errors="replace")
-            return {"error": "Gemini API error: " + err_body[:300], "items": []}
-        except Exception as e:
-            return {"error": str(e), "items": []}
+                if text.startswith("```"):
+                    text = text.split("```")[1]
+                    if text.startswith("json"):
+                        text = text[4:]
+                    text = text.strip()
+                result = json.loads(text)
+                return result
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode("utf-8", errors="replace")
+                last_error = f"Gemini ({model}) error {e.code}: " + err_body[:200]
+            except Exception as e:
+                last_error = f"Gemini ({model}) error: {e}"
+
+        return {"error": last_error, "items": []}
 
 
 # -------------------------------------------------------------
@@ -2311,18 +2336,19 @@ confidence יכול להיות: high / medium / low"""
 class FoodChatAI:
     """Parses a Hebrew free-text meal description into structured food items with nutrition."""
 
-    GEMINI_URL = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        "gemini-1.5-flash:generateContent?key={key}"
-    )
+    MODELS = [
+        "gemini-flash-latest",
+        "gemini-3.1-flash-lite",
+        "gemini-3.1-flash-lite-preview"
+    ]
 
     PROMPT_TEMPLATE = """אתה עוזר תזונה חכם לאפליקציית כושר בסגנון Solo Leveling.
 המשתמש יתאר מה אכל בטקסט חופשי בעברית (לדוגמה: "אכלתי חזה עוף עם אורז ושעועית" או "2 ביצים עם 3 כפות חומוס ולחם").
 
-תנתח את הטקסט ותחזיר JSON בלבד (ללא שום טקסט נוסף, ללא markdown):
-{
+תנתח את הטקסט ותחזיר אך ורק אובייקט JSON חוקי (ללא markdown, ללא טקסט פותח או סוגר):
+{{
   "items": [
-    {
+    {{
       "name_he": "שם הפריט בעברית",
       "name_en": "item name in English",
       "estimated_grams": 150,
@@ -2331,60 +2357,92 @@ class FoodChatAI:
       "carbs": 10.0,
       "fats": 5.0,
       "confidence": "high"
-    }
+    }}
   ],
   "meal_description": "תיאור קצר של הארוחה כולה",
   "total_calories": 250,
   "total_protein": 30.0,
   "total_carbs": 10.0,
   "total_fats": 5.0
-}
+}}
 
 כללים:
-- confidence: high (ציין כמות), medium (ציין מזון בלי כמות), low (ניחוש)
-- estimated_grams: הערכה ריאליסטית בגרמים למנה אחת
-- אם ציין כמות (2 ביצים, 3 כפות), חשב לפי זה
-- אם לא ציין כמות, הניח מנה בינונית רגילה
-- ערכי תזונה מדויקים לפי USDA / ספרות
+- confidence: high (ציין כמות מפורשת), medium (ציין מזון ללא כמות), low (הערכה גסה)
+- estimated_grams: הערכת משקל הגיונית בגרמים
+- ערכי תזונה מדויקים לפי מאגרי מידע תזונתיים
+- שמות השדות חייבים להיות בדיוק: name_he, estimated_grams, calories, protein, carbs, fats
 
-הטקסט של המשתמש: "{user_text}"
+טקסט המשתמש: "{user_text}"
 """
 
     @classmethod
     def parse(cls, user_text: str) -> dict:
-        """Call Gemini text API to parse a free-text food description."""
+        """Call Gemini text API to parse a free-text food description with fallbacks."""
         if not GEMINI_API_KEY:
             return {"error": "GEMINI_API_KEY not configured", "items": []}
 
-        url = cls.GEMINI_URL.format(key=GEMINI_API_KEY)
         prompt = cls.PROMPT_TEMPLATE.replace("{user_text}", user_text)
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1024}
+            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048, "thinkingConfig": {"thinkingBudget": 0}}
         }
         payload_bytes = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
-            url,
-            data=payload_bytes,
-            headers={"Content-Type": "application/json"},
-            method="POST"
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                raw = resp.read().decode("utf-8")
-            data = json.loads(raw)
-            text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
+
+        last_error = "Unknown error"
+        for model in cls.MODELS:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+            req = urllib.request.Request(
+                url,
+                data=payload_bytes,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=20, context=_get_ssl_context()) as resp:
+                    raw = resp.read().decode("utf-8")
+                data = json.loads(raw)
+                text = ""
+                for part in data.get("candidates", [{}])[0].get("content", {}).get("parts", []):
+                    if "text" in part:
+                        text += part["text"]
                 text = text.strip()
-            return json.loads(text)
-        except urllib.error.HTTPError as e:
-            err_body = e.read().decode("utf-8", errors="replace")
-            return {"error": "Gemini API error: " + err_body[:300], "items": []}
-        except Exception as e:
-            return {"error": str(e), "items": []}
+                if text.startswith("```"):
+                    text = text.split("```")[1]
+                    if text.startswith("json"):
+                        text = text[4:]
+                    text = text.strip()
+                parsed = json.loads(text)
+                # Normalize fields if LLM returned alternate key names
+                normalized_items = []
+                for item in parsed.get("items", []):
+                    norm = {
+                        "name_he": item.get("name_he") or item.get("name") or "פריט מזון",
+                        "name_en": item.get("name_en") or item.get("name") or "",
+                        "estimated_grams": float(item.get("estimated_grams") or item.get("weight_g") or item.get("amount_g") or 100),
+                        "calories": float(item.get("calories") or item.get("cal") or 0),
+                        "protein": float(item.get("protein") or item.get("protein_g") or 0),
+                        "carbs": float(item.get("carbs") or item.get("carbs_g") or 0),
+                        "fats": float(item.get("fats") or item.get("fat") or item.get("fat_g") or 0),
+                        "confidence": item.get("confidence") or "high"
+                    }
+                    normalized_items.append(norm)
+                parsed["items"] = normalized_items
+                if "total_calories" not in parsed:
+                    parsed["total_calories"] = sum(i["calories"] for i in normalized_items)
+                if "total_protein" not in parsed:
+                    parsed["total_protein"] = sum(i["protein"] for i in normalized_items)
+                if "total_carbs" not in parsed:
+                    parsed["total_carbs"] = sum(i["carbs"] for i in normalized_items)
+                if "total_fats" not in parsed:
+                    parsed["total_fats"] = sum(i["fats"] for i in normalized_items)
+                return parsed
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode("utf-8", errors="replace")
+                last_error = f"Gemini ({model}) error {e.code}: " + err_body[:200]
+            except Exception as e:
+                last_error = f"Gemini ({model}) error: {e}"
+
+        return {"error": last_error, "items": []}
 
 
 # -------------------------------------------------------------
