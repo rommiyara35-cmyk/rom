@@ -10,7 +10,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
   <title>Solo Leveling | The System</title>
-  <link rel="stylesheet" href="/styles.css?v=9">
+  <link rel="stylesheet" href="/styles.css?v=10">
   <!-- ZXing Industry-Standard Multi-Format Barcode Scanner (EAN-13, EAN-8, UPC, Code 128) -->
   <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 </head>
@@ -30,603 +30,692 @@
 
   <div class="system-container">
     
-    <!-- SYSTEM HEADER -->
-    <!-- SYSTEM HEADER & ARISE HUNTER PROFILE -->
-    <header class="system-header arise-theme">
-      <!-- Top Action Bar -->
-      <div class="header-top">
-        <div class="header-left-actions">
-          <button class="hud-btn-icon" onclick="AppState.openRankModal()" title="מערכת דרגות ורנקים (E-SSS)">
-            <span style="font-size:16px;">⚔️</span>
-          </button>
-          <button class="hud-btn-icon" onclick="AppState.openAchievementsModal()" title="גביעים והישגים (Achievements)">
-            <span style="font-size:16px;">🏆</span>
-          </button>
-        </div>
-        
-        <div class="header-actions">
-          <button id="shift-toggle-btn" class="hud-btn-icon" onclick="AppState.toggleShiftMode()" title="החלף בין משמרת יום למשמרת לילה">☀️</button>
-          <button id="sound-toggle-btn" class="hud-btn-icon" title="השתק/הפעל סאונד">🔊</button>
-          <button class="hud-btn-icon" onclick="AppState.openModal('awakening-modal')" title="מבדק התעוררות מדעי">⚡</button>
-          <button class="hud-btn-icon" onclick="AppState.openResetModal()" title="איפוס יומי / התחלה מחדש (Rebirth)" style="border-color:rgba(239,68,68,0.4); color:#fca5a5;">🔄</button>
-          <button class="hud-btn-icon" onclick="AppState.openModal('settings-modal')" title="הגדרות, סנכרון וגיבוי">⚙️</button>
-        </div>
+    <!-- MINIMAL TOP HUD ACTION BAR -->
+    <header class="system-top-minimal-bar">
+      <div class="top-bar-chip" onclick="AppState.navTo('profile')" title="מעבר לפרופיל הראשי">
+        <span class="top-avatar-dot">👤</span>
+        <span id="top-hunter-name-display" class="top-hunter-name">צייד רום</span>
+        <span id="top-hunter-lvl-chip" class="top-lvl-chip">Lv. 1</span>
       </div>
 
-      <!-- DISASTER RECOVERY BANNER (Auto-detects if cloud DB restarted and local backup exists) -->
-      <div id="disaster-recovery-banner" class="disaster-banner" style="display:none;">
-        <div class="disaster-banner-content">
-          <span class="disaster-banner-icon">⚠️</span>
-          <div class="disaster-banner-text">
-            <strong>זוהה גיבוי נתונים מקומי בדפדפן!</strong>
-            <span id="disaster-banner-sub">שרת הענן אותחל, אך כל הרמות והרשומות שלך שמורות במכשיר.</span>
-          </div>
-          <button class="disaster-restore-btn" onclick="AppState.restoreFromLocalSnapshot()">⚡ שחזר עכשיו</button>
-          <button class="disaster-dismiss-btn" onclick="document.getElementById('disaster-recovery-banner').style.display='none'">✕</button>
-        </div>
-      </div>
-
-      <!-- HUNTER HERO IDENTITY (Matching Images 1 & 3) -->
-      <div class="hunter-hero-card">
-        <div class="hunter-avatar-wrap" onclick="AppState.openModal('awakening-modal')" title="לחץ לעריכת נתוני צייד">
-          <div class="hunter-avatar-box">
-            <div class="hunter-avatar-img">👤</div>
-            <div class="hunter-avatar-ring"></div>
-          </div>
-        </div>
-        <div class="hunter-hero-details">
-          <div id="hunter-name" class="hunter-hero-name">צייד רום</div>
-          <div id="hunter-handle" class="hunter-hero-handle">@player_rom</div>
-        </div>
-      </div>
-
-      <!-- 4 CIRCULAR HUD GAUGES (Rank, Level, Workouts, Streak - Matching Images 1 & 3) -->
-      <div class="hud-gauges-row">
-        <!-- 1. Rank Hexagon -->
-        <div class="gauge-card" onclick="AppState.openRankModal()" title="לחץ לפתיחת מפת הרנקים המלאה">
-          <div class="gauge-hex-outer">
-            <div id="rank-badge" class="gauge-hex-inner">E</div>
-          </div>
-          <span class="gauge-label">Rank</span>
-        </div>
-
-        <!-- 2. Level Cyan Ring -->
-        <div class="gauge-card" onclick="AppState.openRankModal()" title="רמת הצייד">
-          <div class="gauge-circle-ring cyan">
-            <span id="hunter-level" class="gauge-val">1</span>
-          </div>
-          <span class="gauge-label">Level</span>
-        </div>
-
-        <!-- 3. Workouts Purple Ring -->
-        <div class="gauge-card" onclick="AppState.openWorkoutModal()" title="סך אימונים - לחץ לרשום אימון חדש">
-          <div class="gauge-circle-ring purple">
-            <span id="gauge-workouts-val" class="gauge-val">0</span>
-          </div>
-          <span class="gauge-label">Workouts</span>
-        </div>
-
-        <!-- 4. Streak Flame Ring -->
-        <div class="gauge-card" title="ימי רצף פעילות במערכת">
-          <div class="gauge-circle-ring flame">
-            <span id="gauge-streak-val" class="gauge-val">1</span>
-            <span class="gauge-flame-icon">🔥</span>
-          </div>
-          <span class="gauge-label">Streak</span>
-        </div>
-      </div>
-
-      <!-- HUNTER STATS & BIO BOX (Matching Images 1 & 3) -->
-      <div class="hunter-char-bio-box">
-        <div class="char-bio-grid">
-          <div class="char-bio-item">
-            <span class="char-bio-label">Class:</span>
-            <span class="char-bio-val highlight">Fighter (לוחם)</span>
-          </div>
-          <div class="char-bio-item">
-            <span class="char-bio-label">Height:</span>
-            <span id="char-bio-height" class="char-bio-val">178 cm</span>
-          </div>
-          <div class="char-bio-item">
-            <span class="char-bio-label">Title:</span>
-            <span id="hunter-title" class="char-bio-val">צייד שהתעורר</span>
-          </div>
-          <div class="char-bio-item">
-            <span class="char-bio-label">Weight:</span>
-            <span id="char-bio-weight" class="char-bio-val">78.0 kg</span>
-          </div>
-          <div class="char-bio-item">
-            <span class="char-bio-label">Age:</span>
-            <span id="char-bio-age" class="char-bio-val">25</span>
-          </div>
-          <div class="char-bio-item">
-            <span class="char-bio-label">Target:</span>
-            <span id="char-bio-target" class="char-bio-val highlight">74.0 kg</span>
-          </div>
-        </div>
-
-        <div class="char-id-row">
-          <span class="char-id-label">ID:</span>
-          <span id="hunter-system-id" class="char-id-code">HNT-77492</span>
-          <button type="button" class="copy-id-btn" onclick="AppState.copyHunterId()" title="העתק מזהה צייד">📋</button>
-        </div>
-      </div>
-
-      <!-- EXP Progress Bar -->
-      <div class="exp-container">
-        <div class="exp-label">
-          <span>PROGRESSION TO NEXT RANK</span>
-          <span id="exp-text">0 / 300 EXP (0%)</span>
-        </div>
-        <div class="exp-bar-bg">
-          <div id="exp-bar-fill" class="exp-bar-fill"></div>
-        </div>
-      </div>
-
-      <!-- QUICK ACTION HERO PILLS (Matching Images 1 & 3) -->
-      <div class="hero-action-pills-row">
-        <button type="button" class="hero-action-pill nutrition" onclick="AppState.scrollToSection('nutrition-cockpit')">
-          <span class="pill-icon">🍏</span>
-          <span class="pill-text">Nutrition</span>
-        </button>
-        <button type="button" class="hero-action-pill badges" onclick="AppState.openAchievementsModal()">
-          <span class="pill-icon">🏆</span>
-          <span class="pill-text">Badges</span>
-          <span id="badges-pill-count" class="pill-badge-count">1/13</span>
-        </button>
-        <button type="button" class="hero-action-pill rank" onclick="AppState.openRankModal()">
-          <span class="pill-icon">⚔️</span>
-          <span class="pill-text">Rank System</span>
-        </button>
-      </div>
-
-      <!-- STATUS ATTRIBUTES (STR, AGI, VIT, INT, PER) -->
-      <div class="status-grid">
-        <div class="stat-item" title="Strength - מונע ע&quot;י צריכת חלבון">
-          <span class="stat-key">STR</span>
-          <span id="stat-str" class="stat-val">10</span>
-          <span class="stat-sub">כוח (חלבון)</span>
-        </div>
-        <div class="stat-item" title="Agility - מונע ע&quot;י דיוק קלורי">
-          <span class="stat-key">AGI</span>
-          <span id="stat-agi" class="stat-val">10</span>
-          <span class="stat-sub">זריזות (קלוריות)</span>
-        </div>
-        <div class="stat-item" title="Vitality - מונע ע&quot;י מים ומיקרו-נוטריאנטים">
-          <span class="stat-key">VIT</span>
-          <span id="stat-vit" class="stat-val">10</span>
-          <span class="stat-sub">חיוניות (מיקרו)</span>
-        </div>
-        <div class="stat-item" title="Intelligence - מונע ע&quot;י רצף רישום ואיזון">
-          <span class="stat-key">INT</span>
-          <span id="stat-int" class="stat-val">10</span>
-          <span class="stat-sub">תבונה (רצף)</span>
-        </div>
-        <div class="stat-item" title="Perception - מונע ע&quot;י פירוט וגיוון">
-          <span class="stat-key">PER</span>
-          <span id="stat-per" class="stat-val">10</span>
-          <span class="stat-sub">תפיסה (גיוון)</span>
-        </div>
+      <div class="top-bar-actions">
+        <button id="shift-toggle-btn" class="hud-btn-icon" onclick="AppState.toggleShiftMode()" title="החלף בין משמרת יום למשמרת לילה">☀️</button>
+        <button id="sound-toggle-btn" class="hud-btn-icon" title="השתק/הפעל סאונד">🔊</button>
+        <button class="hud-btn-icon" onclick="AppState.openModal('awakening-modal')" title="מבדק התעוררות מדעי">⚡</button>
+        <button class="hud-btn-icon" onclick="AppState.openResetModal()" title="איפוס יומי / התחלה מחדש (Rebirth)" style="border-color:rgba(239,68,68,0.4); color:#fca5a5;">🔄</button>
+        <button class="hud-btn-icon" onclick="AppState.openModal('settings-modal')" title="הגדרות, סנכרון וגיבוי">⚙️</button>
       </div>
     </header>
 
-    <!-- HUNTER SKILLS SECTION (STARTING AT LEVEL 1 WITH ACTIVE PROGRESSION) -->
-    <section class="skills-hud-section" id="skills-hud-section">
-      <div class="skills-hud-header">
-        <div class="skills-title-wrap">
-          <span class="skills-title-icon">⚔️</span>
-          <div class="skills-titles-block">
-            <span class="skills-title-text">יְכוֹלוֹת צַיָּד • HUNTER SKILLS</span>
-            <span class="skills-title-sub">מתחילות ברמה 1 • צבירת XP מאימונים, ריצה, שינה ודיוק קלורי</span>
-          </div>
+    <!-- DISASTER RECOVERY BANNER (Auto-detects if cloud DB restarted and local backup exists) -->
+    <div id="disaster-recovery-banner" class="disaster-banner" style="display:none;">
+      <div class="disaster-banner-content">
+        <span class="disaster-banner-icon">⚠️</span>
+        <div class="disaster-banner-text">
+          <strong>זוהה גיבוי נתונים מקומי בדפדפן!</strong>
+          <span id="disaster-banner-sub">שרת הענן אותחל, אך כל הרמות והרשומות שלך שמורות במכשיר.</span>
         </div>
-        <button class="skill-log-workout-btn" onclick="AppState.openWorkoutModal()" title="רשום אימון כוח או ריצה לצבירת XP">
-          <span>⚡ רשום אימון</span>
-        </button>
+        <button class="disaster-restore-btn" onclick="AppState.restoreFromLocalSnapshot()">⚡ שחזר עכשיו</button>
+        <button class="disaster-dismiss-btn" onclick="document.getElementById('disaster-recovery-banner').style.display='none'">✕</button>
       </div>
-      <div id="skills-grid" class="skills-grid">
-        <!-- Injected dynamically via AppState.renderSkills() -->
-      </div>
-    </section>
-
-    <!-- PROMINENT SHIFT WORKER CONTROL BANNER -->
-    <div id="shift-banner" class="shift-control-banner" onclick="AppState.toggleShiftMode()" title="לחץ להחלפת משמרת">
-      <div class="shift-banner-info">
-        <span id="shift-banner-icon" class="shift-banner-icon">☀️</span>
-        <div class="shift-banner-text">
-          <div class="shift-banner-title" id="shift-banner-title">משמרת יום רגילה (איפוס בחצות)</div>
-          <div class="shift-banner-sub" id="shift-banner-sub">עובד הלילה? לחץ כאן להפעלת משמרת לילה 🌙 (היום לא יתאפס בחצות!)</div>
-        </div>
-      </div>
-      <button class="shift-toggle-action-btn" id="shift-action-text-btn">הפעל משמרת לילה 🌙</button>
     </div>
 
-    <!-- ATTENT BUFF / MEDICATION CONTAINER -->
-    <div id="attent-container" class="attent-container">
-      <!-- Injected dynamically by AppState.renderAttentBanner() -->
-    </div>
-
-    <!-- GARMIN VENU 4 BIOMETRICS HUD COCKPIT -->
-    <section class="garmin-hud-card" id="garmin-hud-card">
-      <div class="garmin-hud-header">
-        <div class="garmin-hud-title-wrap">
-          <span class="garmin-pulse-dot" title="Garmin Venu 4 מחובר"></span>
-          <span class="garmin-hud-title">GARMIN VENU 4 • BIOMETRICS HUD</span>
-          <div id="attent-norm-pill" class="attent-norm-pill" onclick="AppState.openAttentNormModal()" style="display:none;" title="לחץ להסבר מדעי על ניטרול הטיית אטנט ב-HRV">
-            <span class="norm-pulse-dot"></span>
-            <span id="attent-norm-pill-text">💊 פילטר אטנט פעיל (מנוקה מדעית)</span>
+    <!-- MAIN TAB PANELS WRAPPER -->
+    <main class="system-panels-wrapper">
+      
+      <!-- ========================================================
+           1. PROFILE PANEL (חלונית פרופיל צייד)
+           ======================================================== -->
+      <div id="panel-profile" class="tab-panel active">
+        <!-- HUNTER HERO IDENTITY (Matching Images 1 & 3) -->
+        <div class="hunter-hero-card">
+          <div class="hunter-avatar-wrap" onclick="AppState.openModal('awakening-modal')" title="לחץ לעריכת נתוני צייד">
+            <div class="hunter-avatar-box">
+              <div class="hunter-avatar-img">👤</div>
+              <div class="hunter-avatar-ring"></div>
+            </div>
           </div>
-        </div>
-        <button class="garmin-sync-btn" onclick="AppState.openGarminModal()" title="עדכן מדדי שעון">
-          <span>⚡ סנכרן שעון</span>
-        </button>
-      </div>
-
-      <!-- 4 Core Biometrics Grid -->
-      <div class="garmin-metrics-grid">
-        <!-- 1. Heart Rate -->
-        <div class="biometric-tile hr" onclick="AppState.openGarminModal()" title="לחץ לעדכון דופק">
-          <div class="bio-top">
-            <span class="bio-icon">❤️</span>
-            <span class="bio-name">דופק</span>
-            <span id="garmin-hr-badge" class="bio-norm-badge" style="display:none;">מנורמל</span>
-          </div>
-          <div class="bio-value-row">
-            <span id="garmin-hr-val" class="bio-main-val">68</span>
-            <span class="bio-unit">bpm</span>
-          </div>
-          <div class="bio-sub" id="garmin-resting-hr">מנוחה: 58 bpm</div>
-        </div>
-
-        <!-- 2. Sleep Quality -->
-        <div class="biometric-tile sleep" onclick="AppState.openGarminModal()" title="לחץ לעדכון שינה">
-          <div class="bio-top">
-            <span class="bio-icon">💤</span>
-            <span class="bio-name">איכות שינה</span>
-          </div>
-          <div class="bio-value-row">
-            <span id="garmin-sleep-val" class="bio-main-val">82</span>
-            <span class="bio-unit">/100</span>
-          </div>
-          <div class="bio-sub" id="garmin-sleep-hours">7.2 שעות שינה</div>
-        </div>
-
-        <!-- 3. Stress Level -->
-        <div class="biometric-tile stress" onclick="AppState.openGarminModal()" title="לחץ לעדכון סטרס">
-          <div class="bio-top">
-            <span class="bio-icon">⚡</span>
-            <span class="bio-name">מדד סטרס</span>
-            <span id="garmin-stress-badge" class="bio-norm-badge" style="display:none;">מנורמל</span>
-          </div>
-          <div class="bio-value-row">
-            <span id="garmin-stress-val" class="bio-main-val">28</span>
-            <span class="bio-unit">/100</span>
-          </div>
-          <div class="bio-sub" id="garmin-stress-status">נמוך (מנוחה)</div>
-        </div>
-
-        <!-- 4. Body Battery -->
-        <div class="biometric-tile battery" onclick="AppState.openGarminModal()" title="לחץ לעדכון סוללת גוף">
-          <div class="bio-top">
-            <span class="bio-icon">🔋</span>
-            <span class="bio-name">Body Battery</span>
-            <span id="garmin-bb-badge" class="bio-norm-badge" style="display:none;">מוגן</span>
-          </div>
-          <div class="bio-value-row">
-            <span id="garmin-battery-val" class="bio-main-val">75%</span>
-          </div>
-          <div class="bio-sub" id="garmin-battery-status">אנרגיה טעונה</div>
-        </div>
-      </div>
-
-      <!-- Secondary Biometrics Bar -->
-      <div class="garmin-footer-bar">
-        <div class="garmin-footer-item">
-          <span>👟</span>
-          <span id="garmin-steps-val">8,500</span>
-          <span style="color:var(--text-secondary);">צעדים</span>
-        </div>
-        <div class="garmin-footer-separator">•</div>
-        <div class="garmin-footer-item">
-          <span>🔥</span>
-          <span id="garmin-active-cals-val">+450</span>
-          <span style="color:var(--text-secondary);">שריפה אקטיבית</span>
-        </div>
-        <div class="garmin-footer-separator">•</div>
-        <div class="garmin-footer-item">
-          <span style="color:#10b981;">SpO2:</span>
-          <span id="garmin-spo2-val">98%</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- SYSTEM AI PHYSIOLOGICAL & EVIDENCE-BASED DEBRIEF -->
-    <section class="ai-advisor-section" id="ai-advisor-section">
-      <div class="ai-advisor-header">
-        <div class="ai-advisor-tag">
-          <span class="ai-tag-icon">🧠</span>
-          <span class="ai-tag-text">SYSTEM AI HEALTH SYNERGY & RESEARCH DEBRIEF</span>
-        </div>
-        <span class="ai-advisor-badge">EVIDENCE-BASED</span>
-      </div>
-
-      <!-- Overall Health Index Banner -->
-      <div class="debrief-score-card" id="debrief-score-card">
-        <div class="debrief-score-left">
-          <div class="debrief-score-circle">
-            <span id="debrief-score-val" class="debrief-score-num">--</span>
-            <span class="debrief-score-sub">/ 100</span>
-          </div>
-        </div>
-        <div class="debrief-score-right">
-          <div class="debrief-status-title" id="debrief-status-title">מנתח סינרגיה פיזיולוגית...</div>
-          <div class="debrief-status-sub" id="debrief-status-sub">הצלבת Garmin, תזונה, אטנט, ויטמינים ומשמרות</div>
-        </div>
-      </div>
-
-      <!-- Debrief Category Tabs -->
-      <div class="debrief-nav-tabs">
-        <button class="debrief-tab-btn active" onclick="AppState.switchDebriefTab('maintain')" id="tab-btn-maintain">🛡️ לשימור</button>
-        <button class="debrief-tab-btn" onclick="AppState.switchDebriefTab('improve')" id="tab-btn-improve">🎯 לשיפור</button>
-        <button class="debrief-tab-btn" onclick="AppState.switchDebriefTab('status')" id="tab-btn-status">📊 תמונת מצב</button>
-        <button class="debrief-tab-btn" onclick="AppState.switchDebriefTab('research')" id="tab-btn-research">🔬 מחקרים</button>
-      </div>
-
-      <!-- Debrief Content Area -->
-      <div id="debrief-tab-content" class="debrief-tab-content">
-        <!-- Injected dynamically via AppState.renderDailyDebrief() -->
-      </div>
-
-      <!-- Real-time Alerts List -->
-      <div class="ai-advisor-subtitle" style="margin-top:12px;">
-        התראות פיזיולוגיות חיות בזמן אמת:
-      </div>
-      <div id="ai-insights-list" class="ai-insights-list">
-        <!-- Injected dynamically via AppState.renderAIInsights() -->
-      </div>
-    </section>
-
-    <!-- DAILY QUEST BOX -->
-    <section class="quest-box">
-      <div class="quest-header">
-        <div class="quest-title-tag">
-          <span class="quest-tag">QUEST</span>
-          <span class="quest-main-title">The Daily Preparation to Become Strong</span>
-        </div>
-        <span id="shift-badge" class="quest-tag" style="background:rgba(59,130,246,0.15); border-color:#3b82f6; font-size:10px;">☀️ משמרת יום</span>
-      </div>
-
-      <div class="penalty-warning">
-        <span>⚠️</span>
-        <span id="penalty-warning-text">אזהרת מערכת: אי השלמת המשימות עד סיום המשמרת תפעיל את ה-Penalty Zone!</span>
-      </div>
-
-      <div id="quest-list" class="quest-list">
-        <!-- Injected via JavaScript -->
-      </div>
-    </section>
-
-    <!-- CALORIE COCKPIT -->
-    <section class="nutrition-cockpit">
-      <div class="calorie-circle-wrap">
-        <!-- Circular SVG Gauge -->
-        <div class="calorie-gauge-container">
-          <svg class="calorie-gauge-svg" viewBox="0 0 140 140">
-            <circle class="calorie-gauge-track" cx="70" cy="70" r="60" />
-            <circle id="calorie-gauge-bar" class="calorie-gauge-bar" cx="70" cy="70" r="60" />
-          </svg>
-          <div class="calorie-center-text">
-            <span id="cal-current" class="cal-number">0</span>
-            <span class="cal-subtext">נצרכו היום</span>
+          <div class="hunter-hero-details">
+            <div id="hunter-name" class="hunter-hero-name">צייד רום</div>
+            <div id="hunter-handle" class="hunter-hero-handle">@player_rom</div>
           </div>
         </div>
 
-        <!-- Breakdown Info -->
-        <div class="cal-breakdown">
-          <div class="breakdown-row">
-            <span class="breakdown-label">יעד קלורי מדעי</span>
-            <span id="cal-target" class="breakdown-val">0 kcal</span>
+        <!-- 4 CIRCULAR HUD GAUGES (Rank, Level, Workouts, Streak - Matching Images 1 & 3) -->
+        <div class="hud-gauges-row">
+          <!-- 1. Rank Hexagon -->
+          <div class="gauge-card" onclick="AppState.navTo('badges')" title="לחץ לפתיחת מפת הרנקים המלאה">
+            <div class="gauge-hex-outer">
+              <div id="rank-badge" class="gauge-hex-inner">E</div>
+            </div>
+            <span class="gauge-label">Rank</span>
           </div>
-          <div class="breakdown-row">
-            <span class="breakdown-label">נותר לצריכה</span>
-            <span id="cal-remaining" class="breakdown-val" style="color:var(--hud-cyan);">0 kcal</span>
+
+          <!-- 2. Level Cyan Ring -->
+          <div class="gauge-card" onclick="AppState.navTo('badges')" title="רמת הצייד">
+            <div class="gauge-circle-ring cyan">
+              <span id="hunter-level" class="gauge-val">1</span>
+            </div>
+            <span class="gauge-label">Level</span>
+          </div>
+
+          <!-- 3. Workouts Purple Ring -->
+          <div class="gauge-card" onclick="AppState.navTo('workouts')" title="סך אימונים - לחץ למעבר לאימונים">
+            <div class="gauge-circle-ring purple">
+              <span id="gauge-workouts-val" class="gauge-val">0</span>
+            </div>
+            <span class="gauge-label">Workouts</span>
+          </div>
+
+          <!-- 4. Streak Flame Ring -->
+          <div class="gauge-card" title="ימי רצף פעילות במערכת">
+            <div class="gauge-circle-ring flame">
+              <span id="gauge-streak-val" class="gauge-val">1</span>
+              <span class="gauge-flame-icon">🔥</span>
+            </div>
+            <span class="gauge-label">Streak</span>
+          </div>
+        </div>
+
+        <!-- HUNTER STATS & BIO BOX (Matching Images 1 & 3) -->
+        <div class="hunter-char-bio-box">
+          <div class="char-bio-grid">
+            <div class="char-bio-item">
+              <span class="char-bio-label">Class:</span>
+              <span class="char-bio-val highlight">Fighter (לוחם)</span>
+            </div>
+            <div class="char-bio-item">
+              <span class="char-bio-label">Height:</span>
+              <span id="char-bio-height" class="char-bio-val">178 cm</span>
+            </div>
+            <div class="char-bio-item">
+              <span class="char-bio-label">Title:</span>
+              <span id="hunter-title" class="char-bio-val">צייד שהתעורר</span>
+            </div>
+            <div class="char-bio-item">
+              <span class="char-bio-label">Weight:</span>
+              <span id="char-bio-weight" class="char-bio-val">78.0 kg</span>
+            </div>
+            <div class="char-bio-item">
+              <span class="char-bio-label">Age:</span>
+              <span id="char-bio-age" class="char-bio-val">25</span>
+            </div>
+            <div class="char-bio-item">
+              <span class="char-bio-label">Target:</span>
+              <span id="char-bio-target" class="char-bio-val highlight">74.0 kg</span>
+            </div>
+          </div>
+
+          <div class="char-id-row">
+            <span class="char-id-label">ID:</span>
+            <span id="hunter-system-id" class="char-id-code">HNT-77492</span>
+            <button type="button" class="copy-id-btn" onclick="AppState.copyHunterId()" title="העתק מזהה צייד">📋</button>
+          </div>
+        </div>
+
+        <!-- EXP Progress Bar -->
+        <div class="exp-container">
+          <div class="exp-label">
+            <span>PROGRESSION TO NEXT RANK</span>
+            <span id="exp-text">0 / 300 EXP (0%)</span>
+          </div>
+          <div class="exp-bar-bg">
+            <div id="exp-bar-fill" class="exp-bar-fill"></div>
+          </div>
+        </div>
+
+        <!-- QUICK ACTION HERO PILLS (Matching Images 1 & 3) -->
+        <div class="hero-action-pills-row">
+          <button type="button" class="hero-action-pill nutrition" onclick="AppState.navTo('nutrition')">
+            <span class="pill-icon">🍏</span>
+            <span class="pill-text">Nutrition</span>
+          </button>
+          <button type="button" class="hero-action-pill badges" onclick="AppState.navTo('badges')">
+            <span class="pill-icon">🏆</span>
+            <span class="pill-text">Badges</span>
+            <span id="badges-pill-count" class="pill-badge-count">1/13</span>
+          </button>
+          <button type="button" class="hero-action-pill rank" onclick="AppState.openRankModal()">
+            <span class="pill-icon">⚔️</span>
+            <span class="pill-text">Rank System</span>
+          </button>
+        </div>
+
+        <!-- STATUS ATTRIBUTES (STR, AGI, VIT, INT, PER) -->
+        <div class="status-grid">
+          <div class="stat-item" title="Strength - מונע ע&quot;י צריכת חלבון">
+            <span class="stat-key">STR</span>
+            <span id="stat-str" class="stat-val">10</span>
+            <span class="stat-sub">כוח (חלבון)</span>
+          </div>
+          <div class="stat-item" title="Agility - מונע ע&quot;י דיוק קלורי">
+            <span class="stat-key">AGI</span>
+            <span id="stat-agi" class="stat-val">10</span>
+            <span class="stat-sub">זריזות (קלוריות)</span>
+          </div>
+          <div class="stat-item" title="Vitality - מונע ע&quot;י מים ומיקרו-נוטריאנטים">
+            <span class="stat-key">VIT</span>
+            <span id="stat-vit" class="stat-val">10</span>
+            <span class="stat-sub">חיוניות (מיקרו)</span>
+          </div>
+          <div class="stat-item" title="Intelligence - מונע ע&quot;י רצף רישום ואיזון">
+            <span class="stat-key">INT</span>
+            <span id="stat-int" class="stat-val">10</span>
+            <span class="stat-sub">תבונה (רצף)</span>
+          </div>
+          <div class="stat-item" title="Perception - מונע ע&quot;י פירוט וגיוון">
+            <span class="stat-key">PER</span>
+            <span id="stat-per" class="stat-val">10</span>
+            <span class="stat-sub">תפיסה (גיוון)</span>
+          </div>
+        </div>
+
+        <!-- PROMINENT SHIFT WORKER CONTROL BANNER -->
+        <div id="shift-banner" class="shift-control-banner" onclick="AppState.toggleShiftMode()" title="לחץ להחלפת משמרת">
+          <div class="shift-banner-info">
+            <span id="shift-banner-icon" class="shift-banner-icon">☀️</span>
+            <div class="shift-banner-text">
+              <div class="shift-banner-title" id="shift-banner-title">משמרת יום רגילה (איפוס בחצות)</div>
+              <div class="shift-banner-sub" id="shift-banner-sub">עובד הלילה? לחץ כאן להפעלת משמרת לילה 🌙 (היום לא יתאפס בחצות!)</div>
+            </div>
+          </div>
+          <button class="shift-toggle-action-btn" id="shift-action-text-btn">הפעל משמרת לילה 🌙</button>
+        </div>
+      </div>
+
+      <!-- ========================================================
+           2. WORKOUTS PANEL (חלונית אימונים וסקילים)
+           ======================================================== -->
+      <div id="panel-workouts" class="tab-panel">
+        <section class="skills-hud-section" id="skills-hud-section" style="margin-top:0;">
+          <div class="skills-hud-header">
+            <div class="skills-title-wrap">
+              <span class="skills-title-icon">⚔️</span>
+              <div class="skills-titles-block">
+                <span class="skills-title-text">יְכוֹלוֹת צַיָּד • HUNTER SKILLS</span>
+                <span class="skills-title-sub">מתחילות ברמה 1 • צבירת XP מאימונים, ריצה, שינה ודיוק קלורי</span>
+              </div>
+            </div>
+            <button class="skill-log-workout-btn" onclick="AppState.openWorkoutModal()" title="רשום אימון כוח או ריצה לצבירת XP">
+              <span>⚡ רשום אימון</span>
+            </button>
+          </div>
+          <div id="skills-grid" class="skills-grid">
+            <!-- Injected dynamically via AppState.renderSkills() -->
+          </div>
+        </section>
+      </div>
+
+      <!-- ========================================================
+           3. QUESTS PANEL (חלונית משימות יומיות • DAILY QUEST)
+           ======================================================== -->
+      <div id="panel-quests" class="tab-panel">
+        <section class="quest-box">
+          <div class="quest-header">
+            <div class="quest-title-tag">
+              <span class="quest-tag">DAILY QUEST</span>
+              <span class="quest-main-title">The Preparation to Become Strong</span>
+            </div>
+            <span id="shift-badge" class="quest-tag" style="background:rgba(59,130,246,0.15); border-color:#3b82f6; font-size:10px;">☀️ משמרת יום</span>
+          </div>
+
+          <div class="penalty-warning">
+            <span>⚠️</span>
+            <span id="penalty-warning-text">אזהרת מערכת: אי השלמת המשימות עד סיום המשמרת תפעיל את ה-Penalty Zone!</span>
+          </div>
+
+          <div id="quest-list" class="quest-list">
+            <!-- Injected via JavaScript AppState.renderQuests() -->
+          </div>
+
+          <!-- Quest Rewards Preview Card -->
+          <div class="quest-rewards-box">
+            <div class="quest-rewards-title">
+              <span>🎁 תגמולי השלמת משימה (QUEST REWARDS)</span>
+            </div>
+            <div class="quest-rewards-grid-mini">
+              <div class="q-reward-item">⚡ <strong>+300 EXP</strong> לצייד</div>
+              <div class="q-reward-item">💖 <strong>התאוששות מלאה</strong> (0% עייפות)</div>
+              <div class="q-reward-item">🔮 <strong>+3 נקודות סטטוס</strong></div>
+              <div class="q-reward-item">📦 <strong>תיבת צייד (Loot Box)</strong></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ========================================================
+           4. NUTRITION PANEL (חלונית תזונה וקלוריות)
+           ======================================================== -->
+      <div id="panel-nutrition" class="tab-panel">
+        <!-- CALORIE COCKPIT -->
+        <section class="nutrition-cockpit" id="nutrition-cockpit">
+          <div class="calorie-circle-wrap">
+            <div class="calorie-gauge-container">
+              <svg class="calorie-gauge-svg" viewBox="0 0 140 140">
+                <circle class="calorie-gauge-track" cx="70" cy="70" r="60" />
+                <circle id="calorie-gauge-bar" class="calorie-gauge-bar" cx="70" cy="70" r="60" />
+              </svg>
+              <div class="calorie-center-text">
+                <span id="cal-current" class="cal-number">0</span>
+                <span class="cal-subtext">נצרכו היום</span>
+              </div>
+            </div>
+
+            <div class="cal-breakdown">
+              <div class="breakdown-row">
+                <span class="breakdown-label">יעד קלורי מדעי</span>
+                <span id="cal-target" class="breakdown-val">0 kcal</span>
+              </div>
+              <div class="breakdown-row">
+                <span class="breakdown-label">נותר לצריכה</span>
+                <span id="cal-remaining" class="breakdown-val" style="color:var(--hud-cyan);">0 kcal</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- MACRO TRIPLE BARS -->
+          <div class="macro-bars-grid">
+            <div class="macro-card protein">
+              <div class="macro-card-header">
+                <span class="macro-title">חלבון</span>
+                <span class="macro-badge">STR</span>
+              </div>
+              <div class="macro-gram-info">
+                <span id="macro-protein-cur">0g</span>
+                <span id="macro-protein-tgt" class="macro-gram-target">/ 0g</span>
+              </div>
+              <div class="macro-mini-track">
+                <div id="macro-protein-bar" class="macro-mini-fill"></div>
+              </div>
+            </div>
+
+            <div class="macro-card carbs">
+              <div class="macro-card-header">
+                <span class="macro-title">פחמימות</span>
+                <span class="macro-badge">MP</span>
+              </div>
+              <div class="macro-gram-info">
+                <span id="macro-carbs-cur">0g</span>
+                <span id="macro-carbs-tgt" class="macro-gram-target">/ 0g</span>
+              </div>
+              <div class="macro-mini-track">
+                <div id="macro-carbs-bar" class="macro-mini-fill"></div>
+              </div>
+            </div>
+
+            <div class="macro-card fats">
+              <div class="macro-card-header">
+                <span class="macro-title">שומנים</span>
+                <span class="macro-badge">SHIELD</span>
+              </div>
+              <div class="macro-gram-info">
+                <span id="macro-fats-cur">0g</span>
+                <span id="macro-fats-tgt" class="macro-gram-target">/ 0g</span>
+              </div>
+              <div class="macro-mini-track">
+                <div id="macro-fats-bar" class="macro-mini-fill"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- QUICK POTIONS / INVENTORY -->
+        <section class="inventory-section">
+          <div class="section-title-wrap">
+            <span class="section-title">🎒 אינוונטר ושיקויים מהירים (Quick Potions)</span>
+          </div>
+          <div class="potion-grid">
+            <div class="potion-btn" onclick="AppState.logQuickPotion('water_250')">
+              <span class="potion-icon">💧</span>
+              <span class="potion-title">שיקוי חיים</span>
+              <span class="potion-effect">+250ml מים</span>
+            </div>
+            <div class="potion-btn" onclick="AppState.logQuickPotion('water_500')">
+              <span class="potion-icon">🧪</span>
+              <span class="potion-title">חיים מוגבר</span>
+              <span class="potion-effect">+500ml מים</span>
+            </div>
+            <div class="potion-btn" onclick="AppState.logQuickPotion('protein_shake')">
+              <span class="potion-icon">⚡</span>
+              <span class="potion-title">שיקוי כוח</span>
+              <span class="potion-effect">+27g חלבון</span>
+            </div>
+            <div class="potion-btn" onclick="AppState.logQuickPotion('multivitamin')">
+              <span class="potion-icon">✨</span>
+              <span class="potion-title">חיוניות</span>
+              <span class="potion-effect">+מולטי ויטמין</span>
+            </div>
+            <div class="potion-btn attent" onclick="AppState.openAttentModal()">
+              <span class="potion-icon">💊</span>
+              <span class="potion-title">שיקוי ריכוז</span>
+              <span class="potion-effect">אטנט (Attent)</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- MEAL LOGGER & SEARCH -->
+        <section class="log-section">
+          <div class="section-title-wrap">
+            <span class="section-title">⚔️ רישום ארוחות ומאגר מזונות</span>
+          </div>
+
+          <!-- Prominent Barcode Hero Button -->
+          <button class="barcode-big-hero-btn" onclick="AppState.openBarcodeScanner()" title="סרוק מוצר במצלמת האייפון">
+            <span class="barcode-btn-icon">📷</span>
+            <div class="barcode-btn-content">
+              <span class="barcode-btn-title">סריקת ברקוד מוצר (Scanner)</span>
+              <span class="barcode-btn-sub">פתח מצלמה לסריקה מיידית של מוצרים ישראליים ובינלאומיים</span>
+            </div>
+            <span class="barcode-btn-arrow">⚡</span>
+          </button>
+
+          <div style="display:flex; gap:8px; align-items:center;">
+            <div class="search-input-wrap" style="flex:1;">
+              <span class="search-icon-inside">🔍</span>
+              <input type="text" id="food-search-input" class="search-input" placeholder="חפש לפי שם (חזה עוף, ביצים, קוטג'...)">
+            </div>
+          </div>
+
+          <!-- Search Autocomplete Dropdown -->
+          <div id="food-search-results" class="food-search-results"></div>
+
+          <!-- Food Selection Staging Card with Household Units -->
+          <div id="staging-card" class="staging-card">
+            <div class="staging-top">
+              <span id="staging-name" class="staging-title">חזה עוף</span>
+              <span id="staging-base-info" style="font-size:11px; color:var(--hud-cyan); font-family:var(--font-mono);">בחר כמות ויחידת מידה</span>
+            </div>
+            <div class="portion-controls">
+              <div class="portion-amount-unit-row">
+                <input type="number" id="portion-amount-input" class="portion-input" value="1" min="0.1" step="0.5" oninput="AppState.updatePortionCalculations()">
+                <select id="portion-unit-select" class="portion-unit-select" onchange="AppState.onUnitChange()">
+                  <option value="g">גרם (g)</option>
+                  <option value="tbsp">כף (15 גרם)</option>
+                  <option value="tsp">כפית (5 גרם)</option>
+                  <option value="cup">כוס (240 גרם)</option>
+                  <option value="unit">יחידה / פרוסה</option>
+                  <option value="serving" selected>מנה סטנדרטית</option>
+                </select>
+              </div>
+              <select id="meal-type-select" class="meal-type-select">
+                <option value="breakfast">ארוחת בוקר</option>
+                <option value="lunch" selected>ארוחת צהריים</option>
+                <option value="dinner">ארוחת ערב</option>
+                <option value="snack">נשנוש / אימון</option>
+              </select>
+            </div>
+
+            <!-- Dynamic Live Calculation Preview -->
+            <div id="staging-calc-preview" class="staging-calc-preview">
+              סה"כ: 100 גרם • 165 קק"ל | 31g חלבון
+            </div>
+
+            <button class="action-btn-primary" onclick="AppState.logSelectedFood()">
+              <span>✓</span> רשום ארוחה וקבל EXP
+            </button>
+          </div>
+
+          <!-- Today's Meals History -->
+          <div class="section-title-wrap" style="margin-top: 14px;">
+            <span style="font-size:12px; color:var(--text-secondary); font-weight:700;">ארוחות שנרשמו היום</span>
+          </div>
+          <div id="meals-history-list" class="meals-history-list"></div>
+        </section>
+
+        <!-- MICRONUTRIENT MATRIX -->
+        <section class="micro-section">
+          <div class="section-title-wrap">
+            <span class="section-title">🛡️ מטריצת מיקרו-נוטריאנטים (Vitality Matrix)</span>
+            <span style="font-size:11px; color:var(--hud-cyan); font-family:var(--font-mono);">RDA STANDARDS</span>
+          </div>
+          <div id="micro-grid" class="micro-grid">
+            <!-- Injected via JavaScript -->
+          </div>
+        </section>
+      </div>
+
+      <!-- ========================================================
+           5. HEALTH PANEL (חלונית בריאות ומדדי Garmin & Attent)
+           ======================================================== -->
+      <div id="panel-health" class="tab-panel">
+        <!-- ATTENT BUFF / MEDICATION CONTAINER -->
+        <div id="attent-container" class="attent-container">
+          <!-- Injected dynamically by AppState.renderAttentBanner() -->
+        </div>
+
+        <!-- GARMIN VENU 4 BIOMETRICS HUD COCKPIT -->
+        <section class="garmin-hud-card" id="garmin-hud-card" style="margin-top:0;">
+          <div class="garmin-hud-header">
+            <div class="garmin-hud-title-wrap">
+              <span class="garmin-pulse-dot" title="Garmin Venu 4 מחובר"></span>
+              <span class="garmin-hud-title">GARMIN VENU 4 • BIOMETRICS HUD</span>
+              <div id="attent-norm-pill" class="attent-norm-pill" onclick="AppState.openAttentNormModal()" style="display:none;" title="לחץ להסבר מדעי על ניטרול הטיית אטנט ב-HRV">
+                <span class="norm-pulse-dot"></span>
+                <span id="attent-norm-pill-text">💊 פילטר אטנט פעיל (מנוקה מדעית)</span>
+              </div>
+            </div>
+            <button class="garmin-sync-btn" onclick="AppState.openGarminModal()" title="עדכן מדדי שעון">
+              <span>⚡ סנכרן שעון</span>
+            </button>
+          </div>
+
+          <!-- 4 Core Biometrics Grid -->
+          <div class="garmin-metrics-grid">
+            <div class="biometric-tile hr" onclick="AppState.openGarminModal()" title="לחץ לעדכון דופק">
+              <div class="bio-top">
+                <span class="bio-icon">❤️</span>
+                <span class="bio-name">דופק</span>
+                <span id="garmin-hr-badge" class="bio-norm-badge" style="display:none;">מנורמל</span>
+              </div>
+              <div class="bio-value-row">
+                <span id="garmin-hr-val" class="bio-main-val">68</span>
+                <span class="bio-unit">bpm</span>
+              </div>
+              <div class="bio-sub" id="garmin-resting-hr">מנוחה: 58 bpm</div>
+            </div>
+
+            <div class="biometric-tile sleep" onclick="AppState.openGarminModal()" title="לחץ לעדכון שינה">
+              <div class="bio-top">
+                <span class="bio-icon">💤</span>
+                <span class="bio-name">איכות שינה</span>
+              </div>
+              <div class="bio-value-row">
+                <span id="garmin-sleep-val" class="bio-main-val">82</span>
+                <span class="bio-unit">/100</span>
+              </div>
+              <div class="bio-sub" id="garmin-sleep-hours">7.2 שעות שינה</div>
+            </div>
+
+            <div class="biometric-tile stress" onclick="AppState.openGarminModal()" title="לחץ לעדכון סטרס">
+              <div class="bio-top">
+                <span class="bio-icon">⚡</span>
+                <span class="bio-name">מדד סטרס</span>
+                <span id="garmin-stress-badge" class="bio-norm-badge" style="display:none;">מנורמל</span>
+              </div>
+              <div class="bio-value-row">
+                <span id="garmin-stress-val" class="bio-main-val">28</span>
+                <span class="bio-unit">/100</span>
+              </div>
+              <div class="bio-sub" id="garmin-stress-status">נמוך (מנוחה)</div>
+            </div>
+
+            <div class="biometric-tile battery" onclick="AppState.openGarminModal()" title="לחץ לעדכון סוללת גוף">
+              <div class="bio-top">
+                <span class="bio-icon">🔋</span>
+                <span class="bio-name">Body Battery</span>
+                <span id="garmin-bb-badge" class="bio-norm-badge" style="display:none;">מוגן</span>
+              </div>
+              <div class="bio-value-row">
+                <span id="garmin-battery-val" class="bio-main-val">75%</span>
+              </div>
+              <div class="bio-sub" id="garmin-battery-status">אנרגיה טעונה</div>
+            </div>
+          </div>
+
+          <!-- Secondary Biometrics Bar -->
+          <div class="garmin-footer-bar">
+            <div class="garmin-footer-item">
+              <span>👟</span>
+              <span id="garmin-steps-val">8,500</span>
+              <span style="color:var(--text-secondary);">צעדים</span>
+            </div>
+            <div class="garmin-footer-separator">•</div>
+            <div class="garmin-footer-item">
+              <span>🔥</span>
+              <span id="garmin-active-cals-val">+450</span>
+              <span style="color:var(--text-secondary);">שריפה אקטיבית</span>
+            </div>
+            <div class="garmin-footer-separator">•</div>
+            <div class="garmin-footer-item">
+              <span style="color:#10b981;">SpO2:</span>
+              <span id="garmin-spo2-val">98%</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- SYSTEM AI PHYSIOLOGICAL & EVIDENCE-BASED DEBRIEF -->
+        <section class="ai-advisor-section" id="ai-advisor-section">
+          <div class="ai-advisor-header">
+            <div class="ai-advisor-tag">
+              <span class="ai-tag-icon">🧠</span>
+              <span class="ai-tag-text">SYSTEM AI HEALTH SYNERGY & RESEARCH DEBRIEF</span>
+            </div>
+            <span class="ai-advisor-badge">EVIDENCE-BASED</span>
+          </div>
+
+          <div class="debrief-score-card" id="debrief-score-card">
+            <div class="debrief-score-left">
+              <div class="debrief-score-circle">
+                <span id="debrief-score-val" class="debrief-score-num">--</span>
+                <span class="debrief-score-sub">/ 100</span>
+              </div>
+            </div>
+            <div class="debrief-score-right">
+              <div class="debrief-status-title" id="debrief-status-title">מנתח סינרגיה פיזיולוגית...</div>
+              <div class="debrief-status-sub" id="debrief-status-sub">הצלבת Garmin, תזונה, אטנט, ויטמינים ומשמרות</div>
+            </div>
+          </div>
+
+          <div class="debrief-nav-tabs">
+            <button class="debrief-tab-btn active" onclick="AppState.switchDebriefTab('maintain')" id="tab-btn-maintain">🛡️ לשימור</button>
+            <button class="debrief-tab-btn" onclick="AppState.switchDebriefTab('improve')" id="tab-btn-improve">🎯 לשיפור</button>
+            <button class="debrief-tab-btn" onclick="AppState.switchDebriefTab('status')" id="tab-btn-status">📊 תמונת מצב</button>
+            <button class="debrief-tab-btn" onclick="AppState.switchDebriefTab('research')" id="tab-btn-research">🔬 מחקרים</button>
+          </div>
+
+          <div id="debrief-tab-content" class="debrief-tab-content">
+            <!-- Injected dynamically via AppState.renderDailyDebrief() -->
+          </div>
+
+          <div class="ai-advisor-subtitle" style="margin-top:12px;">
+            התראות פיזיולוגיות חיות בזמן אמת:
+          </div>
+          <div id="ai-insights-list" class="ai-insights-list">
+            <!-- Injected dynamically via AppState.renderAIInsights() -->
+          </div>
+        </section>
+
+        <!-- HUNTER ELIXIRS & VITAMINS SECTION -->
+        <section class="supplements-hud-section" id="supplements-hud-section">
+          <div class="supplements-hud-header">
+            <div class="supplements-title-wrap">
+              <span class="supplements-title-icon">🧪</span>
+              <div>
+                <span class="supplements-title-text">שיקויי צייד ותוספים • ALCHEMY & VITAMINS</span>
+                <span class="supplements-title-sub">ויטמינים ומינרלים קריטיים לתמיכה במערכת העצבים</span>
+              </div>
+            </div>
+            <button class="add-custom-supp-btn" onclick="AppState.openSupplementModal()" title="הוסף תוסף אישי">
+              <span>+ תוסף אישי</span>
+            </button>
+          </div>
+
+          <div class="supp-preset-chips">
+            <button class="supp-chip" onclick="AppState.quickAddSupplement('ויטמין D3', '2000 IU', 'vitamin')">☀️ ויטמין D3</button>
+            <button class="supp-chip" onclick="AppState.quickAddSupplement('אומגה 3', '1000 מ״ג', 'omega')">🐟 אומגה 3</button>
+            <button class="supp-chip" onclick="AppState.quickAddSupplement('מגנזיום גליצינאט', '300 מ״ג', 'mineral')">🌙 מגנזיום</button>
+            <button class="supp-chip" onclick="AppState.quickAddSupplement('אבץ (Zinc)', '25 מ״ג', 'mineral')">⚡ אבץ</button>
+            <button class="supp-chip" onclick="AppState.quickAddSupplement('קריאטין', '5 גרם', 'performance')">💥 קריאטין</button>
+            <button class="supp-chip" onclick="AppState.quickAddSupplement('מולטיוויטמין / B', '1 מנה', 'vitamin')">🌿 קומפלקס B</button>
+          </div>
+
+          <div id="supplements-today-list" class="supplements-today-list">
+            <!-- Injected dynamically via AppState.renderSupplements() -->
+          </div>
+        </section>
+      </div>
+
+      <!-- ========================================================
+           6. BADGES & RANKS PANEL (חלונית הישגים ורנקים)
+           ======================================================== -->
+      <div id="panel-badges" class="tab-panel">
+        <div class="badges-subtab-bar">
+          <button type="button" class="badges-subtab-btn active" id="subtab-btn-achievements" onclick="AppState.switchBadgesSubtab('achievements')">
+            <span>🏆 גביעים והישגים</span>
+          </button>
+          <button type="button" class="badges-subtab-btn" id="subtab-btn-ranks" onclick="AppState.switchBadgesSubtab('ranks')">
+            <span>⚔️ מפת רנקים (E-SSS)</span>
+          </button>
+        </div>
+
+        <!-- View A: Achievements Grid -->
+        <div id="subtab-view-achievements" class="badges-subtab-view active">
+          <div class="ach-header-stats-box">
+            <div class="ach-header-stats-left">
+              <span class="ach-tag">ACHIEVEMENTS SYSTEM</span>
+              <div id="ach-unlocked-count-text" style="font-weight:800; color:#fbbf24; font-size:13px;">1 / 13 פתוחים</div>
+            </div>
+            <div class="ach-mini-prog-bg" style="width:120px;">
+              <div id="ach-mini-prog-fill" class="ach-mini-prog-fill" style="width:8%;"></div>
+            </div>
+          </div>
+          <div id="achievements-hex-grid" class="achievements-hex-grid">
+            <!-- Injected via AppState.renderAchievements() -->
+          </div>
+        </div>
+
+        <!-- View B: Rank Constellation -->
+        <div id="subtab-view-ranks" class="badges-subtab-view" style="display:none;">
+          <div class="rank-hero-center">
+            <div class="rank-hex-hero-wrapper">
+              <div id="rank-hero-hex" class="rank-hex-hero rank-e">
+                <span id="rank-hero-letter" class="rank-hero-letter">E</span>
+              </div>
+              <div class="rank-hex-glow-pulse"></div>
+            </div>
+            <div class="rank-hero-info">
+              <div id="rank-hero-title-text" class="rank-hero-title-text">צייד שהתעורר</div>
+              <div id="rank-hero-level-range" class="rank-hero-level-range">רמות 1 - 9</div>
+              <div class="rank-hero-progression-bar-box">
+                <div class="rank-prog-label">
+                  <span>התקדמות לרנק הבא</span>
+                  <span id="rank-hero-next-label">D-Rank (רמה 10)</span>
+                </div>
+                <div class="rank-bar-bg">
+                  <div id="rank-hero-bar-fill" class="rank-bar-fill" style="width: 10%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rank-constellation-container">
+            <div class="rank-constellation-title">מפת הרנקים של המערכת</div>
+            <div class="rank-constellation-grid" id="rank-constellation-grid">
+              <!-- Injected dynamically by AppState.renderRankModal() -->
+            </div>
+          </div>
+
+          <div class="arise-footer-banner">
+            <div class="arise-glow-text">A R I S E</div>
+            <div class="arise-subtext">BECOME THE SHADOW MONARCH</div>
+            <button class="share-rank-btn" onclick="AppState.shareRank()">
+              <span>📤 שתף כרטיס צייד</span>
+            </button>
           </div>
         </div>
       </div>
 
-      <!-- MACRO TRIPLE BARS -->
-      <div class="macro-bars-grid">
-        <!-- Protein -->
-        <div class="macro-card protein">
-          <div class="macro-card-header">
-            <span class="macro-title">חלבון</span>
-            <span class="macro-badge">STR</span>
-          </div>
-          <div class="macro-gram-info">
-            <span id="macro-protein-cur">0g</span>
-            <span id="macro-protein-tgt" class="macro-gram-target">/ 0g</span>
-          </div>
-          <div class="macro-mini-track">
-            <div id="macro-protein-bar" class="macro-mini-fill"></div>
-          </div>
-        </div>
-
-        <!-- Carbs -->
-        <div class="macro-card carbs">
-          <div class="macro-card-header">
-            <span class="macro-title">פחמימות</span>
-            <span class="macro-badge">MP</span>
-          </div>
-          <div class="macro-gram-info">
-            <span id="macro-carbs-cur">0g</span>
-            <span id="macro-carbs-tgt" class="macro-gram-target">/ 0g</span>
-          </div>
-          <div class="macro-mini-track">
-            <div id="macro-carbs-bar" class="macro-mini-fill"></div>
-          </div>
-        </div>
-
-        <!-- Fats -->
-        <div class="macro-card fats">
-          <div class="macro-card-header">
-            <span class="macro-title">שומנים</span>
-            <span class="macro-badge">SHIELD</span>
-          </div>
-          <div class="macro-gram-info">
-            <span id="macro-fats-cur">0g</span>
-            <span id="macro-fats-tgt" class="macro-gram-target">/ 0g</span>
-          </div>
-          <div class="macro-mini-track">
-            <div id="macro-fats-bar" class="macro-mini-fill"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- QUICK POTIONS / INVENTORY -->
-    <section class="inventory-section">
-      <div class="section-title-wrap">
-        <span class="section-title">🎒 אינוונטר ושיקויים מהירים (Quick Potions)</span>
-      </div>
-      <div class="potion-grid">
-        <div class="potion-btn" onclick="AppState.logQuickPotion('water_250')">
-          <span class="potion-icon">💧</span>
-          <span class="potion-title">שיקוי חיים</span>
-          <span class="potion-effect">+250ml מים</span>
-        </div>
-        <div class="potion-btn" onclick="AppState.logQuickPotion('water_500')">
-          <span class="potion-icon">🧪</span>
-          <span class="potion-title">חיים מוגבר</span>
-          <span class="potion-effect">+500ml מים</span>
-        </div>
-        <div class="potion-btn" onclick="AppState.logQuickPotion('protein_shake')">
-          <span class="potion-icon">⚡</span>
-          <span class="potion-title">שיקוי כוח</span>
-          <span class="potion-effect">+27g חלבון</span>
-        </div>
-        <div class="potion-btn" onclick="AppState.logQuickPotion('multivitamin')">
-          <span class="potion-icon">✨</span>
-          <span class="potion-title">חיוניות</span>
-          <span class="potion-effect">+מולטי ויטמין</span>
-        </div>
-        <div class="potion-btn attent" onclick="AppState.openAttentModal()">
-          <span class="potion-icon">💊</span>
-          <span class="potion-title">שיקוי ריכוז</span>
-          <span class="potion-effect">אטנט (Attent)</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- MICRONUTRIENT MATRIX -->
-    <section class="micro-section">
-      <div class="section-title-wrap">
-        <span class="section-title">🛡️ מטריצת מיקרו-נוטריאנטים (Vitality Matrix)</span>
-        <span style="font-size:11px; color:var(--hud-cyan); font-family:var(--font-mono);">RDA STANDARDS</span>
-      </div>
-      <div id="micro-grid" class="micro-grid">
-        <!-- Injected via JavaScript -->
-      </div>
-    </section>
-
-    <!-- HUNTER ELIXIRS & VITAMINS SECTION -->
-    <section class="supplements-hud-section" id="supplements-hud-section">
-      <div class="supplements-hud-header">
-        <div class="supplements-title-wrap">
-          <span class="supplements-title-icon">🧪</span>
-          <div>
-            <span class="supplements-title-text">שיקויי צייד ותוספים • ALCHEMY & VITAMINS</span>
-            <span class="supplements-title-sub">ויטמינים ומינרלים קריטיים לתמיכה במערכת העצבים ובריאות כללית</span>
-          </div>
-        </div>
-        <button class="add-custom-supp-btn" onclick="AppState.openSupplementModal()" title="הוסף תוסף אישי">
-          <span>+ תוסף אישי</span>
-        </button>
-      </div>
-
-      <!-- Quick 1-Tap Presets -->
-      <div class="supp-preset-chips">
-        <button class="supp-chip" onclick="AppState.quickAddSupplement('ויטמין D3', '2000 IU', 'vitamin')">☀️ ויטמין D3</button>
-        <button class="supp-chip" onclick="AppState.quickAddSupplement('אומגה 3', '1000 מ״ג', 'omega')">🐟 אומגה 3</button>
-        <button class="supp-chip" onclick="AppState.quickAddSupplement('מגנזיום גליצינאט', '300 מ״ג', 'mineral')">🌙 מגנזיום</button>
-        <button class="supp-chip" onclick="AppState.quickAddSupplement('אבץ (Zinc)', '25 מ״ג', 'mineral')">⚡ אבץ</button>
-        <button class="supp-chip" onclick="AppState.quickAddSupplement('קריאטין', '5 גרם', 'performance')">💥 קריאטין</button>
-        <button class="supp-chip" onclick="AppState.quickAddSupplement('מולטיוויטמין / B', '1 מנה', 'vitamin')">🌿 קומפלקס B</button>
-      </div>
-
-      <div id="supplements-today-list" class="supplements-today-list">
-        <!-- Injected dynamically via AppState.renderSupplements() -->
-      </div>
-    </section>
-
-    <!-- MEAL LOGGER & SEARCH -->
-    <section class="log-section">
-      <div class="section-title-wrap">
-        <span class="section-title">⚔️ רישום ארוחות ומאגר מזונות (Meal Registry)</span>
-      </div>
-
-      <!-- Prominent Barcode Hero Button -->
-      <button class="barcode-big-hero-btn" onclick="AppState.openBarcodeScanner()" title="סרוק מוצר במצלמת האייפון">
-        <span class="barcode-btn-icon">📷</span>
-        <div class="barcode-btn-content">
-          <span class="barcode-btn-title">סריקת ברקוד מוצר (Scanner)</span>
-          <span class="barcode-btn-sub">פתח מצלמה לסריקה מיידית של מוצרים ישראליים ובינלאומיים</span>
-        </div>
-        <span class="barcode-btn-arrow">⚡</span>
-      </button>
-
-      <div style="display:flex; gap:8px; align-items:center;">
-        <div class="search-input-wrap" style="flex:1;">
-          <span class="search-icon-inside">🔍</span>
-          <input type="text" id="food-search-input" class="search-input" placeholder="או חפש לפי שם (חזה עוף, ביצים, קוטג'...)">
-        </div>
-      </div>
-
-      <!-- Search Autocomplete Dropdown -->
-      <div id="food-search-results" class="food-search-results"></div>
-
-      <!-- Food Selection Staging Card with Household Units -->
-      <div id="staging-card" class="staging-card">
-        <div class="staging-top">
-          <span id="staging-name" class="staging-title">חזה עוף</span>
-          <span id="staging-base-info" style="font-size:11px; color:var(--hud-cyan); font-family:var(--font-mono);">בחר כמות ויחידת מידה</span>
-        </div>
-        <div class="portion-controls">
-          <div class="portion-amount-unit-row">
-            <input type="number" id="portion-amount-input" class="portion-input" value="1" min="0.1" step="0.5" oninput="AppState.updatePortionCalculations()">
-            <select id="portion-unit-select" class="portion-unit-select" onchange="AppState.onUnitChange()">
-              <option value="g">גרם (g)</option>
-              <option value="tbsp">כף (15 גרם)</option>
-              <option value="tsp">כפית (5 גרם)</option>
-              <option value="cup">כוס (240 גרם)</option>
-              <option value="unit">יחידה / פרוסה</option>
-              <option value="serving" selected>מנה סטנדרטית</option>
-            </select>
-          </div>
-          <select id="meal-type-select" class="meal-type-select">
-            <option value="breakfast">ארוחת בוקר</option>
-            <option value="lunch" selected>ארוחת צהריים</option>
-            <option value="dinner">ארוחת ערב</option>
-            <option value="snack">נשנוש / אימון</option>
-          </select>
-        </div>
-
-        <!-- Dynamic Live Calculation Preview -->
-        <div id="staging-calc-preview" class="staging-calc-preview">
-          סה"כ: 100 גרם • 165 קק"ל | 31g חלבון
-        </div>
-
-        <button class="action-btn-primary" onclick="AppState.logSelectedFood()">
-          <span>✓</span> רשום ארוחה וקבל EXP
-        </button>
-      </div>
-
-      <!-- Today's Meals History -->
-      <div class="section-title-wrap" style="margin-top: 8px;">
-        <span style="font-size:12px; color:var(--text-secondary); font-weight:700;">ארוחות שנרשמו היום</span>
-      </div>
-      <div id="meals-history-list" class="meals-history-list"></div>
-    </section>
-
+    </main>
     <div class="safe-spacer"></div>
   </div>
 
@@ -1379,7 +1468,7 @@
     </div>
   </div>
 
-  <!-- FIXED BOTTOM NAVIGATION BAR (Images 1, 3, 5 style) -->
+  <!-- FIXED BOTTOM NAVIGATION BAR (6 Clean Tab Panels) -->
   <nav class="bottom-nav-bar" id="bottom-nav-bar">
     <button type="button" class="bottom-nav-item active" id="nav-item-profile" onclick="AppState.navTo('profile')" title="פרופיל ראשי">
       <span class="nav-icon">👤</span>
@@ -1393,6 +1482,10 @@
       <span class="nav-icon">📜</span>
       <span class="nav-text">משימות</span>
     </button>
+    <button type="button" class="bottom-nav-item" id="nav-item-nutrition" onclick="AppState.navTo('nutrition')" title="תזונה וקלוריות">
+      <span class="nav-icon">🍏</span>
+      <span class="nav-text">תזונה</span>
+    </button>
     <button type="button" class="bottom-nav-item" id="nav-item-health" onclick="AppState.navTo('health')" title="מדדי Garmin & בריאות">
       <span class="nav-icon">📊</span>
       <span class="nav-text">בריאות</span>
@@ -1404,6 +1497,6 @@
     </button>
   </nav>
 
-  <script src="/app.js?v=11"></script>
+  <script src="/app.js?v=12"></script>
 </body>
 </html>

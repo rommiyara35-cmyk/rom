@@ -247,6 +247,11 @@ const AppState = {
     document.getElementById('hunter-title').innerText = p.title || 'Awakened Hunter';
     document.getElementById('hunter-level').innerText = p.level;
 
+    const topName = document.getElementById('top-hunter-name-display');
+    if (topName) topName.innerText = p.name || 'צייד רום';
+    const topLvl = document.getElementById('top-hunter-lvl-chip');
+    if (topLvl) topLvl.innerText = `Lv. ${p.level}`;
+
     const rankBadge = document.getElementById('rank-badge');
     if (rankBadge) {
       const cleanRank = (p.rank || 'E-Rank').replace('-Rank', '').replace('Rank', '').trim();
@@ -2499,8 +2504,8 @@ const AppState = {
   },
 
   openAchievementsModal() {
-    this.renderAchievements();
-    this.openModal('achievements-modal');
+    this.navTo('badges');
+    this.switchBadgesSubtab('achievements');
   },
 
   showAchievementOverlay(ach) {
@@ -2541,8 +2546,8 @@ const AppState = {
   // RANK CONSTELLATION & SYSTEM (Matching Image 4)
   // ========================================================
   openRankModal() {
-    this.renderRankModal();
-    this.openModal('rank-modal');
+    this.navTo('badges');
+    this.switchBadgesSubtab('ranks');
   },
 
   renderRankModal() {
@@ -2658,22 +2663,63 @@ const AppState = {
   },
 
   navTo(section) {
+    // 1. Update active tab panel
+    const panels = document.querySelectorAll('.tab-panel');
+    panels.forEach(p => p.classList.remove('active'));
+    const targetPanel = document.getElementById(`panel-${section}`);
+    if (targetPanel) {
+      targetPanel.classList.add('active');
+    }
+
+    // 2. Update active nav button
     document.querySelectorAll('.bottom-nav-item').forEach(b => b.classList.remove('active'));
     const btn = document.getElementById(`nav-item-${section}`);
     if (btn) btn.classList.add('active');
 
-    if (section === 'profile') {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (section === 'workouts') {
-      this.openWorkoutModal();
+    // 3. Scroll to top of the panel smoothly
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    sfx.playClick();
+
+    // 4. Panel specific refreshes
+    if (section === 'badges') {
+      this.renderAchievements();
+      this.renderRankModal();
     } else if (section === 'quests') {
-      const q = document.getElementById('daily-quest-card') || document.querySelector('.quest-list');
-      if (q) q.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      this.renderQuests();
+    } else if (section === 'workouts') {
+      this.renderSkills();
+    } else if (section === 'nutrition') {
+      this.renderCalorieGauge();
+      this.renderMacroBars();
+      this.renderMicronutrients();
+      this.renderMealsList();
     } else if (section === 'health') {
-      const g = document.getElementById('garmin-hud-card') || document.getElementById('biometrics-hud');
-      if (g) g.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else if (section === 'badges') {
-      this.openAchievementsModal();
+      this.renderGarminBiometrics();
+      this.renderAttentBanner();
+      this.renderSupplements();
+      this.renderDailyDebrief();
+    }
+  },
+
+  switchBadgesSubtab(subtab) {
+    sfx.playClick();
+    const btnAch = document.getElementById('subtab-btn-achievements');
+    const btnRank = document.getElementById('subtab-btn-ranks');
+    const viewAch = document.getElementById('subtab-view-achievements');
+    const viewRank = document.getElementById('subtab-view-ranks');
+
+    if (subtab === 'achievements') {
+      if (btnAch) btnAch.classList.add('active');
+      if (btnRank) btnRank.classList.remove('active');
+      if (viewAch) viewAch.style.display = 'block';
+      if (viewRank) viewRank.style.display = 'none';
+      this.renderAchievements();
+    } else {
+      if (btnRank) btnRank.classList.add('active');
+      if (btnAch) btnAch.classList.remove('active');
+      if (viewRank) viewRank.style.display = 'block';
+      if (viewAch) viewAch.style.display = 'none';
+      this.renderRankModal();
     }
   }
 };
