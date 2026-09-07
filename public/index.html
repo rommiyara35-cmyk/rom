@@ -502,6 +502,20 @@
             <span style="font-size:12px; color:var(--text-secondary); font-weight:700;">ארוחות שנרשמו היום</span>
           </div>
           <div id="meals-history-list" class="meals-history-list"></div>
+
+          <!-- Today's Supplements In Nutrition Overview -->
+          <div class="section-title-wrap" style="margin-top: 16px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+              <span style="font-size:12px; color:#c084fc; font-weight:800; display:flex; align-items:center; gap:6px;">
+                <span>💊</span>
+                <span>תוספים וויטמינים שנלקחו היום</span>
+              </span>
+              <button onclick="AppState.navTo('health'); setTimeout(() => { const el = document.getElementById('supplements-hud-section'); if(el) el.scrollIntoView({behavior:'smooth'}); }, 100);" style="background:rgba(192,132,252,0.12); border:1px solid rgba(192,132,252,0.3); color:#e9d5ff; border-radius:6px; font-size:10px; font-weight:700; padding:3px 8px; cursor:pointer;">
+                + נהל באלכימיה ⚡
+              </button>
+            </div>
+          </div>
+          <div id="nutrition-supplements-list" class="nutrition-supplements-list"></div>
         </section>
 
         <!-- MICRONUTRIENT MATRIX -->

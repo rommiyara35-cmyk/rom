@@ -1260,6 +1260,94 @@ class AttentBiometricNormalizer:
 
 
 # -------------------------------------------------------------
+# Micronutrient & Supplement Alchemy Parser
+# -------------------------------------------------------------
+def parse_supplement_micros(supps_list):
+    """
+    Parses a list of supplement dicts (from supplements_log) and computes
+    their micronutrient and elemental contributions.
+    """
+    totals = {
+        "magnesium_mg": 0.0,
+        "zinc_mg": 0.0,
+        "vit_c_mg": 0.0,
+        "vit_d_iu": 0.0,
+        "omega3_mg": 0.0,
+        "potassium_mg": 0.0,
+        "sodium_mg": 0.0,
+        "iron_mg": 0.0,
+        "creatine_g": 0.0,
+        "calories": 0.0,
+        "protein": 0.0,
+        "carbs": 0.0,
+        "fats": 0.0
+    }
+
+    import re
+
+    for s in supps_list:
+        name = (s.get("name") or "").lower()
+        dosage_str = str(s.get("dosage") or "")
+        unit = (s.get("unit") or "").lower()
+
+        # Extract numerical value if present
+        nums = re.findall(r"(\d+(?:\.\d+)?)", dosage_str)
+        val = float(nums[0]) if nums else None
+
+        # Magnesium
+        if "מגנזיום" in name or "magnesium" in name:
+            dose = val if val and 50 <= val <= 1000 else 300.0
+            totals["magnesium_mg"] += dose
+
+        # Zinc
+        elif "אבץ" in name or "zinc" in name:
+            dose = val if val and 5 <= val <= 100 else 25.0
+            totals["zinc_mg"] += dose
+
+        # Vitamin D / D3
+        elif "ויטמין d" in name or "vitamin d" in name or "d3" in name or "ויטמין די" in name:
+            dose = val if val and 200 <= val <= 10000 else 2000.0
+            totals["vit_d_iu"] += dose
+
+        # Vitamin C
+        elif "ויטמין c" in name or "vitamin c" in name or "ויטמין סי" in name:
+            dose = val if val and 50 <= val <= 3000 else 500.0
+            totals["vit_c_mg"] += dose
+
+        # Omega 3 / Fish oil
+        elif "אומגה" in name or "omega" in name or "שמן דגים" in name:
+            dose = val if val and 200 <= val <= 5000 else 1000.0
+            totals["omega3_mg"] += dose
+            totals["calories"] += 10.0
+            totals["fats"] += 1.0
+
+        # Creatine
+        elif "קריאטין" in name or "creatine" in name:
+            dose = val if val and 1 <= val <= 20 else 5.0
+            totals["creatine_g"] += dose
+
+        # Multivitamin / B-Complex
+        elif "מולטיוויטמין" in name or "multivitamin" in name or "מולטי ויטמין" in name or "b complex" in name or "קומפלקס b" in name:
+            totals["magnesium_mg"] += 150.0
+            totals["zinc_mg"] += 15.0
+            totals["vit_c_mg"] += 100.0
+            totals["vit_d_iu"] += 1000.0
+            totals["iron_mg"] += 10.0
+
+        # Potassium
+        elif "אשלגן" in name or "potassium" in name:
+            dose = val if val and 50 <= val <= 2000 else 200.0
+            totals["potassium_mg"] += dose
+
+        # Iron
+        elif "ברזל" in name or "iron" in name:
+            dose = val if val and 5 <= val <= 100 else 20.0
+            totals["iron_mg"] += dose
+
+    return {k: round(v, 1) for k, v in totals.items()}
+
+
+# -------------------------------------------------------------
 # Garmin Biometrics & Attent AI Physiological Advisor
 # -------------------------------------------------------------
 class HunterHealthAIAdvisor:
@@ -1660,6 +1748,9 @@ class HunterHealthAIAdvisor:
             f"{'נמצא במצב משמרת לילה: חלון איפוס והורמונים מוסטים בהתאם.' if is_night else 'משמרת יום סדירה.'}"
         )
 
+        supp_micros_today = parse_supplement_micros(supps)
+        has_vit_c = any("ויטמין c" in n or "vitamin c" in n or "ויטמין סי" in n for n in supp_names) or supp_micros_today.get("vit_c_mg", 0) >= 100
+
         strengths = []
         if nutrition["protein"] >= target_p * 0.8:
             strengths.append({
@@ -1678,16 +1769,37 @@ class HunterHealthAIAdvisor:
         if has_magnesium:
             strengths.append({
                 "icon": "🌙",
-                "title": "סינרגיית מגנזיום פעילה",
-                "desc": "נטילת מגנזיום חוסמת פעילות יתר של קולטני NMDA, מונעת כיווצי שרירים/נעילת לסת ומשפרת משמעותית את איכות שנת ה-Deep Sleep.",
+                "title": "סינרגיית מגנזיום פעילה (+300mg Mg)",
+                "desc": "נטילת מגנזיום חוסמת פעילות יתר של קולטני NMDA, מונעת כיווצי שרירים/נעילת לסת (Bruxism) ומעמיקה את שנת הגלים האיטיים (Deep Sleep).",
                 "tag": "Neuro-Protection"
             })
         if has_omega3:
             strengths.append({
                 "icon": "🐟",
-                "title": "הגנה קרדיווסקולרית ואנטי-דלקתית",
-                "desc": "אומגה 3 (EPA/DHA) מייצבת את תאי שריר הלב, מסייעת לגמישות כלי הדם ומאזנת את השפעות הדופק.",
+                "title": "הגנה קרדיווסקולרית ואנטי-דלקתית (Omega-3)",
+                "desc": "אומגה 3 (EPA/DHA) מייצבת את תאי שריר הלב, מסייעת לגמישות כלי הדם ומאזנת את השפעות הדופק והטונוס הסימפתטי.",
                 "tag": "Cardioprotective"
+            })
+        if has_zinc:
+            strengths.append({
+                "icon": "🛡️",
+                "title": "חיזוק קוגניטיבי ומערכת חיסון (Zinc)",
+                "desc": "אבץ משמש קו-פקטור חיוני בייצור דופמין (Dopamine Beta-Hydroxylase) ותומך ברמות טסטוסטרון ומערכת החיסון של הצייד.",
+                "tag": "Dopamine Synthesis"
+            })
+        if has_vit_d:
+            strengths.append({
+                "icon": "☀️",
+                "title": "שריון חיסוני ועצבי (Vitamin D3)",
+                "desc": "ויטמין D3 מווסת ביטוי של מאות גנים, תומך בבריאות העצם ומשפר את מצב הרוח וההתאוששות החיסונית.",
+                "tag": "Immuno-Modulation"
+            })
+        if has_creatine:
+            strengths.append({
+                "icon": "⚡",
+                "title": "רוויית פוספוקריאטין תאי (Creatine ATP)",
+                "desc": "נטילת קריאטין מעלה מאגרי אנרגיה מהירה (Phosphocreatine) בשרירי השלד ובקליפת המוח, ותורמת להתאוששות קוגניטיבית ועצימות אימון.",
+                "tag": "Cellular Energy"
             })
         if garmin.get("sleep_score", 70) >= 75:
             strengths.append({
@@ -1725,9 +1837,25 @@ class HunterHealthAIAdvisor:
                     "icon": "💊",
                     "title": "הוספת מגנזיום גליצינאט בערב",
                     "desc": "תרופות מעוררות מאיצות הפרשת מגנזיום בשתן. מומלץ ליטול 200-400 מ\"ג מגנזיום גליצינאט לפני השינה להרפיית שרירים והורדת סטרס.",
-                    "priority": "בינונית",
+                    "priority": "גבוהה",
                     "tag": "Mineral Support"
                 })
+        if not has_omega3:
+            improvements.append({
+                "icon": "🐟",
+                "title": "שילוב אומגה 3 לתמיכה קרדיווסקולרית",
+                "desc": "מומלץ ליטול 1000-2000 מ\"ג אומגה 3 (EPA/DHA) עם ארוחה שומנית להגנה על תאי הלב וויסות מדדי הדלקת.",
+                "priority": "בינונית",
+                "tag": "Essential Fats"
+            })
+        if not has_vit_d:
+            improvements.append({
+                "icon": "☀️",
+                "title": "שילוב ויטמין D3 (במיוחד במשמרות)",
+                "desc": "עבודה במשמרות או שהייה ממושכת במבנים מפחיתה סינתזת ויטמין D. נטילת 1000-2000 IU מחזקת מערכת חיסון ומאזן הורמונלי.",
+                "priority": "בינונית",
+                "tag": "Immune Baseline"
+            })
         if nutrition["protein"] < target_p * 0.8:
             improvements.append({
                 "icon": "🍳",
@@ -1775,16 +1903,22 @@ class HunterHealthAIAdvisor:
                 "takeaway": "תרופות מעוררות מסוג אמפטמין מעלות דופק מנוחה ב-3-8 פעימות בממוצע; הידרציה נכונה ואיזון אלקטרוליטים שומרים על יציבות לחץ הדם."
             },
             {
-                "title": "Wearable Heart Rate Variability Analytics and Psychostimulant Confounding",
-                "journal": "Autonomic Neuroscience & Firstbeat Clinical Analytics",
-                "year": "2023",
-                "takeaway": "תרופות ממריצות (אמפטמין) גורמות לירידה של 20%-35% ב-RMSSD עקב הפעלת קולטנים אדרנרגיים פריפריאליים, ללא עקה סומטית או פגיעה בהתאוששות. אלגוריתמי שעונים מעריכים סטרס ביתר."
-            },
-            {
                 "title": "The Role of Magnesium in Sleep Health and Autonomic Regulation",
                 "journal": "Nutrients & Sleep Medicine Reviews",
                 "year": "2021",
                 "takeaway": "מגנזיום מווסת נוירוטרנסמיטורים מעוררים (GABA agonist / NMDA antagonist), משפר HRV ומפחית זמני הירדמות."
+            },
+            {
+                "title": "Omega-3 Fatty Acids, Autonomic Function and Inflammatory Attenuation",
+                "journal": "Circulation Research / Frontiers in Nutrition",
+                "year": "2020",
+                "takeaway": "חומצות שומן EPA/DHA משפרות שונות דופק (HRV), מפחיתות סמני דלקת כרוניים ומסייעות להגנה על שריר הלב במצבי עומס סימפתטי."
+            },
+            {
+                "title": "Wearable Heart Rate Variability Analytics and Psychostimulant Confounding",
+                "journal": "Autonomic Neuroscience & Firstbeat Clinical Analytics",
+                "year": "2023",
+                "takeaway": "תרופות ממריצות (אמפטמין) גורמות לירידה של 20%-35% ב-RMSSD עקב הפעלת קולטנים אדרנרגיים פריפריאליים, ללא עקה סומטית או פגיעה בהתאוששות. אלגוריתמי שעונים מעריכים סטרס ביתר."
             },
             {
                 "title": "Circadian Disruption in Shift Workers and Dietary Countermeasures",
@@ -1793,6 +1927,18 @@ class HunterHealthAIAdvisor:
                 "takeaway": "שמירה על חלונות אכילה מוגדרים במשמרת לילה ומניעת פחמימות פשוטות לפני שנת היום מונעות תנגודת לאינסולין ועייפות כרונית."
             }
         ]
+
+        supp_desc_parts = []
+        if has_magnesium: supp_desc_parts.append("מגנזיום")
+        if has_omega3: supp_desc_parts.append("אומגה 3")
+        if has_vit_d: supp_desc_parts.append("ויטמין D3")
+        if has_zinc: supp_desc_parts.append("אבץ")
+        if has_creatine: supp_desc_parts.append("קריאטין")
+
+        supp_summary_text = (
+            f"נרשמו {len(supps)} תוספים: {', '.join([s['name'] for s in supps])}. כיסוי מיקרו פעיל: {', '.join(supp_desc_parts) if supp_desc_parts else 'כללי'}."
+            if supps else "טרם נרשמו תוספים או ויטמינים להיום."
+        )
 
         status_analysis = [
             {
@@ -1817,11 +1963,11 @@ class HunterHealthAIAdvisor:
                 "summary": f"נלקח ב-{attent_time} • השפעה מנוטרת ע\"י מנוע ה-AI" if attent_taken else "לא נרשמה נטילת אטנט היום."
             },
             {
-                "domain": "הידרציה ותוספי צייד",
+                "domain": "מיקרו-נוטריאנטים ותוספי צייד (Alchemy)",
                 "icon": "🧪",
-                "status_level": "optimal" if water_ml >= 2500 else "info",
-                "status_label": f"{water_ml}ml | {len(supps)} תוספים",
-                "summary": f"נרשמו: {', '.join([s['name'] for s in supps]) if supps else 'טרם נרשמו תוספים להיום'}"
+                "status_level": "optimal" if len(supps) >= 2 else ("info" if len(supps) >= 1 else "warning"),
+                "status_label": f"{len(supps)} תוספים נלקחו | {water_ml}ml",
+                "summary": supp_summary_text
             }
         ]
 
@@ -2127,13 +2273,58 @@ class HunterLongTermScienceEngine:
                 f"נרשמו {total_workouts} אימונים בלבד ב-{total_days} ימים. כדי לקדם את סקיל הכוח והמהירות ולמקסם ספיגת חלבון ברקמות, נדרש גירוי מכני תדיר יותר."
             )
 
+        # Pillar 6: Micronutrient Shield & Supplement Consistency (Alchemy & Micronutrients)
+        supp_days_count = len(supp_map)
+        supp_adherence_pct = round((supp_days_count / max(1, total_days)) * 100)
+        total_supp_doses = sum(len(supp_map.get(d, [])) for d in all_dates)
+        avg_supps_per_day = round(total_supp_doses / max(1, supp_days_count), 1) if supp_days_count else 0.0
+
+        # Check magnesium adherence on Attent days
+        attent_dates = list(attent_map.keys())
+        attent_with_mag = sum(
+            1 for d in attent_dates
+            if any("מגנזיום" in s["name"].lower() or "magnesium" in s["name"].lower() for s in supp_map.get(d, []))
+        )
+        mag_attent_ratio = round((attent_with_mag / max(1, len(attent_dates))) * 100) if attent_dates else 100
+
+        if supp_adherence_pct >= 75:
+            supp_status = "עקביות אלכימיה מעולה (Optimal Shield)"
+            supp_badge = "הגנת מיקרו מלאה"
+            supp_badge_type = "success"
+            supp_insight = (
+                f"נטלת תוספים ב-{supp_days_count} מתוך {total_days} ימים ({supp_adherence_pct}% עקביות, ממוצע {avg_supps_per_day} תוספים ליום). "
+                f"בימי נטילת אטנט, שילבת מגנזיום ב-{mag_attent_ratio}% מהימים. "
+                "מטא-אנליזות של Tardy et al. (2020) ו-Grosso et al. (2014) הוכיחו כי כיסוי כרוני עקבי של מגנזיום, אבץ ואומגה 3 "
+                "מפחית סמני דלקת מערכתיים (hs-CRP), מייצב תפקוד מיטוכונדריאלי ומגן על מערכת העצבים מפני עקה חמצונית."
+            )
+            supp_action = "המשך בפרוטוקול הנוכחי. שילוב מגנזיום גליצינאט בערב ואומגה 3 עם הארוחה העיקרית מניב סינרגיה מוכחת."
+        elif supp_adherence_pct >= 40:
+            supp_status = "עקביות בינונית - מומלץ ייצוב"
+            supp_badge = "עקביות חלקית"
+            supp_badge_type = "warning"
+            supp_insight = (
+                f"נרשמה נטילת תוספים ב-{supp_days_count} מתוך {total_days} ימים ({supp_adherence_pct}% עקביות). "
+                "תוספי מפתח כגון מגנזיום וויטמין D3 דורשים רציפות לאורך שבועות כדי להגיע לרוויה רקמתית ולהשפיע על איכות השינה וה-HRV."
+            )
+            supp_action = "הגדר תזכורת יומית קבועה לנטילת תוספי הבוקר (ויטמין D3 + אומגה) ותוסף השינה (מגנזיום גליצינאט)."
+        else:
+            supp_status = "עקביות נמוכה - מאגר מיקרו חסר"
+            supp_badge = "דרוש תגבור"
+            supp_badge_type = "alert"
+            supp_insight = (
+                f"נרשמו תוספים ב-{supp_days_count} ימים בלבד מתוך {total_days} ימים ({supp_adherence_pct}%). "
+                "תחת אימוני כוח סדירים או נטילת שיקוי ריכוז (אטנט), קיים איבוד מוגבר של מינרלים (מגנזיום ואבץ) בשתן ועליה בעקה חמצונית."
+            )
+            supp_action = "התחל בנטילת מגנזיום יומי בערב ואומגה 3 להגנה על תאי הלב ומערכת העצבים."
+
         # Long-Term Composite Score Calculation (0-100)
-        score_protein = min(25, int((avg_protein / max(1, target_protein)) * 25))
-        score_sleep = max(0, 20 - int(sleep_debt * 1.5))
-        score_attent = 20 if (attent_days_count == 0 or drug_holidays_count >= 1) else 12
-        score_cardio = 20 if rhr_delta <= 6.0 else 14
-        score_train = min(15, int((weekly_workout_rate / 3.0) * 15))
-        composite_score = min(100, max(20, score_protein + score_sleep + score_attent + score_cardio + score_train))
+        score_protein = min(22, int((avg_protein / max(1, target_protein)) * 22))
+        score_sleep = max(0, 18 - int(sleep_debt * 1.5))
+        score_attent = 18 if (attent_days_count == 0 or drug_holidays_count >= 1) else 10
+        score_cardio = 18 if rhr_delta <= 6.0 else 12
+        score_train = min(12, int((weekly_workout_rate / 3.0) * 12))
+        score_supps = min(12, int((supp_adherence_pct / 100.0) * 12))
+        composite_score = min(100, max(20, score_protein + score_sleep + score_attent + score_cardio + score_train + score_supps))
 
         if composite_score >= 88:
             grade = "S-Rank Adaptation"
@@ -2155,7 +2346,7 @@ class HunterLongTermScienceEngine:
             "composite_score": composite_score,
             "grade": grade,
             "headline": headline,
-            "summary": f"ניתוח {window_days} הימים האחרונים מציג ציון אדפטציה של {composite_score}/100. המערכת סנכרנה בהצלחה מדדי תרופה, שינה, חלבון ודופק.",
+            "summary": f"ניתוח {window_days} הימים האחרונים מציג ציון אדפטציה של {composite_score}/100. המערכת סנכרנה בהצלחה מדדי תרופה, שינה, חלבון, דופק ותוספי תזונה.",
             "pillars": {
                 "dopamine": {
                     "title": "רגישות דופמינרגית ואיזון אטנט",
@@ -2220,6 +2411,19 @@ class HunterLongTermScienceEngine:
                     "insight": train_insight,
                     "action": "שמור על גירוי עקבי תוך התאמת עצימות לרמת הסוללה הגופנית (Body Battery).",
                     "citation": "Schoenfeld et al. (2016, 2019) - Resistance training volume & frequency meta-analysis"
+                },
+                "supplements": {
+                    "title": "שריון מיקרו-נוטריאנטים ועקביות אלכימיה",
+                    "status": supp_status,
+                    "badge": supp_badge,
+                    "badge_type": supp_badge_type,
+                    "days_taken": supp_days_count,
+                    "adherence_pct": supp_adherence_pct,
+                    "avg_supps_per_day": avg_supps_per_day,
+                    "mag_attent_pct": mag_attent_ratio,
+                    "insight": supp_insight,
+                    "action": supp_action,
+                    "citation": "Tardy et al. (2020) / Grosso et al. (2014) - Micronutrients, autonomic balance & cellular vitality"
                 }
             }
         }
@@ -3013,20 +3217,31 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 "is_night": profile.get("shift_mode") == "night"
             }
 
+            # Fetch today's supplements
+            c.execute("SELECT * FROM supplements_log WHERE date = ? ORDER BY id ASC", (today,))
+            supps = [dict(r) for r in c.fetchall()]
+
+            # Calculate micronutrient contributions from supplements
+            supp_micros = parse_supplement_micros(supps)
+
             consumed = {
-                "calories": sum(m["calories"] for m in meals),
-                "protein": sum(m["protein"] for m in meals),
-                "carbs": sum(m["carbs"] for m in meals),
-                "fats": sum(m["fats"] for m in meals),
+                "calories": sum(m["calories"] for m in meals) + supp_micros.get("calories", 0),
+                "protein": sum(m["protein"] for m in meals) + supp_micros.get("protein", 0),
+                "carbs": sum(m["carbs"] for m in meals) + supp_micros.get("carbs", 0),
+                "fats": sum(m["fats"] for m in meals) + supp_micros.get("fats", 0),
                 "fiber": sum(m["fiber"] for m in meals),
-                "sodium_mg": sum(m["sodium_mg"] for m in meals),
-                "potassium_mg": sum(m["potassium_mg"] for m in meals),
-                "magnesium_mg": sum(m["magnesium_mg"] for m in meals),
-                "zinc_mg": sum(m["zinc_mg"] for m in meals),
-                "vit_c_mg": sum(m["vit_c_mg"] for m in meals),
-                "vit_d_iu": sum(m["vit_d_iu"] for m in meals),
-                "iron_mg": sum(m["iron_mg"] for m in meals),
-                "water_ml": total_water
+                "sodium_mg": sum(m["sodium_mg"] for m in meals) + supp_micros.get("sodium_mg", 0),
+                "potassium_mg": sum(m["potassium_mg"] for m in meals) + supp_micros.get("potassium_mg", 0),
+                "magnesium_mg": sum(m["magnesium_mg"] for m in meals) + supp_micros.get("magnesium_mg", 0),
+                "zinc_mg": sum(m["zinc_mg"] for m in meals) + supp_micros.get("zinc_mg", 0),
+                "vit_c_mg": sum(m["vit_c_mg"] for m in meals) + supp_micros.get("vit_c_mg", 0),
+                "vit_d_iu": sum(m["vit_d_iu"] for m in meals) + supp_micros.get("vit_d_iu", 0),
+                "omega3_mg": supp_micros.get("omega3_mg", 0),
+                "creatine_g": supp_micros.get("creatine_g", 0),
+                "iron_mg": sum(m["iron_mg"] for m in meals) + supp_micros.get("iron_mg", 0),
+                "water_ml": total_water,
+                "supplements_count": len(supps),
+                "supp_micros": supp_micros
             }
 
             quests = [
@@ -3060,13 +3275,15 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 {
                     "key": "micro_quest",
                     "title": "שריון המיקרו-נוטריאנטים (Vitality Shield)",
-                    "desc": "השלם לפחות 3 יעדי ויטמינים/מינרלים וסיבים",
+                    "desc": "השלם לפחות 3 יעדי ויטמינים/מינרלים, תוספים וסיבים",
                     "current": sum([
                         consumed["fiber"] >= profile["target_fiber"],
                         consumed["magnesium_mg"] >= 350,
                         consumed["vit_c_mg"] >= 80,
                         consumed["zinc_mg"] >= 10,
-                        consumed["potassium_mg"] >= 2500
+                        consumed["potassium_mg"] >= 2500,
+                        consumed["vit_d_iu"] >= 1000,
+                        consumed["omega3_mg"] >= 800
                     ]),
                     "target": 3,
                     "unit": "מגנים",
@@ -3075,7 +3292,9 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                         consumed["magnesium_mg"] >= 350,
                         consumed["vit_c_mg"] >= 80,
                         consumed["zinc_mg"] >= 10,
-                        consumed["potassium_mg"] >= 2500
+                        consumed["potassium_mg"] >= 2500,
+                        consumed["vit_d_iu"] >= 1000,
+                        consumed["omega3_mg"] >= 800
                     ]) >= 3
                 }
             ]

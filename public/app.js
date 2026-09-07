@@ -486,14 +486,17 @@ const AppState = {
     if (!this.profile || !this.consumed) return;
     const c = this.consumed;
     const p = this.profile;
+    const suppM = c.supp_micros || {};
 
     const micros = [
-      { name: 'מים (רוויה)', cur: c.water_ml, tgt: p.target_water, unit: 'ml' },
-      { name: 'סיבים תזונתיים', cur: Math.round(c.fiber), tgt: p.target_fiber, unit: 'g' },
-      { name: 'מגנזיום (התאוששות)', cur: Math.round(c.magnesium_mg), tgt: 400, unit: 'mg' },
-      { name: 'אבץ (מערכת חיסון)', cur: Math.round(c.zinc_mg), tgt: 14, unit: 'mg' },
-      { name: 'ויטמין C', cur: Math.round(c.vit_c_mg), tgt: 90, unit: 'mg' },
-      { name: 'אשלגן (אלקטרוליטים)', cur: Math.round(c.potassium_mg), tgt: 3500, unit: 'mg' }
+      { name: 'מים (רוויה)', cur: c.water_ml, tgt: p.target_water, unit: 'ml', icon: '💧', suppBonus: 0 },
+      { name: 'סיבים תזונתיים', cur: Math.round(c.fiber), tgt: p.target_fiber, unit: 'g', icon: '🌾', suppBonus: 0 },
+      { name: 'מגנזיום (התאוששות)', cur: Math.round(c.magnesium_mg), tgt: 400, unit: 'mg', icon: '🌙', suppBonus: suppM.magnesium_mg || 0 },
+      { name: 'אבץ (מערכת חיסון)', cur: Math.round(c.zinc_mg), tgt: 15, unit: 'mg', icon: '🛡️', suppBonus: suppM.zinc_mg || 0 },
+      { name: 'ויטמין C (נוגד חמצון)', cur: Math.round(c.vit_c_mg), tgt: 90, unit: 'mg', icon: '🍊', suppBonus: suppM.vit_c_mg || 0 },
+      { name: 'אשלגן (אלקטרוליטים)', cur: Math.round(c.potassium_mg), tgt: 3500, unit: 'mg', icon: '⚡', suppBonus: suppM.potassium_mg || 0 },
+      { name: 'ויטמין D3 (צפיפות ועצבים)', cur: Math.round(c.vit_d_iu || 0), tgt: 1500, unit: 'IU', icon: '☀️', suppBonus: suppM.vit_d_iu || 0 },
+      { name: 'אומגה 3 (EPA/DHA)', cur: Math.round(c.omega3_mg || 0), tgt: 1000, unit: 'mg', icon: '🐟', suppBonus: suppM.omega3_mg || 0 }
     ];
 
     const gridEl = document.getElementById('micro-grid');
@@ -504,13 +507,22 @@ const AppState = {
       const pct = Math.min(100, Math.round((m.cur / Math.max(1, m.tgt)) * 100));
       const item = document.createElement('div');
       item.className = 'micro-item';
+      if (m.suppBonus > 0) item.classList.add('micro-has-supp');
+
+      const suppBadgeHtml = m.suppBonus > 0 
+        ? `<span class="micro-supp-tag" title="מתוכם ${Math.round(m.suppBonus)} ${m.unit} מתוספים/ויטמינים">🧪 +${Math.round(m.suppBonus)}${m.unit} תוסף</span>` 
+        : '';
+
       item.innerHTML = `
         <div class="micro-top">
-          <span class="micro-name">${m.name}</span>
-          <span class="micro-vals">${m.cur}/${m.tgt} ${m.unit} (${pct}%)</span>
+          <span class="micro-name">${m.icon} ${m.name}</span>
+          <div style="display:flex; align-items:center; gap:4px;">
+            ${suppBadgeHtml}
+            <span class="micro-vals">${m.cur}/${m.tgt} ${m.unit} (${pct}%)</span>
+          </div>
         </div>
         <div class="micro-track">
-          <div class="micro-fill" style="width: ${pct}%"></div>
+          <div class="micro-fill" style="width: ${pct}%; ${m.suppBonus > 0 ? 'background: linear-gradient(90deg, #8b5cf6, #00f0ff);' : ''}"></div>
         </div>
       `;
       gridEl.appendChild(item);
@@ -519,28 +531,63 @@ const AppState = {
 
   renderMealsList() {
     const listEl = document.getElementById('meals-history-list');
-    if (!listEl) return;
+    const suppListEl = document.getElementById('nutrition-supplements-list');
 
-    if (!this.meals || this.meals.length === 0) {
-      listEl.innerHTML = `<div style="text-align:center; padding: 14px; font-size: 12px; color: var(--text-dim);">טרם נרשמו ארוחות היום. בחר מזון למעלה או השתמש בשיקויי האינוונטר!</div>`;
-      return;
+    if (listEl) {
+      if (!this.meals || this.meals.length === 0) {
+        listEl.innerHTML = `<div style="text-align:center; padding: 14px; font-size: 12px; color: var(--text-dim);">טרם נרשמו ארוחות היום. בחר מזון למעלה או השתמש בשיקויי האינוונטר!</div>`;
+      } else {
+        listEl.innerHTML = '';
+        this.meals.forEach(m => {
+          const entry = document.createElement('div');
+          entry.className = 'meal-entry';
+          entry.innerHTML = `
+            <div class="meal-entry-info">
+              <div class="meal-entry-name">${m.food_name} <span style="font-size:10px; color:var(--hud-cyan); font-family:var(--font-mono);">${m.timestamp || ''}</span></div>
+              <div class="meal-entry-macros">
+                ${Math.round(m.calories)} קלוריות | חלבון: ${Math.round(m.protein)}g | פחמימה: ${Math.round(m.carbs)}g | שומן: ${Math.round(m.fats)}g
+              </div>
+            </div>
+            <button class="meal-delete-btn" onclick="AppState.deleteMeal(${m.id})" title="מחק ארוחה">✕</button>
+          `;
+          listEl.appendChild(entry);
+        });
+      }
     }
 
-    listEl.innerHTML = '';
-    this.meals.forEach(m => {
-      const entry = document.createElement('div');
-      entry.className = 'meal-entry';
-      entry.innerHTML = `
-        <div class="meal-entry-info">
-          <div class="meal-entry-name">${m.food_name} <span style="font-size:10px; color:var(--hud-cyan); font-family:var(--font-mono);">${m.timestamp || ''}</span></div>
-          <div class="meal-entry-macros">
-            ${Math.round(m.calories)} קלוריות | חלבון: ${Math.round(m.protein)}g | פחמימה: ${Math.round(m.carbs)}g | שומן: ${Math.round(m.fats)}g
+    // Render Supplements in Nutrition View
+    if (suppListEl) {
+      if (!this.supplements || this.supplements.length === 0) {
+        suppListEl.innerHTML = `
+          <div style="padding:10px 14px; text-align:center; color:var(--text-dim); font-size:11.5px; background:rgba(255,255,255,0.02); border-radius:8px; border:1px dashed rgba(255,255,255,0.08);">
+            💊 טרם נלקחו תוספים היום. תוספים שנרשמים מחשבים מיקרו-נוטריאנטים ומחזקים את ה-Vitality Matrix!
           </div>
-        </div>
-        <button class="meal-delete-btn" onclick="AppState.deleteMeal(${m.id})" title="מחק ארוחה">✕</button>
-      `;
-      listEl.appendChild(entry);
-    });
+        `;
+      } else {
+        const catIcons = {
+          'vitamin': '🌿',
+          'mineral': '🌙',
+          'omega': '🐟',
+          'performance': '⚡'
+        };
+
+        suppListEl.innerHTML = this.supplements.map(item => `
+          <div class="meal-entry supp-overview-entry" style="border-right-color:#c084fc; background:rgba(147, 51, 234, 0.08);">
+            <div class="meal-entry-info">
+              <div class="meal-entry-name" style="color:#e9d5ff;">
+                <span>${catIcons[item.category] || '🧪'}</span>
+                <strong>${item.name}</strong>
+                <span style="font-size:10px; color:#a855f7; font-family:var(--font-mono);">${item.dosage} • ${item.timestamp || ''}</span>
+              </div>
+              <div class="meal-entry-macros" style="color:#c084fc; font-size:10.5px;">
+                ✓ חושב ב-Vitality Matrix • נותן EXP לאלכימיה ותובנות בריאות
+              </div>
+            </div>
+            <button class="meal-delete-btn" onclick="AppState.deleteSupplement(${item.id})" title="מחק תוסף">✕</button>
+          </div>
+        `).join('');
+      }
+    }
   },
 
   // --- Actions & API Calls ---
@@ -3130,6 +3177,27 @@ const AppState = {
         <div class="lt-pillar-evidence-box">🔬 מחקר: ${p.training.citation}</div>
         <div class="lt-pillar-action-box">👉 ${p.training.action}</div>
       </div>
+
+      ${p.supplements ? `
+      <!-- Pillar 6: Micronutrient Shield & Supplements Consistency -->
+      <div class="lt-pillar-card">
+        <div class="lt-pillar-top">
+          <div class="lt-pillar-title-wrap">
+            <span class="lt-pillar-icon">🧪</span>
+            <span class="lt-pillar-title">${p.supplements.title}</span>
+          </div>
+          <span class="lt-pillar-badge ${p.supplements.badge_type}">${p.supplements.badge}</span>
+        </div>
+        <div class="lt-pillar-stats-row">
+          <span class="lt-stat-chip">ימי נטילה: <strong>${p.supplements.days_taken} ימים (${p.supplements.adherence_pct}%)</strong></span>
+          <span class="lt-stat-chip">ממוצע יומי: <strong>${p.supplements.avg_supps_per_day} תוספים</strong></span>
+          <span class="lt-stat-chip">מגנזיום באטנט: <strong>${p.supplements.mag_attent_pct}%</strong></span>
+        </div>
+        <div class="lt-pillar-insight">${p.supplements.insight}</div>
+        <div class="lt-pillar-evidence-box">🔬 מחקר: ${p.supplements.citation}</div>
+        <div class="lt-pillar-action-box">👉 ${p.supplements.action}</div>
+      </div>
+      ` : ''}
     `;
   },
 

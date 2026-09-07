@@ -595,6 +595,34 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.micro-item.micro-has-supp {
+  border-color: rgba(192, 132, 252, 0.35);
+  background: linear-gradient(135deg, rgba(6, 14, 28, 0.75), rgba(147, 51, 234, 0.08));
+}
+
+.micro-supp-tag {
+  font-size: 9px;
+  background: rgba(192, 132, 252, 0.18);
+  border: 1px solid rgba(192, 132, 252, 0.4);
+  color: #e9d5ff;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.nutrition-supplements-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.supp-overview-entry {
+  border-right-width: 3px !important;
 }
 
 .micro-top {
