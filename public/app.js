@@ -224,7 +224,9 @@ const AppState = {
       }
       if (data.achievements_summary) {
         this.achievementsSummary = data.achievements_summary;
-        this.updateBadgePills(data.achievements_summary.unlocked_count, data.achievements_summary.total_count);
+        const u = data.achievements_summary.unlocked_count ?? data.achievements_summary.unlocked ?? 0;
+        const t = data.achievements_summary.total_count ?? data.achievements_summary.total ?? 0;
+        this.updateBadgePills(u, t);
       }
       if (data.health_advisor) {
         this.healthAdvisor = data.health_advisor;
@@ -324,6 +326,71 @@ const AppState = {
     if (hunterIdEl) {
       const seed = Math.abs((p.name || 'ROM').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 77000)) % 100000;
       hunterIdEl.innerText = p.hunter_id || `HNT-${String(seed).padStart(5, '0')}`;
+    }
+
+    // Render Active AI Goal Directives Card on Profile
+    const aiGoalCard = document.getElementById('active-ai-goal-card');
+    if (aiGoalCard) {
+      const hasAiGoals = p.ai_analysis_headline || p.ai_explanation || p.goal_custom_text;
+      if (hasAiGoals) {
+        aiGoalCard.style.display = 'block';
+        aiGoalCard.innerHTML = `
+          <div class="ai-goal-card-header">
+            <div class="ai-goal-card-badge">⚡ הנחיות מערכת AI פעילות</div>
+            <button type="button" class="ai-goal-edit-btn" onclick="AppState.openFirstTimeAwakening(true)" title="עדכון מטרות ויעדים עם AI">
+              ✏️ עדכן יעדים
+            </button>
+          </div>
+          
+          <div class="ai-goal-headline">🎯 ${this.escapeHtml(p.ai_analysis_headline || 'מפרט מדעי מותאם אישית')}</div>
+
+          ${p.goal_custom_text ? `
+            <div class="ai-goal-user-prompt">
+              <span class="ai-gup-label">🎯 מטרת העל שהגדרת לצ'אט:</span>
+              <span class="ai-gup-text">"${this.escapeHtml(p.goal_custom_text)}"</span>
+            </div>
+          ` : ''}
+
+          ${p.ai_explanation ? `
+            <div class="ai-goal-explanation">${this.escapeHtml(p.ai_explanation)}</div>
+          ` : ''}
+
+          <div class="ai-goal-targets-row">
+            <div class="ai-gt-chip"><span class="ai-gt-label">יעד קלוריות</span><span class="ai-gt-val highlight">${p.target_calories ? p.target_calories.toLocaleString() : '--'} kcal</span></div>
+            <div class="ai-gt-chip"><span class="ai-gt-label">חלבון יומי</span><span class="ai-gt-val">${p.target_protein || '--'}g</span></div>
+            <div class="ai-gt-chip"><span class="ai-gt-label">פחמימות</span><span class="ai-gt-val">${p.target_carbs || '--'}g</span></div>
+            <div class="ai-gt-chip"><span class="ai-gt-label">שומנים</span><span class="ai-gt-val">${p.target_fats || '--'}g</span></div>
+            <div class="ai-gt-chip"><span class="ai-gt-label">מים יומי</span><span class="ai-gt-val">${p.target_water ? p.target_water.toLocaleString() : '--'} ml</span></div>
+            <div class="ai-gt-chip"><span class="ai-gt-label">משקל יעד</span><span class="ai-gt-val highlight">${p.target_weight ? Number(p.target_weight).toFixed(1) : '--'} kg</span></div>
+          </div>
+
+          ${p.ai_hunter_tip ? `
+            <div class="ai-goal-tip-box">
+              💡 <strong>המלצת המערכת:</strong> ${this.escapeHtml(p.ai_hunter_tip)}
+            </div>
+          ` : ''}
+        `;
+      } else {
+        aiGoalCard.style.display = 'none';
+      }
+    }
+
+    // Render Nutrition Tab AI Directives Banner
+    const nutAiBanner = document.getElementById('nutrition-ai-goal-banner');
+    if (nutAiBanner) {
+      if (p.ai_analysis_headline || p.goal_custom_text) {
+        nutAiBanner.style.display = 'flex';
+        nutAiBanner.innerHTML = `
+          <div class="nut-ai-icon">⚡</div>
+          <div class="nut-ai-content">
+            <div class="nut-ai-title">${this.escapeHtml(p.ai_analysis_headline || 'פרוטוקול AI מותאם אישית פעיל')}</div>
+            <div class="nut-ai-desc">${this.escapeHtml(p.goal_custom_text ? `יעד: "${p.goal_custom_text}"` : (p.ai_hunter_tip || ''))}</div>
+          </div>
+          <button type="button" class="nut-ai-btn" onclick="AppState.openFirstTimeAwakening(true)">התאם יעדים</button>
+        `;
+      } else {
+        nutAiBanner.style.display = 'none';
+      }
     }
 
     // Shift Worker HUD Elements
@@ -1336,6 +1403,25 @@ const AppState = {
 
     const fiberEl = document.getElementById('init-prev-fiber');
     if (fiberEl) fiberEl.innerText = `${fiber}g`;
+
+    // Dynamic target weight alignment based on goal
+    const targetWeightEl = document.getElementById('init-target-weight');
+    if (targetWeightEl) {
+      const tw = parseFloat(targetWeightEl.value);
+      if (goal === 'bulk') {
+        if (!tw || tw <= weight) {
+          targetWeightEl.value = Math.round((weight + 4.0) * 10) / 10;
+        }
+      } else if (goal === 'cut') {
+        if (!tw || tw >= weight) {
+          targetWeightEl.value = Math.round(Math.max(40.0, weight - 4.0) * 10) / 10;
+        }
+      } else if (goal === 'maintain') {
+        if (!tw) {
+          targetWeightEl.value = Math.round(weight * 10) / 10;
+        }
+      }
+    }
   },
 
   async sendAwakeningChat() {
@@ -1541,11 +1627,24 @@ const AppState = {
     const name = document.getElementById('init-name')?.value || 'צייד רום';
     const weight = parseFloat(document.getElementById('init-weight')?.value) || 80;
     const height = parseFloat(document.getElementById('init-height')?.value) || 180;
-    const targetWeight = parseFloat(document.getElementById('init-target-weight')?.value) || (weight - 4);
+    const goal = document.getElementById('init-goal-path')?.value || 'cut';
+
+    let targetWeight = parseFloat(document.getElementById('init-target-weight')?.value);
+    if (goal === 'bulk') {
+      if (!targetWeight || targetWeight <= weight) {
+        targetWeight = Math.round((weight + 4.0) * 10) / 10;
+      }
+    } else if (goal === 'cut') {
+      if (!targetWeight || targetWeight >= weight) {
+        targetWeight = Math.round(Math.max(40.0, weight - 4.0) * 10) / 10;
+      }
+    } else {
+      if (!targetWeight) targetWeight = weight;
+    }
+
     const age = parseInt(document.getElementById('init-age')?.value) || 26;
     const sex = document.getElementById('init-sex')?.value || 'male';
     const activity = document.getElementById('init-activity')?.value || 'moderate';
-    const goal = document.getElementById('init-goal-path')?.value || 'cut';
     const shiftMode = document.getElementById('init-shift-mode')?.value || 'standard';
     const goalText = this.lastAwakeningGoalText || document.getElementById('awakening-chat-input')?.value || '';
 
@@ -1569,6 +1668,9 @@ const AppState = {
       payload.target_fats = this.customAIGoals.target_fats;
       payload.target_water = this.customAIGoals.target_water;
       payload.target_fiber = this.customAIGoals.target_fiber;
+      payload.ai_analysis_headline = this.customAIGoals.analysis_headline || '';
+      payload.ai_explanation = this.customAIGoals.ai_explanation || '';
+      payload.ai_hunter_tip = this.customAIGoals.hunter_rank_tip || '';
     }
 
     const btn = document.getElementById('submit-onboarding-btn');
@@ -3754,11 +3856,64 @@ const AppState = {
     const summaryEl = document.getElementById('lt-status-summary');
     const gridEl = document.getElementById('lt-pillars-grid');
 
-    if (scoreVal) scoreVal.innerText = data.composite_score;
-    if (headlineEl) headlineEl.innerText = data.headline;
-    if (summaryEl) summaryEl.innerText = data.summary;
+    if (scoreVal) scoreVal.innerText = data.composite_score || '--';
+    if (headlineEl) headlineEl.innerText = data.headline || '';
+    if (summaryEl) summaryEl.innerText = data.summary || '';
 
-    if (!gridEl || !data.pillars) return;
+    if (!gridEl) return;
+
+    // Check if user is a beginner with insufficient logged days (< 3 days)
+    if (data.has_sufficient_data === false || !data.pillars) {
+      const b = data.beginner_onboarding || {
+        title: 'מנוע ה-AI צובר נתונים ביולוגיים',
+        subtitle: `תיעדת ${data.logged_days_count || 0} מתוך 3 ימי מעקב נדרשים`,
+        description: 'התחלת את המסע שלך לאחרונה! כדי לספק תובנות ארוכות טווח מדויקות ואמינות (עומס אימונים, מגמת גירעון/עודף קלורי, דינמיקת דופמין והתאוששות), המערכת דורשת לפחות 3 ימי תיעוד מלאים.',
+        unlock_list: [
+          'עקומות מגמה של קלוריות, חלבון והוצאה אנרגטית יומית (MPS & TDEE)',
+          'מדד מאזן נוזלים ואינדקס הידרציה כרוני (Hydration Baseline)',
+          'התאוששות ודינמיקת רגישות קולטנים (Attent / Drug Holidays & HRV)',
+          'מדד עומס שבועי והתקדמות כוח ענקים (Weekly Volume Load)'
+        ],
+        action_call: 'המשך לתעד את הארוחות, השתייה והאימונים בימים הקרובים. ברגע שתגיע ל-3 ימים, כל התובנות ייפתחו אוטומטית!'
+      };
+
+      const days = data.logged_days_count || 0;
+      const pct = Math.min(100, Math.round((days / 3) * 100));
+
+      gridEl.innerHTML = `
+        <div class="lt-beginner-onboarding-card">
+          <div class="lt-beg-header">
+            <div class="lt-beg-badge">🌱 שלב צבירת נתונים ביולוגיים (${days}/3 ימים)</div>
+            <h3 class="lt-beg-title">${this.escapeHtml(b.title)}</h3>
+            <p class="lt-beg-sub">${this.escapeHtml(b.subtitle)}</p>
+          </div>
+
+          <div class="lt-beg-progress-section">
+            <div class="lt-beg-progress-labels">
+              <span>ימי פעילות מתועדים: <strong>${days} מתוך 3 ימים</strong></span>
+              <span><strong>${pct}% הושלם</strong></span>
+            </div>
+            <div class="lt-beg-track">
+              <div class="lt-beg-fill" style="width: ${pct}%"></div>
+            </div>
+          </div>
+
+          <p class="lt-beg-desc">${this.escapeHtml(b.description)}</p>
+
+          <div class="lt-beg-unlock-box">
+            <div class="lt-beg-unlock-title">✨ תובנות מדעיות שייפתחו בהגעה ל-3 ימים:</div>
+            <ul class="lt-beg-unlock-items">
+              ${(b.unlock_list || []).map(item => `<li><span class="lt-beg-check">⚡</span> ${this.escapeHtml(item)}</li>`).join('')}
+            </ul>
+          </div>
+
+          <div class="lt-beg-action-box">
+            🎯 <strong>הנחיית המערכת:</strong> ${this.escapeHtml(b.action_call)}
+          </div>
+        </div>
+      `;
+      return;
+    }
 
     const p = data.pillars;
 
@@ -4347,10 +4502,12 @@ const AppState = {
   },
 
   updateBadgePills(unlocked, total) {
+    const u = (unlocked !== undefined && unlocked !== null && !isNaN(unlocked)) ? unlocked : 0;
+    const t = (total !== undefined && total !== null && !isNaN(total)) ? total : 0;
     const pill = document.getElementById('badges-pill-count');
-    if (pill) pill.innerText = `${unlocked}/${total}`;
+    if (pill) pill.innerText = `${u}/${t}`;
     const navPill = document.getElementById('nav-badge-pill');
-    if (navPill) navPill.innerText = unlocked;
+    if (navPill) navPill.innerText = u;
   },
 
   renderAchievements() {

@@ -245,6 +245,18 @@ class Database:
                 c.execute("ALTER TABLE hunter_profile ADD COLUMN goal_custom_text TEXT DEFAULT ''")
             except Exception:
                 pass
+            try:
+                c.execute("ALTER TABLE hunter_profile ADD COLUMN ai_analysis_headline TEXT DEFAULT ''")
+            except Exception:
+                pass
+            try:
+                c.execute("ALTER TABLE hunter_profile ADD COLUMN ai_explanation TEXT DEFAULT ''")
+            except Exception:
+                pass
+            try:
+                c.execute("ALTER TABLE hunter_profile ADD COLUMN ai_hunter_tip TEXT DEFAULT ''")
+            except Exception:
+                pass
 
 
             # Food items table
@@ -2110,6 +2122,40 @@ class HunterLongTermScienceEngine:
                 supp_map[d] = []
             supp_map[d].append(dict(r))
 
+        # Detect if user is a beginner with insufficient tracking history
+        logged_dates = set(
+            list(nutrition_map.keys()) +
+            list(garmin_map.keys()) +
+            list(attent_map.keys()) +
+            list(workout_map.keys()) +
+            list(water_map.keys()) +
+            list(supp_map.keys())
+        )
+        logged_days_count = len(logged_dates)
+
+        if logged_days_count < 3:
+            return {
+                "window_days": window_days,
+                "has_sufficient_data": False,
+                "logged_days_count": logged_days_count,
+                "min_required_days": 3,
+                "composite_score": "--",
+                "headline": "מנוע ה-AI צובר נתונים ביולוגיים",
+                "summary": f"תיעדת {logged_days_count} מתוך 3 ימי מעקב ראשוניים",
+                "beginner_onboarding": {
+                    "title": "מנוע התובנות ארוכות-הטווח צובר נתונים",
+                    "subtitle": f"תיעדת {logged_days_count} מתוך 3 ימי מעקב נדרשים",
+                    "description": "התחלת את המסע שלך במערכת רק לאחרונה! כדי להציג תובנות ארוכות טווח מדויקות ואמינות (עומס אימונים, מגמת גירעון/עודף קלורי, דינמיקת דופמין והתאוששות), המערכת דורשת לפחות 3 ימי תיעוד מלאים.",
+                    "unlock_list": [
+                        "עקומות מגמה של קלוריות, חלבון והוצאה אנרגטית יומית (MPS & TDEE)",
+                        "מדד מאזן נוזלים ואינדקס הידרציה כרוני (Hydration Baseline)",
+                        "התאוששות ודינמיקת רגישות קולטנים (Attent / Drug Holidays & HRV)",
+                        "מדד עומס שבועי והתקדמות כוח ענקים (Weekly Volume Load)"
+                    ],
+                    "action_call": "המשך לתעד את הארוחות, השתייה והאימונים בימים הקרובים. ברגע שתגיע ל-3 ימים, כל התובנות ייפתחו אוטומטית!"
+                }
+            }
+
         # Pillar 1: Attent & Dopamine Dynamics
         attent_days_count = len(attent_map)
         drug_holidays_count = total_days - attent_days_count
@@ -2353,6 +2399,8 @@ class HunterLongTermScienceEngine:
 
         return {
             "window_days": window_days,
+            "has_sufficient_data": True,
+            "logged_days_count": logged_days_count,
             "start_date": start_date_str,
             "end_date": today,
             "composite_score": composite_score,
@@ -2860,10 +2908,21 @@ class GoalAdvisorAI:
                         text = text.strip()
                     res = json.loads(text)
                     if "target_calories" in res and "target_protein" in res:
+                        g_type = res.get("goal_type", "cut")
+                        calc_tw = target_weight
+                        if not calc_tw:
+                            if g_type == "bulk": calc_tw = round(weight + 4.0, 1)
+                            elif g_type == "cut": calc_tw = round(max(40.0, weight - 4.0), 1)
+                            else: calc_tw = round(weight, 1)
+                        elif g_type == "bulk" and calc_tw <= weight:
+                            calc_tw = round(weight + 4.0, 1)
+                        elif g_type == "cut" and calc_tw >= weight:
+                            calc_tw = round(max(40.0, weight - 4.0), 1)
+
                         res["detected_weight"] = weight
                         res["detected_height"] = height
                         res["detected_age"] = age
-                        if target_weight: res["detected_target_weight"] = target_weight
+                        res["detected_target_weight"] = calc_tw
                         return res
                 except Exception as e:
                     print(f"GoalAdvisorAI error with {model}: {e}")
@@ -2874,10 +2933,21 @@ class GoalAdvisorAI:
         fallback_profile["height"] = height
         fallback_profile["age"] = age
         res = cls.fallback_scientific_calculation(goal_text, fallback_profile)
+        g_type = res.get("goal_type", "cut")
+        calc_tw = target_weight
+        if not calc_tw:
+            if g_type == "bulk": calc_tw = round(weight + 4.0, 1)
+            elif g_type == "cut": calc_tw = round(max(40.0, weight - 4.0), 1)
+            else: calc_tw = round(weight, 1)
+        elif g_type == "bulk" and calc_tw <= weight:
+            calc_tw = round(weight + 4.0, 1)
+        elif g_type == "cut" and calc_tw >= weight:
+            calc_tw = round(max(40.0, weight - 4.0), 1)
+
         res["detected_weight"] = weight
         res["detected_height"] = height
         res["detected_age"] = age
-        if target_weight: res["detected_target_weight"] = target_weight
+        res["detected_target_weight"] = calc_tw
         return res
 
     @classmethod
@@ -3317,14 +3387,27 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
 
     def handle_post_awakening(self, body):
         try:
+            goal = body.get("goal", "maintain")
             name = body.get("name", "צייד רום")
             weight = float(body.get("weight", 78.0))
             height = float(body.get("height", 178.0))
-            target_weight = float(body.get("target_weight", 74.0)) if body.get("target_weight") else 74.0
+            target_weight = float(body.get("target_weight", 0)) if body.get("target_weight") else 0
+            if goal == "bulk":
+                if target_weight <= weight or target_weight == 0:
+                    target_weight = round(weight + 4.0, 1)
+            elif goal == "cut":
+                if target_weight == 0 or target_weight >= weight:
+                    target_weight = round(max(40.0, weight - 4.0), 1)
+            else:
+                if target_weight == 0:
+                    target_weight = round(weight, 1)
+
+            ai_analysis_headline = str(body.get("ai_analysis_headline", "")).strip()
+            ai_explanation = str(body.get("ai_explanation", "")).strip()
+            ai_hunter_tip = str(body.get("ai_hunter_tip", "")).strip()
             age = int(body.get("age", 25))
             sex = body.get("sex", "male")
             activity = body.get("activity_level", "moderate")
-            goal = body.get("goal", "cut")
             shift_mode = body.get("shift_mode", "standard")
             day_reset_hour = 8 if shift_mode == "night" else 0
             goal_custom_text = str(body.get("goal_custom_text", "")).strip()
@@ -3356,13 +3439,15 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                     body_fat_pct = ?, bmr = ?, tdee = ?, target_calories = ?, target_protein = ?,
                     target_carbs = ?, target_fats = ?, target_water = ?, target_fiber = ?,
                     shift_mode = ?, day_reset_hour = ?, is_awakened = 1, goal_custom_text = ?,
+                    ai_analysis_headline = ?, ai_explanation = ?, ai_hunter_tip = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id=1
                 """, (
                     name, weight, height, target_weight, age, sex, activity, goal, body_fat or 0,
                     sci["bmr"], sci["tdee"], target_calories, target_protein,
                     target_carbs, target_fats, target_water, target_fiber,
-                    shift_mode, day_reset_hour, goal_custom_text
+                    shift_mode, day_reset_hour, goal_custom_text,
+                    ai_analysis_headline, ai_explanation, ai_hunter_tip
                 ))
                 conn.commit()
 
@@ -3395,7 +3480,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             allowed = [
                 "name", "title", "target_calories", "target_protein", "target_carbs", 
                 "target_fats", "target_water", "target_fiber", "fatigue", "shift_mode", "day_reset_hour",
-                "target_weight", "is_awakened", "goal_custom_text", "weight", "height", "age", "sex", "activity_level", "goal"
+                "target_weight", "is_awakened", "goal_custom_text", "weight", "height", "age", "sex", "activity_level", "goal",
+                "ai_analysis_headline", "ai_explanation", "ai_hunter_tip"
             ]
             fields = []
             values = []
@@ -3571,7 +3657,9 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 "total_workouts": total_workouts,
                 "achievements_summary": {
                     "unlocked": ach_unlocked,
-                    "total": ach_total
+                    "total": ach_total,
+                    "unlocked_count": ach_unlocked,
+                    "total_count": ach_total
                 },
                 "health_advisor": health_adv,
                 "stats_live": {
@@ -4355,6 +4443,9 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                     title = 'צייד שהתעורר (Awakened Novice)',
                     is_awakened = 0,
                     goal_custom_text = '',
+                    ai_analysis_headline = '',
+                    ai_explanation = '',
+                    ai_hunter_tip = '',
                     stats_str = 10,
                     stats_agi = 10,
                     stats_vit = 10,

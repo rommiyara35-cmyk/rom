@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
   <link rel="apple-touch-icon" href="/icons/icon.svg">
   <title>Solo Leveling | The System</title>
-  <link rel="stylesheet" href="/styles.css?v=16">
+  <link rel="stylesheet" href="/styles.css?v=17">
   <!-- ZXing Industry-Standard Multi-Format Barcode Scanner (EAN-13, EAN-8, UPC, Code 128) -->
   <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 </head>
@@ -186,6 +186,9 @@
           </button>
         </div>
 
+        <!-- ACTIVE AI GOAL & SYSTEM DIRECTIVES CARD -->
+        <div id="active-ai-goal-card" class="active-ai-goal-card" style="display:none;"></div>
+
         <!-- STATUS ATTRIBUTES (STR, AGI, VIT, INT, PER) -->
         <div class="status-grid">
           <div class="stat-item" title="Strength - מונע ע&quot;י צריכת חלבון">
@@ -292,6 +295,9 @@
            4. NUTRITION PANEL (חלונית תזונה וקלוריות)
            ======================================================== -->
       <div id="panel-nutrition" class="tab-panel">
+        <!-- NUTRITION ACTIVE AI GOAL BANNER -->
+        <div id="nutrition-ai-goal-banner" class="nutrition-ai-goal-banner" style="display:none;"></div>
+
         <!-- CALORIE COCKPIT -->
         <section class="nutrition-cockpit" id="nutrition-cockpit">
           <div class="calorie-circle-wrap">
@@ -2118,6 +2124,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=16"></script>
+  <script src="/app.js?v=17"></script>
 </body>
 </html>
