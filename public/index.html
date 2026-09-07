@@ -1284,9 +1284,14 @@
         <span class="modal-title">🔍 AI זיהוי מזון מתמונה</span>
         <button class="close-modal-btn" onclick="AppState.closeVisionModal()">✕</button>
       </div>
-      <div id="vision-loading" style="text-align:center; padding:40px 20px; display:none;">
+      <div id="vision-loading" style="text-align:center; padding:30px 20px; display:none;">
         <div style="font-size:40px; animation: spin 1s linear infinite; display:inline-block;">⚙️</div>
-        <div style="color:#a78bfa; margin-top:12px; font-size:14px;">AI מנתח את התמונה...</div>
+        <div id="vision-loading-text" style="color:#a78bfa; margin-top:12px; font-size:14px; font-weight:600;">AI מנתח את הארוחה...</div>
+        <div style="margin-top:18px;">
+          <button type="button" onclick="AppState.closeVisionModal()" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); border-radius:10px; color:#e2e8f0; padding:8px 20px; cursor:pointer; font-size:13px;">
+            ביטול
+          </button>
+        </div>
       </div>
       <div id="vision-results-body" style="padding:16px; display:none;">
         <div id="vision-meal-desc" style="font-size:13px; color:#a78bfa; margin-bottom:12px; padding:8px 12px; background:rgba(124,58,237,0.1); border-radius:8px; border-right:3px solid #7c3aed;"></div>

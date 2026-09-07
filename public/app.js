@@ -2495,9 +2495,11 @@ const AppState = {
     if (loading) loading.style.display = 'block';
     if (resultsBody) resultsBody.style.display = 'none';
     if (errorDiv) errorDiv.style.display = 'none';
-    // Update modal title to indicate chat mode
+    // Update modal title and loading text to indicate chat mode
     const titleEl = modal ? modal.querySelector('.modal-title') : null;
     if (titleEl) titleEl.textContent = '🤖 AI ניתח את הארוחה';
+    const loadTextEl = document.getElementById('vision-loading-text');
+    if (loadTextEl) loadTextEl.textContent = 'AI מנתח את הארוחה...';
 
     // Clear input immediately for good UX
     if (inp) inp.value = '';
@@ -2544,6 +2546,8 @@ const AppState = {
     if (errorDiv) errorDiv.style.display = 'none';
     const titleEl = modal ? modal.querySelector('.modal-title') : null;
     if (titleEl) titleEl.textContent = '🔍 AI זיהוי מזון מתמונה';
+    const loadTextEl = document.getElementById('vision-loading-text');
+    if (loadTextEl) loadTextEl.textContent = 'AI מנתח את התמונה...';
 
     try {
       // Convert file to base64

@@ -2442,7 +2442,100 @@ class FoodChatAI:
             except Exception as e:
                 last_error = f"Gemini ({model}) error: {e}"
 
+        # If Gemini API failed or was rejected by policy (e.g. 403), use local smart parser from database!
+        local_result = cls.fallback_parse_from_db(user_text)
+        if local_result and local_result.get("items"):
+            return local_result
+
         return {"error": last_error, "items": []}
+
+    @classmethod
+    def fallback_parse_from_db(cls, user_text: str) -> dict:
+        """Rule-based local parser extracting foods from SQLite database for reliable zero-latency results."""
+        import re
+        FOOD_RULES = [
+            (r'חזה\s*עוף|עוף\s*צלוי', 'חזה עוף מבושל / צלוי', 150),
+            (r'חלבון\s*ביצה', 'חלבון ביצה (חלבון בלבד)', 33),
+            (r'חלמון\s*ביצה', 'חלמון ביצה בלבד (כ-20 גרם)', 20),
+            (r'חביתה', 'חביתה מ-2 ביצים עם כפית שמן זית', 100),
+            (r'ביצ(?:ה|ים|ות)', 'ביצה גדולה שלמה (L)', 50),
+            (r'אורז\s*מלא', 'אורז מלא מבושל עתיר סיבים', 150),
+            (r'פריכיו?ת\s*אורז', 'פריכיות אורז (3 יחידות כ-25 גרם)', 25),
+            (r'אורז\s*בסמטי|אורז\s*לבן|אורז', 'אורז בסמטי לבן מבושל', 150),
+            (r'טונה', 'טונה בהירה במים (מסוננת)', 100),
+            (r'קוטג[\'׳]?', 'גבינת קוטג 5%', 125),
+            (r'גבינה\s*לבנה', 'גבינה לבנה למריחה 5% (סקי / תנובה)', 100),
+            (r'גבינה\s*צהובה|צהובה', 'גבינה צהובה עמק 28% (פרוסה 28g)', 28),
+            (r'שיבולת\s*שועל|קוואקר', 'שיבולת שועל (קוואקר לא מבושל)', 50),
+            (r'אבקת\s*חלבון|סקופ\s*חלבון|סקופ', 'אבקת חלבון מי גבינה (סקופ)', 30),
+            (r'אבוקדו', 'אבוקדו (חצי אבוקדו)', 70),
+            (r'בננ(?:ה|ות)', 'בננה בינונית', 120),
+            (r'תפוח\s*אדמה', 'תפוח אדמה אפוי / מבושל', 150),
+            (r'בטט(?:ה|ות)', 'בטטה אפויה בתנור', 150),
+            (r'תפוח(?:\s*עץ)?', 'תפוח עץ בינוני', 180),
+            (r'פית(?:ה|ות)', 'פיתה לבנה רגילה (יחידה אחת כ-100 גרם)', 100),
+            (r'לחם|פרוס(?:ה|ות)\s*לחם', 'פרוסת לחם מלא 100%', 35),
+            (r'שמן\s*זית', 'שמן זית כתית מעולה (כף)', 10),
+            (r'טחינה', 'טחינה גולמית משומשום מלא (כף 15g)', 15),
+            (r'חומוס', 'חומוס מוכן למריחה (צבר / אחלה - כף 30g)', 30),
+            (r'יוגורט|דנונה\s*פרו|יופלה', 'יוגורט דנונה PRO מועשר 20g חלבון (גביע)', 200),
+            (r'סלמון', 'פילה סלמון אפוי בתנור', 150),
+            (r'בקר|סטייק|המבורגר', 'סטייק סינטה בקר צלוי', 150),
+            (r'שקשוקה', 'שקשוקה ביתית מ-2 ביצים ברוטב עגבניות ופלפלים', 200),
+        ]
+
+        try:
+            with Database.get_connection() as conn:
+                c = conn.cursor()
+                c.execute("SELECT id, name, name_he, calories, protein, carbs, fats, serving_size_g FROM food_items")
+                foods = [dict(r) for r in c.fetchall()]
+
+            text_lower = user_text.lower()
+            matched = []
+            for pat, db_name, default_g in FOOD_RULES:
+                m = re.search(pat, text_lower)
+                if m:
+                    item = next((f for f in foods if f['name_he'] == db_name), None)
+                    if item and not any(x['name_he'] == db_name for x in matched):
+                        start_pos = max(0, m.start() - 15)
+                        end_pos = min(len(text_lower), m.end() + 15)
+                        context_str = text_lower[start_pos:end_pos]
+
+                        num_m = re.search(r'(\d+)\s*(?:גרם|ג[\'׳]?|g)?', context_str)
+                        grams = default_g
+                        if num_m:
+                            val = float(num_m.group(1))
+                            if 'גרם' in context_str or val > 20:
+                                grams = val
+                            else:
+                                grams = default_g * val
+                        elif 'חצי' in context_str:
+                            grams = round(default_g * 0.5)
+
+                        ratio = grams / (item['serving_size_g'] or 100)
+                        matched.append({
+                            'name_he': item['name_he'],
+                            'name_en': item['name'],
+                            'estimated_grams': round(grams),
+                            'calories': round(item['calories'] * ratio),
+                            'protein': round(item['protein'] * ratio, 1),
+                            'carbs': round(item['carbs'] * ratio, 1),
+                            'fats': round(item['fats'] * ratio, 1),
+                            'confidence': 'high'
+                        })
+
+            if matched:
+                return {
+                    'items': matched,
+                    'meal_description': user_text,
+                    'total_calories': sum(i['calories'] for i in matched),
+                    'total_protein': round(sum(i['protein'] for i in matched), 1),
+                    'total_carbs': round(sum(i['carbs'] for i in matched), 1),
+                    'total_fats': round(sum(i['fats'] for i in matched), 1)
+                }
+        except Exception as err:
+            print(f"Error in local fallback parse: {err}")
+        return None
 
 
 # -------------------------------------------------------------
