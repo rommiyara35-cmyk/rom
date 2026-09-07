@@ -108,9 +108,11 @@ const AppState = {
   customAIGoals: null,
 
   async init() {
-    // Setup Service Worker
+    // Setup Service Worker with force update
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js').catch(console.error);
+      navigator.serviceWorker.register('/service-worker.js?v=16').then((reg) => {
+        reg.update();
+      }).catch(console.error);
     }
 
     // Load sound toggle state
