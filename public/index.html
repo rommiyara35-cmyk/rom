@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
   <link rel="apple-touch-icon" href="/icons/icon.svg">
   <title>Solo Leveling | The System</title>
-  <link rel="stylesheet" href="/styles.css?v=17">
+  <link rel="stylesheet" href="/styles.css?v=18">
   <!-- ZXing Industry-Standard Multi-Format Barcode Scanner (EAN-13, EAN-8, UPC, Code 128) -->
   <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 </head>
@@ -188,6 +188,9 @@
 
         <!-- ACTIVE AI GOAL & SYSTEM DIRECTIVES CARD -->
         <div id="active-ai-goal-card" class="active-ai-goal-card" style="display:none;"></div>
+
+        <!-- ACTIVE AI RECOMMENDATIONS CONTAINER -->
+        <div id="profile-ai-recs-container"></div>
 
         <!-- STATUS ATTRIBUTES (STR, AGI, VIT, INT, PER) -->
         <div class="status-grid">
@@ -439,6 +442,9 @@
             </button>
           </div>
         </section>
+
+        <!-- NUTRITION AI RECOMMENDATIONS CONTAINER -->
+        <div id="nutrition-ai-recs-container"></div>
 
         <!-- QUICK POTIONS / INVENTORY -->
         <section class="inventory-section">
@@ -1916,6 +1922,63 @@
     </button>
   </nav>
 
+  <!-- FLOATING AI CONSULTATION BUTTON -->
+  <button id="floating-ai-consult-btn" class="floating-ai-consult-btn" onclick="AppState.openAIConsultationModal()" title="התייעצות עם יועץ המערכת">
+    <span class="ai-dot"></span>
+    <span>💬 יועץ AI</span>
+  </button>
+
+  <!-- INTERACTIVE AI CONSULTATION MODAL -->
+  <div id="ai-consultation-modal" class="ai-consult-modal-overlay" style="display:none;">
+    <div class="ai-consult-container">
+      <!-- Header -->
+      <div class="ai-consult-header">
+        <div class="ai-consult-top-bar">
+          <div class="ai-consult-brand">
+            <div class="ai-consult-avatar">🤖</div>
+            <div class="ai-consult-title-wrap">
+              <span class="ai-consult-title">⚡ יועץ המערכת • System AI Advisor</span>
+              <span class="ai-consult-subtitle">מחובר ישירות לפרופיל הצייד שלך בזמן אמת</span>
+            </div>
+          </div>
+          <button type="button" class="ai-consult-close-btn" onclick="AppState.closeAIConsultationModal()" title="סגור חלון">✕</button>
+        </div>
+        <!-- Live Hunter Status Strip -->
+        <div class="ai-consult-hunter-strip">
+          <span>משקל: <strong id="consult-hunter-weight">83.0</strong> kg</span>
+          <span>• יעד: <strong id="consult-hunter-target">87.0</strong> kg (<span id="consult-hunter-goal" style="color:#a855f7;">מסה נקייה</span>)</span>
+          <span>• קלוריות: <strong id="consult-hunter-cals">2,550</strong> kcal</span>
+          <span>• חלבון: <strong id="consult-hunter-prot">175</strong>g</span>
+          <span>• מים: <strong id="consult-hunter-water">3,300</strong>ml</span>
+        </div>
+      </div>
+
+      <!-- Live Chat Stream -->
+      <div class="ai-consult-stream" id="ai-consult-stream">
+        <!-- Message bubbles dynamically injected by AppState.renderAIConsultStream() -->
+      </div>
+
+      <!-- Quick Prompt Chips -->
+      <div class="ai-consult-chips-wrap">
+        <button type="button" class="consult-chip-btn" onclick="AppState.setAIConsultPrompt('איך כדאי לחלק 175 גרם חלבון לאורך היום בצורה הנוחה ביותר?')">🥩 חלוקת חלבון יומית</button>
+        <button type="button" class="consult-chip-btn" onclick="AppState.setAIConsultPrompt('איך למקסם עלייה במסה נקייה מ-83 ל-87 קילו בלי לצבור שומן מיותר?')">💪 עלייה במסה נקייה</button>
+        <button type="button" class="consult-chip-btn" onclick="AppState.setAIConsultPrompt('מתי הכי נכון לקחת קריאטין 5 גרם והאם צריך לקחת גם בימי מנוחה?')">💊 תזמון קריאטין 5g</button>
+        <button type="button" class="consult-chip-btn" onclick="AppState.setAIConsultPrompt('איך להתמודד עם חוסר תיאבון תחת אטנט (Attent) ועדיין להגיע ליעד הקלוריות?')">🧠 אטנט ותיאבון</button>
+        <button type="button" class="consult-chip-btn" onclick="AppState.setAIConsultPrompt('איך לתזמן ארוחות ושינה סביב משמרות לילה כדי לא לפגוע בהתאוששות ובמסה?')">🌙 משמרות לילה ומסה</button>
+        <button type="button" class="consult-chip-btn" onclick="AppState.setAIConsultPrompt('כמה מים אני צריך לשתות ביום אימון במסה והאם קפה נספר?')">💧 הידרציה ומים</button>
+      </div>
+
+      <!-- Input Row -->
+      <div class="ai-consult-input-row">
+        <input type="text" id="ai-consult-input" class="ai-consult-input" placeholder="שאל שאלה על תזונה, מסה, קריאטין, אטנט, משמרות..." onkeydown="if(event.key==='Enter') AppState.sendAIConsultation()">
+        <button type="button" id="ai-consult-send-btn" class="ai-consult-send-btn" onclick="AppState.sendAIConsultation()">
+          <span>שלח</span>
+          <span>⚡</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- FIRST-TIME HUNTER AWAKENING OVERLAY (מסך התעוררות וצ'אט הגדרת יעדים עם ה-AI) -->
   <div id="first-time-awakening-overlay" class="first-time-awakening-overlay" style="display:none;">
     <div class="awakening-screen-container">
@@ -2124,6 +2187,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=17"></script>
+  <script src="/app.js?v=18"></script>
 </body>
 </html>

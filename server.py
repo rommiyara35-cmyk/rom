@@ -258,6 +258,29 @@ class Database:
             except Exception:
                 pass
 
+            # AI Consultation Messages History
+            c.execute("""
+            CREATE TABLE IF NOT EXISTS ai_chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sender TEXT NOT NULL,
+                message TEXT NOT NULL,
+                recommendations_json TEXT DEFAULT '[]',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+
+            # AI Saved Recommendations & Directives
+            c.execute("""
+            CREATE TABLE IF NOT EXISTS ai_recommendations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                category TEXT DEFAULT 'general',
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+
 
             # Food items table
             c.execute("""
@@ -436,8 +459,64 @@ class Database:
             c.execute("SELECT COUNT(*) FROM hunter_profile WHERE id=1")
             if c.fetchone()[0] == 0:
                 c.execute("""
-                INSERT INTO hunter_profile (id, name, rank, level, exp, exp_to_next, title, last_active_date)
-                VALUES (1, 'צייד רום', 'E-Rank', 1, 0, 300, 'צייד שהתעורר (Awakened)', date('now'))
+                INSERT INTO hunter_profile (
+                    id, name, rank, level, exp, exp_to_next, title, last_active_date,
+                    weight, height, age, sex, activity_level, goal, target_weight,
+                    target_calories, target_protein, target_carbs, target_fats, target_water, target_fiber,
+                    is_awakened, ai_analysis_headline, ai_explanation, ai_hunter_tip, goal_custom_text
+                )
+                VALUES (
+                    1, 'צייד רום', 'E-Rank', 1, 0, 300, 'צייד שהתעורר (Awakened)', date('now'),
+                    83.0, 180.0, 26, 'male', 'moderate', 'bulk', 87.0,
+                    2550, 175, 290, 75, 3300, 32,
+                    1, 'עלייה מבוקרת במסת שריר נקייה', 'המערכת חישבה עודף קלורי מבוקר מעל ה-TDEE לעידוד היפרטרופיה מרבית ושמירה על אחוזי שומן נמוכים.', 'הקפד על 3,300 מ\"ל מים, 175g חלבון, 5g קריאטין יומי ואימוני כוח עצימים.', 'עלייה במסת שריר נקייה'
+                )
+                """)
+            else:
+                # If profile exists but is unawakened (is_awakened=0), auto-awaken with bulk targets
+                c.execute("SELECT is_awakened, goal, target_weight, weight FROM hunter_profile WHERE id=1")
+                p_row = c.fetchone()
+                if p_row and (p_row[0] == 0 or (p_row[1] == 'bulk' and (p_row[2] is None or p_row[2] <= (p_row[3] or 83.0)))):
+                    c.execute("""
+                    UPDATE hunter_profile SET
+                        weight = 83.0,
+                        target_weight = 87.0,
+                        goal = 'bulk',
+                        is_awakened = 1,
+                        target_calories = 2550,
+                        target_protein = 175,
+                        target_carbs = 290,
+                        target_fats = 75,
+                        target_water = 3300,
+                        target_fiber = 32,
+                        ai_analysis_headline = 'עלייה מבוקרת במסת שריר נקייה',
+                        ai_explanation = 'המערכת חישבה עודף קלורי מבוקר מעל ה-TDEE לעידוד היפרטרופיה מרבית ושמירה על אחוזי שומן נמוכים.',
+                        ai_hunter_tip = 'הקפד על 3,300 מ\"ל מים, 175g חלבון, 5g קריאטין יומי ואימוני כוח עצימים.',
+                        goal_custom_text = 'עלייה במסת שריר נקייה'
+                    WHERE id = 1
+                    """)
+
+            # Seed initial AI directive if recommendations table is empty
+            c.execute("SELECT COUNT(*) FROM ai_recommendations")
+            if c.fetchone()[0] == 0:
+                c.execute("""
+                INSERT INTO ai_recommendations (title, content, category, is_active)
+                VALUES 
+                ('פרוטוקול היפרטרופיה ומסה נקייה', 'שמור על עודף קלורי יומי מבוקר (יעד 2,550 kcal) וסגור 175g חלבון יומי לחלוקה של 4-5 ארוחות.', 'nutrition', 1),
+                ('הידרציה והתאוששות שריר', 'שתה לפחות 3,300 מ\"ל מים ביום לתמיכה בנפח התא השרירי ופינוי חומרי פסולת.', 'hydration', 1),
+                ('קריאטין מונוהידראט יומי', 'צרוך 5 גרם קריאטין מונוהידראט באופן יומי ורציף (כולל ימי מנוחה) לרוויית מאגרי הפוספוקריאטין בשריר.', 'supplements', 1)
+                """)
+
+            # Seed initial chat message if ai_chat_messages is empty
+            c.execute("SELECT COUNT(*) FROM ai_chat_messages")
+            if c.fetchone()[0] == 0:
+                c.execute("""
+                INSERT INTO ai_chat_messages (sender, message, recommendations_json)
+                VALUES (
+                    'system',
+                    'שלום צייד! המערכת זיהתה את התעוררותך. אני ה-AI של המערכת, כאן ללוות אותך 24/7 בהגעה ליעד של 87.0 ק\"ג מסה נקייה. תוכל לשאול אותי בכל שלב: מה לאכול עכשיו, איך לתזמן תוספים, איך להתמודד עם עייפות או משמרות לילה, ולעדכן יעדים!',
+                    '[{"title": "פרוטוקול היפרטרופיה ומסה נקייה", "content": "שמור על עודף קלורי מבוקר וסגור 175g חלבון יומי", "category": "nutrition"}]'
+                )
                 """)
 
             # Populate and sync food_items from food_database.json
@@ -3013,6 +3092,393 @@ class GoalAdvisorAI:
 
 
 # -------------------------------------------------------------
+# Hunter AI Interactive Consultation & Directives Engine
+# -------------------------------------------------------------
+class HunterAIConsultant:
+    MODELS = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-pro"]
+
+    @classmethod
+    def consult(cls, conn, user_message: str, chat_history: list = None) -> dict:
+        c = conn.cursor()
+        c.execute("SELECT * FROM hunter_profile WHERE id = 1")
+        prof_row = c.fetchone()
+        prof = dict(prof_row) if prof_row else {}
+        today = get_hunter_shift_date(conn)
+
+        # Today's nutrition
+        c.execute("SELECT COALESCE(SUM(calories), 0) as cal, COALESCE(SUM(protein), 0) as prot, COALESCE(SUM(carbs), 0) as carb, COALESCE(SUM(fats), 0) as fat FROM daily_logs WHERE date = ?", (today,))
+        nut_row = c.fetchone()
+        nut = dict(nut_row) if nut_row else {}
+
+        # Today's water
+        c.execute("SELECT COALESCE(SUM(amount_ml), 0) as water FROM water_logs WHERE date = ?", (today,))
+        water_row = c.fetchone()
+        water = water_row["water"] if water_row else 0
+
+        # Today's supplements
+        c.execute("SELECT name, dosage, unit FROM supplements_log WHERE date = ?", (today,))
+        supps = [f"{r['name']} ({r['dosage']}{r['unit']})" for r in c.fetchall()]
+
+        # Generate consultation reply
+        result = cls._generate_reply(
+            user_message=user_message,
+            profile=prof,
+            today_nutrition=nut,
+            today_water=water,
+            today_supplements=supps,
+            chat_history=chat_history or []
+        )
+
+        # 1. Save user message to database
+        c.execute("INSERT INTO ai_chat_messages (sender, message) VALUES (?, ?)", ("user", user_message))
+
+        # 2. Save system reply to database
+        recs_json = json.dumps(result.get("recommendations", []), ensure_ascii=False)
+        c.execute("INSERT INTO ai_chat_messages (sender, message, recommendations_json) VALUES (?, ?, ?)", 
+                  ("system", result["reply"], recs_json))
+
+        # 3. Save recommendations to active directives table
+        for rec in result.get("recommendations", []):
+            title = rec.get("title", "הנחיית צייד")
+            content = rec.get("content", rec.get("text", ""))
+            category = rec.get("category", "nutrition")
+            if content:
+                c.execute("SELECT id FROM ai_recommendations WHERE title = ? AND is_active = 1", (title,))
+                if not c.fetchone():
+                    c.execute("INSERT INTO ai_recommendations (title, content, category, is_active) VALUES (?, ?, ?, 1)",
+                              (title, content, category))
+
+        # 4. If suggested targets exist, apply them
+        if result.get("suggested_targets"):
+            st = result["suggested_targets"]
+            fields = []
+            vals = []
+            for k in ["target_calories", "target_protein", "target_carbs", "target_fats", "target_water", "target_weight"]:
+                if k in st and st[k]:
+                    fields.append(f"{k} = ?")
+                    vals.append(st[k])
+            if fields:
+                vals.append(1)
+                c.execute(f"UPDATE hunter_profile SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", vals)
+
+        # Also update headline/tip on profile if provided
+        if result.get("headline"):
+            c.execute("UPDATE hunter_profile SET ai_analysis_headline = ?, ai_hunter_tip = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
+                      (result["headline"], result.get("tip", prof.get("ai_hunter_tip", ""))))
+
+        conn.commit()
+
+        # Fetch latest active recommendations to return with response
+        result["active_recommendations"] = cls.get_recommendations(conn)
+        return result
+
+    @classmethod
+    def _generate_reply(cls, user_message: str, profile: dict, today_nutrition: dict, today_water: int, today_supplements: list, chat_history: list) -> dict:
+        weight = float(profile.get("weight", 83.0))
+        target_weight = float(profile.get("target_weight", 87.0))
+        goal = profile.get("goal", "bulk")
+        target_calories = profile.get("target_calories", 2550)
+        target_protein = profile.get("target_protein", 175)
+        cur_cal = round(today_nutrition.get("cal", 0))
+        cur_prot = round(today_nutrition.get("prot", 0), 1)
+
+        # 1. Try Gemini AI if API key is configured
+        if GEMINI_API_KEY and user_message.strip():
+            sys_prompt = f"""אתה ה-System AI של הצייד (Solo Leveling System AI Consultant).
+פרופיל הצייד:
+- משקל נוכחי: {weight} ק"ג
+- משקל יעד: {target_weight} ק"ג
+- מטרת העל: {goal} (עלייה במסת שריר נקייה והיפרטרופיה)
+- יעד קלורי יומי: {target_calories} kcal (נצרכו היום: {cur_cal} kcal)
+- יעד חלבון יומי: {target_protein}g (נצרכו היום: {cur_prot}g)
+- יעד מים: {profile.get('target_water', 3300)} ml (נצרכו היום: {today_water} ml)
+- תוספים שנלקחו היום: {', '.join(today_supplements) if today_supplements else 'עדיין לא נרשמו תוספים'}
+- משמרת נוכחית: {'משמרת לילה' if profile.get('shift_mode') == 'night' else 'משמרת יום רגילה'}
+
+הנחיות:
+- ענה בעברית טבעית, שוטפת, מקצועית ומעצימה בסגנון מערכת ה-Solo Leveling.
+- פנה אל המשתמש כ"צייד".
+- החזר תשובה בפורמט JSON בלבד:
+{{
+  "reply": "מענה מפורט ומנומק של 2-4 פסקאות מקצועיות, קולחות ומעשיות",
+  "headline": "כותרת קצרה וממוקדת לנושא (למשל: פרוטוקול תזמון פחמימות ועודף קלורי)",
+  "tip": "טיפ מעשי ממוקד לפעולה מיידית",
+  "recommendations": [
+    {{
+      "title": "כותרת ההמלצה (למשל: תזמון חלבון סביב השינה)",
+      "content": "תוכן מעשי ומפורט להמלצה",
+      "category": "nutrition / training / supplements / recovery / hydration"
+    }}
+  ],
+  "suggested_targets": {{}},
+  "followup_chips": ["שאלה להמשך 1", "שאלה להמשך 2"]
+}}
+"""
+            payload = {
+                "contents": [
+                    {"role": "user", "parts": [{"text": sys_prompt + f"\n\nשאלת הצייד: {user_message}"}]}
+                ],
+                "generationConfig": {
+                    "temperature": 0.3,
+                    "maxOutputTokens": 1024
+                }
+            }
+            payload_bytes = json.dumps(payload).encode("utf-8")
+            for model in cls.MODELS:
+                try:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+                    req = urllib.request.Request(url, data=payload_bytes, headers={"Content-Type": "application/json"}, method="POST")
+                    with urllib.request.urlopen(req, timeout=12, context=_get_ssl_context()) as resp:
+                        raw = resp.read().decode("utf-8")
+                    d = json.loads(raw)
+                    parts = d.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                    txt = "".join(p.get("text", "") for p in parts).strip()
+                    if txt.startswith("```"):
+                        txt = txt.split("```")[1]
+                        if txt.startswith("json"): txt = txt[4:]
+                        txt = txt.strip()
+                    parsed = json.loads(txt)
+                    if "reply" in parsed:
+                        return parsed
+                except Exception as e:
+                    print(f"HunterAIConsultant error with {model}: {e}")
+
+        # 2. Rich Built-in Hunter Science Knowledge Base (Semantic Engine)
+        return cls._fallback_consultation_reply(user_message, profile, today_nutrition, today_water, today_supplements)
+
+    @classmethod
+    def _fallback_consultation_reply(cls, msg: str, profile: dict, nut: dict, water: int, supps: list) -> dict:
+        weight = float(profile.get("weight", 83.0))
+        target_weight = float(profile.get("target_weight", 87.0))
+        goal = profile.get("goal", "bulk")
+        target_calories = profile.get("target_calories", 2550)
+        target_protein = profile.get("target_protein", 175)
+        cur_cal = round(nut.get("cal", 0))
+        cur_prot = round(nut.get("prot", 0), 1)
+        rem_prot = max(0.0, round(target_protein - cur_prot, 1))
+        rem_cal = max(0, round(target_calories - cur_cal))
+
+        text = (msg or "").lower()
+
+        # Category 1: Protein & Food options
+        if any(w in text for w in ["חלבון", "מה לאכול", "ארוחה", "אוכל", "תפריט", "רעב", "להגיע ליעד"]):
+            if rem_prot > 0:
+                prot_status = f"כרגע חסרים לך עוד **{rem_prot}g חלבון** להגעה ליעד היומי ({cur_prot}g מתוך {target_protein}g)."
+            else:
+                prot_status = f"מעולה צייד! עמדת ביעד החלבון היומי עם **{cur_prot}g** (יעד {target_protein}g)."
+
+            reply = f"""שלום צייד! המערכת ניתחה את מצב התזונה שלך להיום.
+
+{prot_status}
+
+לבנייה מרבית של מסת שריר (mTOR activation) בתוכנית המסה שלך (משקל {weight} ק"ג $\\rightarrow$ יעד {target_weight} ק"ג), הנה מקורות החלבון המהירים והאופטימליים ביותר לשילוב עכשיו:
+1. **חזה עוף / הודו צלוי (150 גרם):** מעניק כ-45g חלבון איכותי ודל בשומן.
+2. **גביע קוטג' 3%-5% (250 גרם):** מספק 25-28g חלבון קזאין איטי הנספג לאורך שעות הלילה.
+3. **שייק חלבון מי גבינה (סקופ אחד 30 גרם):** 25-27g חלבון עם ספיגה מיידית וריכוז לויצין גבוה.
+4. **טונה במים (פחית אחת) + 2 ביצים:** מספקת כ-38g חלבון עם שומנים בריאים."""
+            headline = "פרוטוקול סגירת חלבון והיפרטרופיה"
+            tip = f"חלק את {rem_prot or 40}g החלבון שנותרו לארוחה אחת עשירה או שייק מרוכז סמוך לשינה."
+            recs = [
+                {"title": "השלמת מנת חלבון יומית", "content": f"סגור לפחות {rem_prot or 35}g חלבון מארוחה עשירה (עוף/קוטג'/שייק) להגעה ל-{target_protein}g.", "category": "nutrition"},
+                {"title": "תזמון חלבון לשינה", "content": "צריכת 25-30g חלבון קזאין (קוטג'/יוגורט יווני) לפני השינה מגנה מפני פירוק שרירי בלילה.", "category": "nutrition"}
+            ]
+            chips = ["אילו עוד מזונות עשירים בחלבון?", "איך לתזמן פחמימות סביב אימון?", "כמה קלוריות נותרו לי היום?"]
+
+        # Category 2: Bulk, Muscle Building & Targets
+        elif any(w in text for w in ["מסה", "לעלות", "שריר", "משקל יעד", "להתחזק", "היפרטרופיה", "bulk"]):
+            reply = f"""הוראות מערכת מיוחדות לצייד בפרוטוקול **עלייה במסה נקייה (Clean Hypertrophy)**:
+
+היעד המוגדר שלך הוא עלייה מבוקרת מ-**{weight} ק"ג** למשקל יעד של **{target_weight} ק"ג**.
+במסה נקייה, המטרה היא להשיג קצב עלייה של כ-**1 עד 1.5 ק"ג לחודש**, כך שהעלייה תהיה כמעט כולה ברקמת שריר ולא בשומן.
+
+**עקרונות המפתח של הפרוטוקול:**
+1. **עודף קלורי מדוד (Surplus):** היעד שלך הוא **{target_calories} קלוריות**. נותרו לך עוד **{rem_cal} kcal** היום.
+2. **סף חלבון מיטבי:** {target_protein}g חלבון ביום (כ-2.1g לק"ג), מחולק ל-4 ארוחות עיקריות.
+3. **תזמון פחמימות (Carb Loading):** צרוך כ-60% מהפחמימות היומיות סביב האימון (ארוחה לפני ואחרי) לרוויית מאגרי גליקוגן וביצועי שיא."""
+            headline = f"מפרט מסה נקייה: {weight}kg ← {target_weight}kg"
+            tip = "התמקד בהתקדמות מתמדת במשקלי העבודה באימונים (Progressive Overload) במקביל לעודף הקלורי."
+            recs = [
+                {"title": "עודף קלורי מבוקר למסה", "content": f"שמור על צריכה יומית של {target_calories} קלוריות לתמיכה בצמיחת שריר ללא צבירת שומן.", "category": "nutrition"},
+                {"title": "התקדמות כוח עקבית", "content": "בצע תיעוד של המשקלים והחזרות בכל אימון ושאף לעלייה של 2.5% בעומס מדי שבוע.", "category": "training"}
+            ]
+            chips = ["איזה תוספים הכי יעזרו למסה?", "איך למנוע צבירת שומן במסה?", "מה לאכול לפני אימון כוח?"]
+
+        # Category 3: Supplements & Creatine
+        elif any(w in text for w in ["תוסף", "תוספים", "קריאטין", "אומגה", "מגנזיום", "ויטמין", "elixir", "supplements"]):
+            reply = f"""ניתוח שיקויי הצייד ותוספי התזונה המדעיים:
+
+לצייד במשקל {weight} ק"ג במטרה של עלייה במסה וכוח, הנה הפרוטוקול המדעי המוביל:
+
+1. **קריאטין מונוהידראט (Creatine Monohydrate):**
+   - מינון: **5 גרם בכל יום**, באופן קבוע (כולל ימי מנוחה).
+   - תזמון: רצוי עם ארוחה המכילה פחמימות וחלבון (למשל שייק שאחרי אימון) להגברת הספיגה התאית.
+   - אין צורך בתקופת העמסה — 5g ביום יביאו לרוויית מאגרים מלאה תוך 3 שבועות.
+2. **אומגה 3 (EPA/DHA):**
+   - 1,500-2,000 מ"ג משולב עם ארוחה שומנית להפחתת דלקתיות ושיפור רגישות שרירית לאינסולין.
+3. **מגנזיום גליצינאט / ציטראט:**
+   - 350-400 מ"ג כ-30-60 דקות לפני השינה להרפיית מערכת העצבים והעמקת שלב ה-Deep Sleep."""
+            headline = "פרוטוקול תוספי כוח והתאוששות"
+            tip = "קח 5g קריאטין מדי יום בשעה קבועה עם כוס מים גדולה או שייק."
+            recs = [
+                {"title": "קריאטין מונוהידראט 5g", "content": "5g קריאטין בכל יום בעקביות מגביר כוח מתפרץ ב-10-15% ומעלה נפח תא שרירי.", "category": "supplements"},
+                {"title": "מגנזיום לפני שינה", "content": "350mg מגנזיום גליצינאט בערב משפר התאוששות שרירית ואיכות שינה.", "category": "supplements"}
+            ]
+            chips = ["מתי לקחת קריאטין - לפני או אחרי אימון?", "מה היתרונות של אומגה 3 במסה?", "האם צריך הפסקות מקריאטין?"]
+
+        # Category 4: Attent & Focus Medication
+        elif any(w in text for w in ["אטנט", "attent", "ריכוז", "קשב", "תרופה"]):
+            reply = f"""הנחיות מערכת קריטיות לצייד הנוטל שיקוי ריכוז (אטנט / Attent):
+
+אטנט מגביר שחרור דופמין ונוראדרנלין. כדי להפיק ממנו אפקט שיא ללא פגיעה במטרות המסה והשריר, פעל לפי הפרוטוקול הבא:
+
+1. **מניעת קטבוליזם ואיבוד תיאבון:**
+   - אכול ארוחה גדולה ועשירה בחלבון ופחמימות מורכבות (למשל שיבולת שועל, ביצים, שייק) **לפני** נטילת המנה.
+   - במהלך שעות ההשפעה (כשהתיאבון יורד), השתמש בקלוריות נוזליות (שייק, חלב, מיצים) כדי לא להיכנס לגרעון לא מתוכנן.
+2. **הידרציה מוגברת:**
+   - אטנט מגביר איבוד נוזלים ומעלה דופק. הקפד על לפחות **3.3-3.5 ליטר מים** ביום נטילה.
+3. **שמירה על רגישות קולטנים (Drug Holidays):**
+   - קבע 1-2 ימי חופש תרופתי בסופי שבוע למניעת עמידות (Tolerance Drift)."""
+            headline = "פרוטוקול סינרגיית אטנט ומסה"
+            tip = "אכול ארוחת בוקר מלאה של 500+ קלוריות ו-30g חלבון לפני נטילת המנה."
+            recs = [
+                {"title": "ארוחת עוגן לפני אטנט", "content": "צרוך ארוחה מלאה של חלבון ופחמימה לפני נטילת התרופה למניעת פגיעה בצריכה היומית.", "category": "nutrition"},
+                {"title": "ימי חופש תרופתי (Drug Holidays)", "content": "תזמן סופ״ש ללא נטילה לשיקום רגישות קולטני הדופמין.", "category": "recovery"}
+            ]
+            chips = ["איך להשלים קלוריות כשאין תיאבון?", "איך אטנט משפיע על האימונים?", "כמה מים לשתות בימי אטנט?"]
+
+        # Category 5: Night Shift & Fatigue
+        elif any(w in text for w in ["משמרת", "לילה", "עייף", "עייפות", "שינה", "שעות"]):
+            reply = f"""פרוטוקול צייד למשמרות לילה ועייפות כרונית:
+
+משמרות לילה מאתגרות את השעון הצירקדי, אך ניהול מדעי נכון שומר על שריפת שומן וצבירת שריר רציפה:
+
+1. **תזמון ארוחות המשמרת:**
+   - ארוחה עיקרית לפני היציאה למשמרת (20:00-21:00).
+   - ארוחה קלה מבוססת חלבון וירקות באמצע המשמרת (01:30-03:00) — הימנע מסוכרים פשוטים שיובילו להתרסקות ערנות.
+   - ארוחה קלה ומרגיעה בסיום המשמרת (לפני השינה, כגון יוגורט עם אגוזים).
+2. **מצב משמרת לילה במערכת:**
+   - זכור להפעיל את כפתור ה-🌙 בראש המסך. שעת האיפוס תעבור ל-08:00 בבוקר והיום לא יתאפס לך בחצות!
+3. **היגיינת שינה בבוקר:**
+   - חדר חשוך ב-100%, אטמי אוזניים, והימנעות מקפאין 5 שעות לפני סיום המשמרת."""
+            headline = "פרוטוקול התאוששות ומשמרות לילה"
+            tip = "וודא שכפתור משמרת לילה 🌙 פעיל באפליקציה כדי שהאיפוס יתרחש רק ב-08:00 בבוקר."
+            recs = [
+                {"title": "ארוחה קלה באמצע משמרת", "content": "ארוחה של 300-400 kcal בלבד באמצע הלילה מונעת כבדות ונפילות סוכר.", "category": "nutrition"},
+                {"title": "החשכת חדר לשינת בוקר", "content": "שינה בחושך מוחלט מעודדת הפרשת מלטונין והתאוששות שריר מרבית.", "category": "recovery"}
+            ]
+            chips = ["איך לנהל שתייה במשמרת לילה?", "מה לאכול לפני השינה בבוקר?", "מתי הכי נכון להתאמן בעבודת לילה?"]
+
+        # Category 6: Water & Hydration
+        elif any(w in text for w in ["מים", "שתייה", "הידרציה", "צמא", "רוויה"]):
+            water_target = profile.get('target_water', 3300)
+            water_pct = round((water / max(1, water_target)) * 100)
+            reply = f"""מאזן נוזלים והידרציה של הצייד (Hydration Status):
+
+כרגע תיעדת **{water} מ\"ל מים** מתוך יעד של **{water_target} מ\"ל** ({water_pct}%).
+
+לצייד במשקל {weight} ק"ג, שמירה על הידרציה גבוהה היא קריטית:
+- ירידה של 2% בלבד בנוזלי הגוף מביאה לירידה של 15% בכוח השרירי ובהספק האירובי.
+- מים מהווים כ-75% מנפח תא השריר. הידרציה מלאה מגבירה סינתזת חלבון ומונעת התכווצויות.
+- בימי אימון או משמרות מומלץ להוסיף 500-750 מ\"ל נוזלים כנגד הזעה."""
+            headline = "מדד הידרציה וביצועים פיזיולוגיים"
+            tip = "שתה כעת כוס מים גדולה (250-500 מ\"ל) דרך כפתורי השיקוי המהירים במסך התזונה."
+            recs = [
+                {"title": "יעד הידרציה 3,300 מ\"ל", "content": "פזר את השתייה באופן שווה: כוס מים בכל שעתיים משמרת רמות אנרגיה וריכוז שיא.", "category": "hydration"}
+            ]
+            chips = ["כמה מים לשתות באימון כוח?", "מה לאכול כדי לקבל מים ממזון?", "האם קפה נספר כמים?"]
+
+        # Default General Consultation
+        else:
+            reply = f"""שלום צייד! המערכת קלטה את פנייתך.
+
+הסטטוס הנוכחי שלך במערכת:
+- **משקל נוכחי:** {weight} ק"ג | **משקל יעד:** {target_weight} ק"ג (מסה נקייה)
+- **קלוריות להיום:** {cur_cal} מתוך {target_calories} kcal (נותרו: {rem_cal} kcal)
+- **חלבון להיום:** {cur_prot}g מתוך {target_protein}g (נותרו: {rem_prot}g)
+- **הידרציית מים:** {water} מ\"ל מתוך {profile.get('target_water', 3300)} מ\"ל
+
+תוכל להתייעץ איתי בכל נושא ספציפי:
+- 🥩 התאמת תפריט וארוחות להשלמת חלבון
+- 💪 אופטימיזציה של אימונים והתקדמות כוח
+- 💊 פרוטוקול תוספים (קריאטין, אומגה 3, מגנזיום)
+- 🌙 ניהול שגרה, עייפות ומשמרות לילה
+- 🎯 עדכון ושינוי יעדים אישיים"""
+            headline = "יועץ המערכת זמין לפקודתך"
+            tip = "הקפד לתעד את הארוחות והשתייה ברציפות לבניית בייסליין מדעי מדויק."
+            recs = [
+                {"title": "התמדה בתיעוד יומי", "content": "תיעוד של 3 ימים רצופים פותח את מנוע הניתוחים ארוכי-הטווח (Long-Term Science Engine).", "category": "general"}
+            ]
+            chips = ["מה לאכול עכשיו כדי לסגור חלבון?", "איך לקחת קריאטין במסה נקייה?", "איך לתכנן תזונה במשמרת לילה?"]
+
+        return {
+            "reply": reply,
+            "headline": headline,
+            "tip": tip,
+            "recommendations": recs,
+            "suggested_targets": {},
+            "followup_chips": chips
+        }
+
+    @classmethod
+    def get_history(cls, conn, limit=50) -> list:
+        c = conn.cursor()
+        c.execute("""
+        SELECT id, sender, message, recommendations_json, created_at 
+        FROM ai_chat_messages 
+        ORDER BY id ASC 
+        LIMIT ?
+        """, (limit,))
+        rows = c.fetchall()
+        messages = []
+        for r in rows:
+            m = dict(r)
+            try:
+                m["recommendations"] = json.loads(m.get("recommendations_json") or "[]")
+            except Exception:
+                m["recommendations"] = []
+            messages.append(m)
+        return messages
+
+    @classmethod
+    def get_recommendations(cls, conn) -> list:
+        c = conn.cursor()
+        c.execute("SELECT * FROM ai_recommendations ORDER BY is_active DESC, id DESC LIMIT 50")
+        return [dict(r) for r in c.fetchall()]
+
+    @classmethod
+    def toggle_recommendation(cls, conn, rec_id: int):
+        c = conn.cursor()
+        c.execute("UPDATE ai_recommendations SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END WHERE id = ?", (rec_id,))
+        conn.commit()
+        c.execute("SELECT is_active FROM ai_recommendations WHERE id = ?", (rec_id,))
+        row = c.fetchone()
+        return row[0] if row else 0
+
+    @classmethod
+    def delete_recommendation(cls, conn, rec_id: int):
+        c = conn.cursor()
+        c.execute("DELETE FROM ai_recommendations WHERE id = ?", (rec_id,))
+        conn.commit()
+
+    @classmethod
+    def apply_targets(cls, conn, body: dict) -> dict:
+        c = conn.cursor()
+        allowed = ["target_calories", "target_protein", "target_carbs", "target_fats", "target_water", "target_weight", "goal"]
+        fields = []
+        vals = []
+        for k in allowed:
+            if k in body and body[k] is not None:
+                fields.append(f"{k} = ?")
+                vals.append(body[k])
+        if fields:
+            vals.append(1)
+            c.execute(f"UPDATE hunter_profile SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", vals)
+            conn.commit()
+        c.execute("SELECT * FROM hunter_profile WHERE id = 1")
+        return dict(c.fetchone() or {})
+
+
+# -------------------------------------------------------------
 # HTTP Request Handler & REST API
 # -------------------------------------------------------------
 class SystemApiHandler(SimpleHTTPRequestHandler):
@@ -3081,6 +3547,10 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         elif path == "/api/history/long-term-insights":
             window = query.get("window", ["14"])[0]
             self.handle_get_long_term_insights(window)
+        elif path == "/api/ai/consult/history":
+            self.handle_get_ai_history()
+        elif path == "/api/ai/recommendations":
+            self.handle_get_ai_recommendations()
         elif path.startswith("/api/barcode/"):
             barcode = path.split("/")[-1]
             self.handle_get_barcode(barcode)
@@ -3143,6 +3613,12 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.handle_food_chat_parse(body)
         elif path == "/api/goals/ai-calculate":
             self.handle_goals_ai_calculate(body)
+        elif path == "/api/ai/consult":
+            self.handle_post_ai_consult(body)
+        elif path == "/api/ai/recommendations/toggle":
+            self.handle_post_ai_recommendation_toggle(body)
+        elif path == "/api/ai/apply-targets":
+            self.handle_post_ai_apply_targets(body)
         else:
             self._set_headers(404)
             self.wfile.write(json.dumps({"error": "Endpoint not found"}).encode("utf-8"))
@@ -3190,6 +3666,26 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             try:
                 workout_id = int(path.split("/")[-1])
                 self.handle_delete_workout(workout_id)
+            except Exception as e:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+        elif path == "/api/ai/recommendations" or path.startswith("/api/ai/recommendations/"):
+            try:
+                rec_id = None
+                if path.startswith("/api/ai/recommendations/"):
+                    try:
+                        rec_id = int(path.split("/")[-1])
+                    except Exception:
+                        pass
+                else:
+                    parsed_q = parse_qs(parsed.query)
+                    if "id" in parsed_q:
+                        rec_id = int(parsed_q["id"][0])
+                if rec_id:
+                    with Database.get_connection() as conn:
+                        HunterAIConsultant.delete_recommendation(conn, rec_id)
+                self._set_headers(200)
+                self.wfile.write(json.dumps({"status": "deleted"}, ensure_ascii=False).encode("utf-8"))
             except Exception as e:
                 self._set_headers(400)
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
@@ -3780,7 +4276,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             with Database.get_connection() as conn:
                 c = conn.cursor()
                 c.execute("SELECT * FROM hunter_profile WHERE id=1")
-                profile = dict(c.fetchone())
+                prof_row = c.fetchone()
+                profile = dict(prof_row) if prof_row else {}
 
             # If user provided weight/height/age in the request override profile
             if body.get("weight"): profile["weight"] = float(body["weight"])
@@ -3790,8 +4287,108 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             if body.get("activity_level"): profile["activity_level"] = body["activity_level"]
 
             res = GoalAdvisorAI.calculate_from_text(goal_text, profile)
+
+            # Auto-save immediately to database so user never loses recommendations
+            with Database.get_connection() as conn:
+                c = conn.cursor()
+                calc_tw = res.get("detected_target_weight") or (round(profile.get("weight", 83.0) + 4.0, 1) if res.get("goal_type") == "bulk" else round(profile.get("weight", 83.0) - 4.0, 1))
+                c.execute("""
+                UPDATE hunter_profile SET
+                    ai_analysis_headline = ?,
+                    ai_explanation = ?,
+                    ai_hunter_tip = ?,
+                    goal_custom_text = ?,
+                    target_calories = ?,
+                    target_protein = ?,
+                    target_carbs = ?,
+                    target_fats = ?,
+                    target_water = ?,
+                    target_fiber = ?,
+                    target_weight = ?,
+                    goal = ?,
+                    weight = ?,
+                    is_awakened = 1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+                """, (
+                    res.get("analysis_headline", "עלייה במסה נקייה"),
+                    res.get("ai_explanation", ""),
+                    res.get("hunter_rank_tip", ""),
+                    goal_text,
+                    res.get("target_calories", profile.get("target_calories", 2550)),
+                    res.get("target_protein", profile.get("target_protein", 175)),
+                    res.get("target_carbs", profile.get("target_carbs", 290)),
+                    res.get("target_fats", profile.get("target_fats", 75)),
+                    res.get("target_water", profile.get("target_water", 3300)),
+                    res.get("target_fiber", res.get("target_fiber", 30)),
+                    calc_tw,
+                    res.get("goal_type", "bulk"),
+                    profile.get("weight", 83.0)
+                ))
+
+                # Save into ai_chat_messages
+                if goal_text:
+                    c.execute("INSERT INTO ai_chat_messages (sender, message) VALUES (?, ?)", ("user", goal_text))
+                    recs = [{"title": res.get("analysis_headline", "מפרט מדעי"), "content": res.get("hunter_rank_tip", res.get("ai_explanation", "")), "category": "nutrition"}]
+                    c.execute("INSERT INTO ai_chat_messages (sender, message, recommendations_json) VALUES (?, ?, ?)",
+                              ("system", f"🎯 {res.get('analysis_headline')}\n{res.get('ai_explanation')}\n💡 {res.get('hunter_rank_tip')}", json.dumps(recs, ensure_ascii=False)))
+
+                # Save into ai_recommendations
+                if res.get("hunter_rank_tip"):
+                    c.execute("INSERT INTO ai_recommendations (title, content, category, is_active) VALUES (?, ?, ?, 1)",
+                              (res.get("analysis_headline", "מפרט יעדים מדעי"), res.get("hunter_rank_tip"), "nutrition"))
+
+                conn.commit()
+
             self._set_headers(200)
             self.wfile.write(json.dumps(res, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
+
+    # --- AI Consultation Handlers ---
+    def handle_get_ai_history(self):
+        with Database.get_connection() as conn:
+            hist = HunterAIConsultant.get_history(conn)
+        self._set_headers(200)
+        self.wfile.write(json.dumps({"messages": hist}, ensure_ascii=False).encode("utf-8"))
+
+    def handle_get_ai_recommendations(self):
+        with Database.get_connection() as conn:
+            recs = HunterAIConsultant.get_recommendations(conn)
+        self._set_headers(200)
+        self.wfile.write(json.dumps({"recommendations": recs}, ensure_ascii=False).encode("utf-8"))
+
+    def handle_post_ai_consult(self, body):
+        try:
+            msg = str(body.get("message", "")).strip()
+            history = body.get("chat_history", [])
+            with Database.get_connection() as conn:
+                res = HunterAIConsultant.consult(conn, msg, history)
+            self._set_headers(200)
+            self.wfile.write(json.dumps(res, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
+
+    def handle_post_ai_recommendation_toggle(self, body):
+        try:
+            rec_id = int(body.get("id"))
+            with Database.get_connection() as conn:
+                HunterAIConsultant.toggle_recommendation(conn, rec_id)
+                recs = HunterAIConsultant.get_recommendations(conn)
+            self._set_headers(200)
+            self.wfile.write(json.dumps({"status": "ok", "recommendations": recs}, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
+
+    def handle_post_ai_apply_targets(self, body):
+        try:
+            with Database.get_connection() as conn:
+                prof = HunterAIConsultant.apply_targets(conn, body)
+            self._set_headers(200)
+            self.wfile.write(json.dumps({"status": "applied", "profile": prof}, ensure_ascii=False).encode("utf-8"))
         except Exception as e:
             self._set_headers(400)
             self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))

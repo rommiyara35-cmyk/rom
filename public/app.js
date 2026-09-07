@@ -106,11 +106,13 @@ const AppState = {
   activeDebriefTab: 'maintain',
   codeReader: null,
   customAIGoals: null,
+  aiConsultHistory: [],
+  aiRecommendations: [],
 
   async init() {
     // Setup Service Worker with force update
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js?v=16').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=18').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -151,6 +153,7 @@ const AppState = {
     await this.fetchDailyDebrief();
     await this.fetchFoods();
     await this.fetchLongTermInsights(14);
+    await this.fetchAIRecommendations();
 
     // Setup input listeners
     this.bindEvents();
@@ -276,6 +279,7 @@ const AppState = {
     this.renderMicronutrients();
     this.renderMealsList();
     if (this.longTermData) this.renderLongTermInsights(this.longTermData);
+    this.renderAIRecommendations();
   },
 
   renderProfile() {
@@ -1263,13 +1267,29 @@ const AppState = {
 
   // First-Time Awakening Onboarding Logic
   checkFirstTimeAwakening() {
+    const isLocalAwakened = localStorage.getItem('hunter_awakened') === 'true';
     const isAwakenedInDB = this.profile && (this.profile.is_awakened === 1 || this.profile.is_awakened === true);
-    if (!isAwakenedInDB) {
-      localStorage.removeItem('hunter_awakened');
-      setTimeout(() => {
-        this.openFirstTimeAwakening(false);
-      }, 400);
+
+    // If either localStorage or DB says awakened, the hunter is ALREADY awakened!
+    if (isLocalAwakened || isAwakenedInDB) {
+      if (!isLocalAwakened) {
+        localStorage.setItem('hunter_awakened', 'true');
+      }
+      if (!isAwakenedInDB) {
+        // Asynchronously synchronize DB state so it doesn't stay 0
+        fetch('/api/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_awakened: 1 })
+        }).catch(err => console.warn('Sync is_awakened error:', err));
+      }
+      return;
     }
+
+    // Only if NEVER awakened locally and NEVER in DB:
+    setTimeout(() => {
+      this.openFirstTimeAwakening(false);
+    }, 400);
   },
 
   openFirstTimeAwakening(force = false) {
@@ -1324,6 +1344,7 @@ const AppState = {
   },
 
   closeFirstTimeAwakening() {
+    localStorage.setItem('hunter_awakened', 'true');
     const overlay = document.getElementById('first-time-awakening-overlay');
     if (overlay) overlay.style.display = 'none';
     document.body.style.overflow = '';
@@ -1332,8 +1353,13 @@ const AppState = {
   skipFirstTimeAwakening() {
     sfx.playClick();
     localStorage.setItem('hunter_awakened', 'true');
+    fetch('/api/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_awakened: 1 })
+    }).catch(err => console.warn('Sync is_awakened error:', err));
     this.closeFirstTimeAwakening();
-    this.showToast('ℹ️ המשכת עם הגדרות ברירת מחדל. תוכל לערוך יעדים בכל שלב בפרופיל.');
+    this.showToast('ℹ️ המשכת עם הגדרות ברירת מחדל. תוכל לערוך יעדים ולהתייעץ עם ה-AI בכל שלב.');
   },
 
   setAwakeningChatPrompt(text) {
@@ -1723,6 +1749,417 @@ const AppState = {
     }
   },
 
+  // ========================================================
+  // INTERACTIVE AI CONSULTATION & ACTIVE RECOMMENDATIONS
+  // ========================================================
+  pendingTargetsMap: {},
+
+  async openAIConsultationModal(initialPrompt = '') {
+    sfx.playClick();
+    const modal = document.getElementById('ai-consultation-modal');
+    if (!modal) return;
+
+    // Update live hunter status strip inside the modal
+    const p = this.profile || {};
+    const wEl = document.getElementById('consult-hunter-weight');
+    if (wEl) wEl.innerText = p.weight ? Number(p.weight).toFixed(1) : '83.0';
+    const twEl = document.getElementById('consult-hunter-target');
+    if (twEl) twEl.innerText = p.target_weight ? Number(p.target_weight).toFixed(1) : '87.0';
+    const gEl = document.getElementById('consult-hunter-goal');
+    if (gEl) {
+      const gMap = { bulk: 'מסה נקייה', cut: 'חיטוב ושריפת שומן', maintain: 'שמירה ואיזון' };
+      gEl.innerText = gMap[p.goal] || p.goal || 'מסה נקייה';
+    }
+    const cEl = document.getElementById('consult-hunter-cals');
+    if (cEl) cEl.innerText = p.target_calories ? p.target_calories.toLocaleString() : '2,550';
+    const protEl = document.getElementById('consult-hunter-prot');
+    if (protEl) protEl.innerText = p.target_protein || '175';
+    const watEl = document.getElementById('consult-hunter-water');
+    if (watEl) watEl.innerText = p.target_water ? p.target_water.toLocaleString() : '3,300';
+
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    // Load consultation history
+    await this.loadAIConsultationHistory();
+
+    const stream = document.getElementById('ai-consult-stream');
+    if (stream) {
+      setTimeout(() => { stream.scrollTop = stream.scrollHeight; }, 100);
+    }
+
+    const input = document.getElementById('ai-consult-input');
+    if (input) {
+      if (initialPrompt) input.value = initialPrompt;
+      setTimeout(() => input.focus(), 150);
+    }
+  },
+
+  closeAIConsultationModal() {
+    const modal = document.getElementById('ai-consultation-modal');
+    if (modal) modal.style.display = 'none';
+    document.body.style.overflow = '';
+  },
+
+  setAIConsultPrompt(text) {
+    const input = document.getElementById('ai-consult-input');
+    if (input) {
+      input.value = text;
+      input.focus();
+    }
+  },
+
+  async loadAIConsultationHistory() {
+    try {
+      const res = await fetch('/api/ai/consult/history');
+      if (res.ok) {
+        const data = await res.json();
+        this.aiConsultHistory = data.messages || [];
+        this.renderAIConsultStream();
+      }
+    } catch (err) {
+      console.warn('Failed to load consultation history:', err);
+    }
+  },
+
+  renderAIConsultStream() {
+    const stream = document.getElementById('ai-consult-stream');
+    if (!stream) return;
+    this.pendingTargetsMap = {};
+
+    if (!this.aiConsultHistory || this.aiConsultHistory.length === 0) {
+      stream.innerHTML = `
+        <div class="chat-bubble ai-msg">
+          <div class="chat-msg-header">
+            <span class="chat-sender-name">⚡ SYSTEM AI ADVISOR</span>
+            <span class="chat-time-tag">הודעת מערכת</span>
+          </div>
+          <div class="chat-msg-body">
+            שלום צייד! אני יועץ המערכת שלך בזמן אמת.<br>
+            יש לך שאלות על עלייה במסה, חלוקת 175 גרם חלבון ביום, תוספי תזונה (קריאטין 5 גרם, מגנזיום, אומגה 3), התמודדות עם חוסר תיאבון תחת אטנט (Attent), משמרות לילה, או חישוב מחדש של היעדים?<br><br>
+            <strong>שאל אותי בחופשיות או בחר באחת מההצעות למטה!</strong>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    stream.innerHTML = this.aiConsultHistory.map(msg => {
+      const isUser = msg.sender === 'user';
+      const timeStr = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '';
+      let recsHtml = '';
+      if (msg.recommendations && msg.recommendations.length > 0) {
+        recsHtml = `
+          <div class="ai-consult-recs-wrap">
+            <div class="ai-consult-recs-title">📋 המלצות פעולה שנשמרו במערכת:</div>
+            ${msg.recommendations.map(r => `
+              <div class="ai-consult-rec-chip">
+                <span class="rec-chip-cat">[${this.escapeHtml(r.category || 'מערכת')}]</span>
+                <strong>${this.escapeHtml(r.title || '')}</strong>: ${this.escapeHtml(r.content || '')}
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      let applyTargetsHtml = '';
+      if (msg.suggested_targets && (msg.suggested_targets.calories || msg.suggested_targets.protein)) {
+        const t = msg.suggested_targets;
+        this.pendingTargetsMap[msg.id] = t;
+        applyTargetsHtml = `
+          <div class="ai-suggested-targets-card">
+            <div class="astc-title">🎯 הצעת עדכון יעדים מהיועץ:</div>
+            <div class="astc-grid">
+              ${t.calories ? `<span>🔥 קלוריות: <strong>${t.calories.toLocaleString()} kcal</strong></span>` : ''}
+              ${t.protein ? `<span>🥩 חלבון: <strong>${t.protein}g</strong></span>` : ''}
+              ${t.target_weight ? `<span>⚖️ משקל יעד: <strong>${t.target_weight} kg</strong></span>` : ''}
+              ${t.water ? `<span>💧 מים: <strong>${t.water.toLocaleString()} ml</strong></span>` : ''}
+            </div>
+            <button type="button" class="ai-apply-targets-btn" onclick="AppState.applyAIConsultTargetsById(${msg.id})">
+              ⚡ החל יעדים אלו כעת על הפרופיל
+            </button>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="chat-bubble ${isUser ? 'user-msg' : 'ai-msg'}">
+          <div class="chat-msg-header">
+            <span class="chat-sender-name">${isUser ? '👤 הצייד' : '⚡ SYSTEM AI ADVISOR'}</span>
+            <span class="chat-time-tag">${timeStr}</span>
+          </div>
+          <div class="chat-msg-body">
+            ${this.escapeHtml(msg.message || '').replace(/\n/g, '<br>')}
+            ${recsHtml}
+            ${applyTargetsHtml}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    stream.scrollTop = stream.scrollHeight;
+  },
+
+  async sendAIConsultation() {
+    const input = document.getElementById('ai-consult-input');
+    const text = input ? input.value.trim() : '';
+    if (!text) {
+      if (input) input.focus();
+      return;
+    }
+
+    sfx.playClick();
+    const sendBtn = document.getElementById('ai-consult-send-btn');
+    if (sendBtn) sendBtn.disabled = true;
+
+    const stream = document.getElementById('ai-consult-stream');
+    const nowTime = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+
+    // 1. Append user message bubble
+    if (stream) {
+      const userBubble = document.createElement('div');
+      userBubble.className = 'chat-bubble user-msg';
+      userBubble.innerHTML = `
+        <div class="chat-msg-header">
+          <span class="chat-sender-name">👤 הצייד</span>
+          <span class="chat-time-tag">${nowTime}</span>
+        </div>
+        <div class="chat-msg-body">${this.escapeHtml(text)}</div>
+      `;
+      stream.appendChild(userBubble);
+      stream.scrollTop = stream.scrollHeight;
+    }
+
+    if (input) input.value = '';
+
+    // 2. Append thinking bubble
+    let thinkingBubble = null;
+    if (stream) {
+      thinkingBubble = document.createElement('div');
+      thinkingBubble.className = 'chat-bubble ai-msg ai-thinking-bubble';
+      thinkingBubble.innerHTML = `
+        <div class="chat-msg-header">
+          <span class="chat-sender-name">⚡ SYSTEM AI</span>
+          <span class="chat-time-tag">מנתח ומחשב ייעוץ...</span>
+        </div>
+        <div class="chat-msg-body">
+          <span class="thinking-spinner">⚡</span> יועץ המערכת מחשב תשובה מותאמת אישית לנתוניך...
+        </div>
+      `;
+      stream.appendChild(thinkingBubble);
+      stream.scrollTop = stream.scrollHeight;
+    }
+
+    try {
+      const res = await fetch('/api/ai/consult', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: text })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      if (thinkingBubble && thinkingBubble.parentNode) {
+        thinkingBubble.parentNode.removeChild(thinkingBubble);
+      }
+
+      await this.loadAIConsultationHistory();
+      await this.fetchAIRecommendations();
+      sfx.playLevelUp();
+    } catch (err) {
+      console.error('AIConsult error:', err);
+      if (thinkingBubble && thinkingBubble.parentNode) {
+        thinkingBubble.parentNode.removeChild(thinkingBubble);
+      }
+      if (stream) {
+        const errBubble = document.createElement('div');
+        errBubble.className = 'chat-bubble ai-msg';
+        errBubble.style.borderColor = '#ef4444';
+        errBubble.innerHTML = `
+          <div class="chat-msg-header">
+            <span class="chat-sender-name" style="color:#ef4444;">⚠️ SYSTEM ERROR</span>
+          </div>
+          <div class="chat-msg-body" style="color:#fca5a5;">
+            שגיאה בהתייעצות: ${this.escapeHtml(err.message)}
+          </div>
+        `;
+        stream.appendChild(errBubble);
+        stream.scrollTop = stream.scrollHeight;
+      }
+    } finally {
+      if (sendBtn) sendBtn.disabled = false;
+    }
+  },
+
+  applyAIConsultTargetsById(id) {
+    const t = this.pendingTargetsMap[id];
+    if (t) {
+      this.applyAIConsultTargets(t);
+    }
+  },
+
+  async applyAIConsultTargets(targets) {
+    if (!targets) return;
+    sfx.playClick();
+    try {
+      const res = await fetch('/api/ai/apply-targets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(targets)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Apply failed');
+
+      if (data.profile) {
+        this.profile = data.profile;
+        localStorage.setItem('hunter_profile', JSON.stringify(data.profile));
+      }
+      sfx.playLevelUp();
+      this.renderProfile();
+      this.renderCalorieGauge();
+      this.renderMacroBars();
+      this.renderWaterCockpit();
+      this.showToast('🎯 היעדים עודכנו בהצלחה ונשמרו במערכת!');
+      this.saveLocalSnapshot();
+    } catch (err) {
+      alert('שגיאה בעדכון יעדים: ' + err.message);
+    }
+  },
+
+  async fetchAIRecommendations() {
+    try {
+      const res = await fetch('/api/ai/recommendations');
+      if (res.ok) {
+        const data = await res.json();
+        this.aiRecommendations = data.recommendations || [];
+        this.renderAIRecommendations();
+      }
+    } catch (err) {
+      console.warn('Failed to fetch recommendations:', err);
+    }
+  },
+
+  renderAIRecommendations() {
+    const profileCont = document.getElementById('profile-ai-recs-container');
+    const nutCont = document.getElementById('nutrition-ai-recs-container');
+    const recs = this.aiRecommendations || [];
+
+    const categoryIcons = {
+      bulk: '💪',
+      protein: '🥩',
+      supplements: '💊',
+      attent: '🧠',
+      night_shift: '🌙',
+      hydration: '💧',
+      recovery: '🛌',
+      nutrition: '🥗'
+    };
+
+    const buildHtml = (limit = null) => {
+      const list = limit ? recs.slice(0, limit) : recs;
+      if (list.length === 0) {
+        return `
+          <div class="ai-rec-empty">
+            <span>💡</span>
+            <div>אין עדיין המלצות שמורות במערכת. פתח את יועץ ה-AI לקבלת המלצות מותאמות אישית!</div>
+            <button type="button" class="ai-rec-consult-now-btn" onclick="AppState.openAIConsultationModal()">💬 פתח יועץ AI</button>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="ai-recs-cards-list">
+          ${list.map(r => {
+            const icon = categoryIcons[r.category] || '⚡';
+            return `
+              <div class="ai-rec-item-card ${r.is_active ? 'active' : 'completed'}">
+                <div class="ai-rec-item-header">
+                  <div class="ai-rec-title-group">
+                    <span class="ai-rec-icon">${icon}</span>
+                    <strong class="ai-rec-title">${this.escapeHtml(r.title)}</strong>
+                    <span class="ai-rec-category-tag">[${this.escapeHtml(r.category)}]</span>
+                  </div>
+                  <div class="ai-rec-actions">
+                    <button type="button" class="ai-rec-toggle-btn" onclick="AppState.toggleAIRecommendation(${r.id})" title="${r.is_active ? 'סמן כהושלם' : 'החזר לפעיל'}">
+                      ${r.is_active ? '✓ הושלם' : '↺ החזר'}
+                    </button>
+                    <button type="button" class="ai-rec-del-btn" onclick="AppState.deleteAIRecommendation(${r.id})" title="מחק המלצה זו">✕</button>
+                  </div>
+                </div>
+                <div class="ai-rec-body">${this.escapeHtml(r.content)}</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    };
+
+    if (profileCont) {
+      profileCont.innerHTML = `
+        <div class="ai-recs-panel-box">
+          <div class="ai-recs-panel-header">
+            <div class="ai-recs-header-left">
+              <span class="ai-recs-glow-dot">●</span>
+              <span class="ai-recs-section-title">המלצות והנחיות AI פעילות (${recs.filter(r => r.is_active).length})</span>
+            </div>
+            <button type="button" class="ai-recs-consult-btn" onclick="AppState.openAIConsultationModal()">
+              💬 התייעץ עם ה-AI
+            </button>
+          </div>
+          ${buildHtml()}
+        </div>
+      `;
+    }
+
+    if (nutCont) {
+      nutCont.innerHTML = `
+        <div class="ai-recs-panel-box">
+          <div class="ai-recs-panel-header">
+            <div class="ai-recs-header-left">
+              <span class="ai-recs-glow-dot">●</span>
+              <span class="ai-recs-section-title">המלצות תזונה והידרציה מיועץ ה-AI</span>
+            </div>
+            <button type="button" class="ai-recs-consult-btn" onclick="AppState.openAIConsultationModal()">
+              💬 שאל שאלה
+            </button>
+          </div>
+          ${buildHtml(4)}
+        </div>
+      `;
+    }
+  },
+
+  async toggleAIRecommendation(id) {
+    sfx.playClick();
+    try {
+      const res = await fetch('/api/ai/recommendations/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      if (res.ok) {
+        await this.fetchAIRecommendations();
+      }
+    } catch (err) {
+      console.warn('Toggle rec error:', err);
+    }
+  },
+
+  async deleteAIRecommendation(id) {
+    sfx.playClick();
+    try {
+      const res = await fetch(`/api/ai/recommendations?id=${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        await this.fetchAIRecommendations();
+        this.showToast('🗑️ ההמלצה נמחקה.');
+      }
+    } catch (err) {
+      console.warn('Delete rec error:', err);
+    }
+  },
+
   // Modal helpers
   openModal(id) {
     if (id === 'awakening-modal') {
@@ -1791,6 +2228,19 @@ const AppState = {
   async saveLocalSnapshot(optionalData = null) {
     try {
       if (optionalData) {
+        // Protect existing local snapshot if incoming data is empty
+        const existingRaw = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
+        if (existingRaw) {
+          try {
+            const existing = JSON.parse(existingRaw);
+            const exCount = (existing.daily_logs || []).length + (existing.workout_logs || []).length + (existing.supplements_log || []).length;
+            const newCount = (optionalData.daily_logs || []).length + (optionalData.workout_logs || []).length + (optionalData.supplements_log || []).length;
+            if (exCount > 0 && newCount === 0) {
+              console.warn('Prevented overwriting rich local snapshot with empty optionalData.');
+              return;
+            }
+          } catch(e) {}
+        }
         localStorage.setItem('SOLO_HUNTER_SYSTEM_SNAPSHOT', JSON.stringify(optionalData));
         localStorage.setItem('SOLO_HUNTER_SNAPSHOT_TIMESTAMP', new Date().toISOString());
         this.updateBackupUI();
@@ -1799,6 +2249,21 @@ const AppState = {
       const res = await fetch('/api/backup');
       if (res.ok) {
         const data = await res.json();
+        // SAFEGUARD: If we have a richer snapshot in localStorage and incoming server DB is empty,
+        // do not wipe client data. Instead, automatically heal the server!
+        const existingRaw = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
+        if (existingRaw) {
+          try {
+            const existing = JSON.parse(existingRaw);
+            const exCount = (existing.daily_logs || []).length + (existing.workout_logs || []).length + (existing.supplements_log || []).length;
+            const newCount = (data.daily_logs || []).length + (data.workout_logs || []).length + (data.supplements_log || []).length;
+            if (exCount > 0 && newCount === 0) {
+              console.warn('Server database is empty while client has local data. Auto-healing server from local snapshot...');
+              this.restoreFromLocalSnapshot(true);
+              return;
+            }
+          } catch(e) {}
+        }
         localStorage.setItem('SOLO_HUNTER_SYSTEM_SNAPSHOT', JSON.stringify(data));
         localStorage.setItem('SOLO_HUNTER_SNAPSHOT_TIMESTAMP', new Date().toISOString());
         this.updateBackupUI();
@@ -1824,13 +2289,12 @@ const AppState = {
     }
   },
 
-  checkDisasterRecovery() {
+  async checkDisasterRecovery() {
     try {
       const banner = document.getElementById('disaster-recovery-banner');
-      if (!banner) return;
       const rawSnapshot = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
       if (!rawSnapshot) {
-        banner.style.display = 'none';
+        if (banner) banner.style.display = 'none';
         return;
       }
       const snapshot = JSON.parse(rawSnapshot);
@@ -1842,28 +2306,36 @@ const AppState = {
       const totalSnapRecords = snapDailyLogs.length + snapWorkouts.length + snapSupps.length;
       const isServerFresh = (!this.profile || this.profile.level <= 1) && (!this.todayMeals || this.todayMeals.length === 0);
 
-      // If server is fresh but snapshot has higher level or existing history
-      if (isServerFresh && (snapProfile.level > 1 || totalSnapRecords > 0)) {
-        banner.style.display = 'block';
-        const subEl = document.getElementById('disaster-banner-sub');
-        if (subEl) {
-          subEl.innerText = `נמצא גיבוי דפדפן ברמה ${snapProfile.level || 1} עם ${totalSnapRecords} רשומות היסטוריות. שחזר עכשיו כדי לא לאבד התקדמות.`;
+      // If server is fresh but browser snapshot has existing history or awakened profile, auto-heal!
+      if (isServerFresh && (snapProfile.level > 1 || totalSnapRecords > 0 || snapProfile.is_awakened)) {
+        console.log('Detected fresh server instance with existing browser snapshot. Auto-restoring...');
+        const healed = await this.restoreFromLocalSnapshot(true);
+        if (healed) {
+          if (banner) banner.style.display = 'none';
+          return;
+        }
+        if (banner) {
+          banner.style.display = 'block';
+          const subEl = document.getElementById('disaster-banner-sub');
+          if (subEl) {
+            subEl.innerText = `נמצא גיבוי דפדפן ברמה ${snapProfile.level || 1} עם ${totalSnapRecords} רשומות היסטוריות. שחזר עכשיו כדי לא לאבד התקדמות.`;
+          }
         }
       } else {
-        banner.style.display = 'none';
+        if (banner) banner.style.display = 'none';
       }
     } catch (e) {
       console.warn('Disaster recovery check error:', e);
     }
   },
 
-  async restoreFromLocalSnapshot() {
-    sfx.playClick();
+  async restoreFromLocalSnapshot(silent = false) {
+    if (!silent) sfx.playClick();
     try {
       const rawSnapshot = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
       if (!rawSnapshot) {
-        alert('לא נמצא גיבוי מקומי שמור בדפדפן.');
-        return;
+        if (!silent) alert('לא נמצא גיבוי מקומי שמור בדפדפן.');
+        return false;
       }
       const snapshot = JSON.parse(rawSnapshot);
       const res = await fetch('/api/restore', {
@@ -1873,13 +2345,21 @@ const AppState = {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Restore failed');
-      sfx.playLevelUp();
       const banner = document.getElementById('disaster-recovery-banner');
       if (banner) banner.style.display = 'none';
-      this.showToast('✨ כל הנתונים שוחזרו בהצלחה מהגיבוי המקומי!');
-      setTimeout(() => window.location.reload(), 600);
+      if (!silent) {
+        sfx.playLevelUp();
+        this.showToast('✨ כל הנתונים שוחזרו בהצלחה מהגיבוי המקומי!');
+        setTimeout(() => window.location.reload(), 600);
+      } else {
+        console.log('Auto-healed server database from local snapshot successfully.');
+        this.showToast('🛡️ הנתונים סונכרנו ושוחזרו אוטומטית מהגיבוי השמור במכשיר!');
+      }
+      return true;
     } catch (err) {
-      alert('שגיאה בשחזור מגיבוי מקומי: ' + err.message);
+      if (!silent) alert('שגיאה בשחזור מגיבוי מקומי: ' + err.message);
+      console.warn('Restore error:', err);
+      return false;
     }
   },
 
