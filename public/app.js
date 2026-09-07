@@ -1804,6 +1804,27 @@ const AppState = {
     }
   },
 
+  // Hard cache bust & refresh for mobile browsers & PWAs
+  async forceClearCacheAndReload() {
+    sfx.playClick();
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) {
+          await r.unregister();
+        }
+      }
+      localStorage.removeItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
+    } catch (e) {
+      console.warn('Cache clearance error:', e);
+    }
+    window.location.href = window.location.origin + window.location.pathname + '?t=' + Date.now();
+  },
+
   // Import JSON Backup
   async importBackupFile(event) {
     const file = event.target.files && event.target.files[0];
@@ -1881,27 +1902,7 @@ const AppState = {
 
     sfx.playClick();
 
-    // Step 1: Emergency Backup Download FIRST so data is guaranteed never lost!
-    try {
-      const resBackup = await fetch('/api/backup');
-      if (resBackup.ok) {
-        const backupData = await resBackup.json();
-        const nowStr = new Date().toISOString().slice(0, 10);
-        const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `solo_hunter_emergency_backup_before_rebirth_${nowStr}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
-    } catch (e) {
-      console.warn('Pre-rebirth emergency backup download failed:', e);
-    }
-
-    // Step 2: Call /api/reset/full
+    // Call /api/reset/full FIRST so the reset is guaranteed to execute without browser interference
     try {
       const res = await fetch('/api/reset/full', {
         method: 'POST',
@@ -1917,7 +1918,7 @@ const AppState = {
       localStorage.removeItem('hunter_awakened');
 
       sfx.playLevelUp();
-      alert('[SYSTEM: לידה מחדש הושלמה!]\nהצייד חזר לרמה 1 (E-Rank) וכל הסקילים אופסו לרמה 1.\nעותק גיבוי חירום הורד בהצלחה למכשירך.');
+      alert('[SYSTEM: לידה מחדש הושלמה!]\nהצייד חזר לרמה 1 (E-Rank) וכל הסקילים אופסו לרמה 1.\nהינך מועבר למסך ההתעוררות מחדש.');
       window.location.reload();
     } catch (err) {
       alert('שגיאה בתהליך הלידה מחדש: ' + err.message);

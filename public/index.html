@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
   <link rel="apple-touch-icon" href="/icons/icon.svg">
   <title>Solo Leveling | The System</title>
-  <link rel="stylesheet" href="/styles.css?v=15">
+  <link rel="stylesheet" href="/styles.css?v=16">
   <!-- ZXing Industry-Standard Multi-Format Barcode Scanner (EAN-13, EAN-8, UPC, Code 128) -->
   <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 </head>
@@ -1096,6 +1096,9 @@
           <button type="button" class="action-btn-primary" onclick="AppState.restoreFromLocalSnapshot()" style="background:rgba(168,85,247,0.2); border:1px solid #a855f7; color:#e9d5ff; font-size:11px; padding:8px;">
             ⚡ שחזר מגיבוי אוטומטי של הדפדפן (LocalStorage Snapshot)
           </button>
+          <button type="button" class="action-btn-primary" onclick="AppState.forceClearCacheAndReload()" style="background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8; font-size:11px; padding:8px; margin-top:4px;">
+            🔄 נקה מטמון ורענן גרסה חדשה (Force Refresh)
+          </button>
         </div>
         <div id="backup-last-time-text" style="font-size:11px; color:var(--text-dim); margin-top:6px;">
           סנכרון מקומי אוטומטי פעיל בכל שינוי
@@ -2115,6 +2118,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=15"></script>
+  <script src="/app.js?v=16"></script>
 </body>
 </html>
