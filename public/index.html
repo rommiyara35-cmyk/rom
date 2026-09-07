@@ -361,6 +361,76 @@
           </div>
         </section>
 
+        <!-- WATER & HYDRATION COCKPIT (מעקב מים והידרציה חכם) -->
+        <section class="water-hud-section" id="water-hud-section">
+          <div class="section-title-wrap">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span class="section-title" style="color:#38bdf8;">💧 מעקב מים והידרציית צייד (Hydration HUD)</span>
+              <span id="water-pct-badge" class="quest-tag" style="background:rgba(56,189,248,0.15); border-color:#38bdf8; color:#38bdf8; font-size:10px;">0%</span>
+            </div>
+            <button class="water-undo-btn" onclick="AppState.undoWater()" title="בטל רישום מים אחרון">↩️ בטל אחרון</button>
+          </div>
+
+          <div class="water-cockpit-grid">
+            <!-- Dynamic Water Tank Display -->
+            <div class="water-tank-card">
+              <div class="water-tank-visual">
+                <div class="water-wave-fill" id="water-wave-fill"></div>
+                <div class="water-tank-overlay">
+                  <span class="water-tank-icon">💧</span>
+                  <div class="water-tank-numbers">
+                    <span id="water-cur-amount" class="water-cur-val">0</span>
+                    <span class="water-unit">/ <span id="water-tgt-amount">3000</span> ml</span>
+                  </div>
+                  <span id="water-remaining-text" class="water-rem-label">נותרו 3000 מ"ל ליעד</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Add Water Controls -->
+            <div class="water-controls-card">
+              <div class="water-buttons-grid">
+                <button class="water-quick-btn" onclick="AppState.addWater(250)" title="+250 מ״ל כוס מים">
+                  <span class="water-btn-icon">🥛</span>
+                  <span class="water-btn-amt">+250ml</span>
+                  <span class="water-btn-sub">כוס מים</span>
+                </button>
+                <button class="water-quick-btn" onclick="AppState.addWater(500)" title="+500 מ״ל בקבוק מים">
+                  <span class="water-btn-icon">💧</span>
+                  <span class="water-btn-amt">+500ml</span>
+                  <span class="water-btn-sub">חצי ליטר</span>
+                </button>
+                <button class="water-quick-btn" onclick="AppState.addWater(750)" title="+750 מ״ל פלאסק צייד">
+                  <span class="water-btn-icon">🧪</span>
+                  <span class="water-btn-amt">+750ml</span>
+                  <span class="water-btn-sub">פלאסק צייד</span>
+                </button>
+                <button class="water-quick-btn" onclick="AppState.addWater(1000)" title="+1000 מ״ל בקבוק ליטר">
+                  <span class="water-btn-icon">🍶</span>
+                  <span class="water-btn-amt">+1.0L</span>
+                  <span class="water-btn-sub">בקבוק ליטר</span>
+                </button>
+              </div>
+
+              <!-- Custom Water Amount Input -->
+              <div class="water-custom-row">
+                <input type="number" id="custom-water-input" class="water-custom-input" placeholder="כמות מותאמת (מ״ל)" min="50" max="3000" step="50">
+                <button class="water-custom-btn" onclick="AppState.addCustomWater()">+ שתיתי</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Today's Water Log Timeline / Toggle -->
+          <div id="water-history-details" class="water-history-details" style="display:none;">
+            <div class="water-logs-mini-list" id="water-logs-mini-list"></div>
+          </div>
+          <div style="text-align:center; margin-top:2px;">
+            <button id="toggle-water-history-btn" onclick="AppState.toggleWaterHistory()" class="water-toggle-link">
+              📜 הצג היסטוריית לגימות היום (<span id="water-logs-count">0</span>)
+            </button>
+          </div>
+        </section>
+
         <!-- QUICK POTIONS / INVENTORY -->
         <section class="inventory-section">
           <div class="section-title-wrap">
@@ -884,6 +954,27 @@
           <option value="very_active">פעילות גבוהה - 6-7 אימונים אינטנסיביים בשבוע (x1.725)</option>
           <option value="extra_active">ספורטאי עלית / עבודה פיזית מאומצת ביותר (x1.9)</option>
         </select>
+      </div>
+
+      <!-- AI HUNTER GOAL ARCHITECT (יועץ מטרות מבוסס AI) -->
+      <div class="ai-goal-architect-card">
+        <div class="ai-goal-top">
+          <span class="ai-goal-badge">🤖 AI HUNTER ARCHITECT</span>
+          <span class="ai-goal-sub">כתוב במילים שלך מה אתה רוצה להשיג</span>
+        </div>
+        <div class="ai-goal-input-wrap">
+          <textarea id="ai-goal-input" class="ai-goal-textarea" rows="2" placeholder="לדוגמה: אני רוצה חיטוב לקראת הקיץ, מתאמן 4 פעמים כוח, עובד משמרות לילה ורוצה לשמור על מסת שריר..."></textarea>
+          <button id="ai-calc-goals-btn" class="ai-calc-goals-btn" onclick="AppState.calculateGoalsWithAI()" title="נתח וחשב יעדים מותאמים אישית">
+            <span>✨ נתח וחשב יעדים אישיים עם AI</span>
+          </button>
+        </div>
+
+        <!-- Dynamic AI Explanation Result Container -->
+        <div id="ai-goal-result-box" class="ai-goal-result-box" style="display:none;">
+          <div class="ai-result-headline" id="ai-result-headline">ניתוח מטרה אישי</div>
+          <div class="ai-result-text" id="ai-result-explanation"></div>
+          <div class="ai-result-tip" id="ai-result-tip"></div>
+        </div>
       </div>
 
       <div class="form-group">

@@ -2743,6 +2743,166 @@ class FoodChatAI:
 
 
 # -------------------------------------------------------------
+# Hunter Goal Advisor AI — Personalized AI Target Formulation
+# -------------------------------------------------------------
+class GoalAdvisorAI:
+    """Uses Gemini AI (with smart scientific fallback) to formulate customized nutrition and fitness targets based on natural language user goals."""
+
+    MODELS = [
+        "gemini-flash-latest",
+        "gemini-3.1-flash-lite",
+        "gemini-3.1-flash-lite-preview"
+    ]
+
+    PROMPT_TEMPLATE = """אתה פיזיולוג ספורט ותזונאי קליני בכיר באפליקציית כושר בסגנון Solo Leveling.
+המשתמש מתאר במילים חופשיות את מטרת הכושר והתזונה שלו, בנוסף לנתוניו הפיזיולוגיים.
+עליך לנתח את המטרה, לחשב במדויק יעדים מותאמים אישית (קלוריות, חלבון, פחמימות, שומן, מים וסיבים) לפי עקרונות ISSN ו-Mifflin-St Jeor, ולספק הסבר מדעי קצר, אישי ומעצים בסגנון הציידים (System).
+
+נתוני המשתמש:
+- משקל: {weight} ק"ג
+- גובה: {height} ס"מ
+- גיל: {age}
+- מין: {sex}
+- רמת פעילות: {activity}
+- תיאור המטרה של המשתמש: "{goal_text}"
+
+החזר אך ורק אובייקט JSON תקין (ללא markdown וללא תווים מיותרים):
+{{
+  "goal_type": "cut / bulk / maintain / recomposition",
+  "target_calories": 2150,
+  "target_protein": 170,
+  "target_carbs": 215,
+  "target_fats": 65,
+  "target_water": 3200,
+  "target_fiber": 32,
+  "analysis_headline": "כותרת קצרה ומעצימה למטרה",
+  "ai_explanation": "הסבר מנומק של 2-3 משפטים בעברית שמסביר מדוע נבחרו ערכים אלו (למשל: סף חלבון לשמירה על שריר, גרעון קלורי מדוד, תמיכה במשמרות/אימונים והידרציה)",
+  "hunter_rank_tip": "טיפ מעשי קצר לביצוע מוצלח"
+}}
+"""
+
+    @classmethod
+    def calculate_from_text(cls, goal_text: str, user_profile: dict) -> dict:
+        weight = float(user_profile.get("weight", 78.0))
+        height = float(user_profile.get("height", 178.0))
+        age = int(user_profile.get("age", 25))
+        sex = user_profile.get("sex", "male")
+        activity = user_profile.get("activity_level", "moderate")
+
+        # First attempt Gemini AI
+        if GEMINI_API_KEY and goal_text.strip():
+            prompt = cls.PROMPT_TEMPLATE.format(
+                weight=weight,
+                height=height,
+                age=age,
+                sex=sex,
+                activity=activity,
+                goal_text=goal_text.strip()
+            )
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "maxOutputTokens": 1024,
+                    "thinkingConfig": {"thinkingBudget": 0}
+                }
+            }
+            payload_bytes = json.dumps(payload).encode("utf-8")
+
+            for model in cls.MODELS:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+                req = urllib.request.Request(
+                    url,
+                    data=payload_bytes,
+                    headers={"Content-Type": "application/json"},
+                    method="POST"
+                )
+                try:
+                    with urllib.request.urlopen(req, timeout=15, context=_get_ssl_context()) as resp:
+                        raw = resp.read().decode("utf-8")
+                    data = json.loads(raw)
+                    text = ""
+                    for part in data.get("candidates", [{}])[0].get("content", {}).get("parts", []):
+                        if "text" in part:
+                            text += part["text"]
+                    text = text.strip()
+                    if text.startswith("```"):
+                        text = text.split("```")[1]
+                        if text.startswith("json"):
+                            text = text[4:]
+                        text = text.strip()
+                    res = json.loads(text)
+                    if "target_calories" in res and "target_protein" in res:
+                        return res
+                except Exception as e:
+                    print(f"GoalAdvisorAI error with {model}: {e}")
+
+        # Scientific Fallback Algorithm based on text semantics
+        return cls.fallback_scientific_calculation(goal_text, user_profile)
+
+    @classmethod
+    def fallback_scientific_calculation(cls, goal_text: str, user_profile: dict) -> dict:
+        weight = float(user_profile.get("weight", 78.0))
+        height = float(user_profile.get("height", 178.0))
+        age = int(user_profile.get("age", 25))
+        sex = user_profile.get("sex", "male")
+        activity = user_profile.get("activity_level", "moderate")
+        text = (goal_text or "").lower()
+
+        # Determine goal direction from user wording
+        if any(w in text for w in ["חיטוב", "להוריד", "ירידה", "לרדת", "שומן", "בטן", "גרעון", "cut"]):
+            goal = "cut"
+            cal_factor = 0.80  # 20% deficit
+            p_mult = 2.2      # High protein to protect muscle
+            headline = "חיטוב אסטרטגי והגנה על מסת שריר"
+            explanation = f"המערכת הגדירה גרעון קלורי מדעי של 20% לשריפת שומן בקצב אופטימלי, עם מינון חלבון גבוה של 2.2g/kg ({round(weight * 2.2)}g) למניעת קטבוליזם."
+            tip = "הקפד על ארוחות חלבון סביב אימונים ושתייה מרובה לדיכוי תיאבון שווא."
+        elif any(w in text for w in ["מסה", "לעלות", "שריר", "גדילה", "היפרטרופיה", "להשמין", "bulk"]):
+            goal = "bulk"
+            cal_factor = 1.10  # 10% surplus
+            p_mult = 1.9
+            headline = "מסה נקייה ועודף אנרגטי לבניית כוח"
+            explanation = f"המערכת חישבה עודף קלורי מבוקר של 10% מעל ה-TDEE לעידוד סינתזת חלבון מרבית (mTOR) ללא צבירת שומן מיותרת."
+            tip = "שלב פחמימות מורכבות לפני אימונים ופזר את הארוחות על פני 4-5 מנות יומיות."
+        else:
+            goal = "recomposition"
+            cal_factor = 0.93  # Mild 7% deficit for body recomposition
+            p_mult = 2.0
+            headline = "איזון מטבולי ורה-קומפוזיציה גופנית"
+            explanation = f"המערכת הגדירה יעדי תחזוקה משופרים לבניית שריר בד בבד עם שריפת שומן הדרגתית, בהתאמה למשקל {weight} ק\"ג."
+            tip = "עקביות בהידרציה ואימוני התנגדות עצימים הם המפתח להתקדמות."
+
+        sci = NutritionScienceEngine.calculate_full_profile(
+            weight_kg=weight,
+            height_cm=height,
+            age=age,
+            sex=sex,
+            activity_level=activity,
+            goal="cut" if goal == "cut" else ("bulk" if goal == "bulk" else "maintain")
+        )
+
+        cals = round(sci["tdee"] * cal_factor)
+        protein = round(weight * p_mult)
+        fats = max(50, round(weight * 0.85))
+        carbs = max(60, round((cals - (protein * 4) - (fats * 9)) / 4))
+        water = round(weight * 38 + 500)
+        fiber = max(28, round((cals / 1000) * 14))
+
+        return {
+            "goal_type": goal,
+            "target_calories": cals,
+            "target_protein": protein,
+            "target_carbs": carbs,
+            "target_fats": fats,
+            "target_water": water,
+            "target_fiber": fiber,
+            "analysis_headline": headline,
+            "ai_explanation": explanation,
+            "hunter_rank_tip": tip
+        }
+
+
+# -------------------------------------------------------------
 # HTTP Request Handler & REST API
 # -------------------------------------------------------------
 class SystemApiHandler(SimpleHTTPRequestHandler):
@@ -2869,6 +3029,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.handle_food_recognize(body)
         elif path == "/api/food/chat-parse":
             self.handle_food_chat_parse(body)
+        elif path == "/api/goals/ai-calculate":
+            self.handle_goals_ai_calculate(body)
         else:
             self._set_headers(404)
             self.wfile.write(json.dumps({"error": "Endpoint not found"}).encode("utf-8"))
@@ -2880,6 +3042,13 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             try:
                 log_id = int(path.split("/")[-1])
                 self.handle_delete_log(log_id)
+            except Exception as e:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+        elif path == "/api/nutrition/water" or path.startswith("/api/nutrition/water/"):
+            try:
+                water_id = int(path.split("/")[-1]) if path.startswith("/api/nutrition/water/") else None
+                self.handle_delete_water(water_id)
             except Exception as e:
                 self._set_headers(400)
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
@@ -3125,6 +3294,14 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 body_fat_pct=body_fat
             )
 
+            # Support custom target overrides (e.g. from AI Goal Architect)
+            target_calories = int(body.get("target_calories")) if body.get("target_calories") else sci["target_calories"]
+            target_protein = int(body.get("target_protein")) if body.get("target_protein") else sci["target_protein"]
+            target_carbs = int(body.get("target_carbs")) if body.get("target_carbs") else sci["target_carbs"]
+            target_fats = int(body.get("target_fats")) if body.get("target_fats") else sci["target_fats"]
+            target_water = int(body.get("target_water")) if body.get("target_water") else sci["target_water"]
+            target_fiber = int(body.get("target_fiber")) if body.get("target_fiber") else sci["target_fiber"]
+
             with Database.get_connection() as conn:
                 c = conn.cursor()
                 c.execute("""
@@ -3136,8 +3313,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 WHERE id=1
                 """, (
                     name, weight, height, age, sex, activity, goal, body_fat or 0,
-                    sci["bmr"], sci["tdee"], sci["target_calories"], sci["target_protein"],
-                    sci["target_carbs"], sci["target_fats"], sci["target_water"], sci["target_fiber"]
+                    sci["bmr"], sci["tdee"], target_calories, target_protein,
+                    target_carbs, target_fats, target_water, target_fiber
                 ))
                 conn.commit()
 
@@ -3319,6 +3496,10 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             profile["ach_unlocked"] = ach_unlocked
             profile["ach_total"] = ach_total
 
+            # Today's detailed water logs
+            c.execute("SELECT * FROM water_logs WHERE date = ? ORDER BY id DESC", (today,))
+            water_today_logs = [dict(r) for r in c.fetchall()]
+
             self._set_headers()
             self.wfile.write(json.dumps({
                 "date": today,
@@ -3327,6 +3508,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 "consumed": consumed,
                 "meals": meals,
                 "quests": quests,
+                "supplements": supps,
+                "water_logs": water_today_logs,
                 "total_workouts": total_workouts,
                 "achievements_summary": {
                     "unlocked": ach_unlocked,
@@ -3409,7 +3592,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
 
     def handle_post_water(self, body):
         now_time = datetime.datetime.now().strftime("%H:%M")
-        amount = int(body.get("amount_ml", 250))
+        amount = int(body.get("amount_ml") or body.get("amount") or 250)
 
         with Database.get_connection() as conn:
             today = get_hunter_shift_date(conn)
@@ -3431,6 +3614,41 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             "exp_awarded": 10,
             "leveling": lvl_res
         }, ensure_ascii=False).encode("utf-8"))
+
+    def handle_delete_water(self, water_id=None):
+        with Database.get_connection() as conn:
+            today = get_hunter_shift_date(conn)
+            c = conn.cursor()
+            if water_id is not None:
+                c.execute("DELETE FROM water_logs WHERE id = ?", (water_id,))
+            else:
+                # Delete the most recent water log for today (Undo feature)
+                c.execute("DELETE FROM water_logs WHERE id = (SELECT id FROM water_logs WHERE date = ? ORDER BY id DESC LIMIT 1)", (today,))
+            conn.commit()
+        self._set_headers(200)
+        self.wfile.write(json.dumps({"status": "deleted"}, ensure_ascii=False).encode("utf-8"))
+
+    def handle_goals_ai_calculate(self, body):
+        try:
+            goal_text = body.get("goal_text", "").strip()
+            with Database.get_connection() as conn:
+                c = conn.cursor()
+                c.execute("SELECT * FROM hunter_profile WHERE id=1")
+                profile = dict(c.fetchone())
+
+            # If user provided weight/height/age in the request override profile
+            if body.get("weight"): profile["weight"] = float(body["weight"])
+            if body.get("height"): profile["height"] = float(body["height"])
+            if body.get("age"): profile["age"] = int(body["age"])
+            if body.get("sex"): profile["sex"] = body["sex"]
+            if body.get("activity_level"): profile["activity_level"] = body["activity_level"]
+
+            res = GoalAdvisorAI.calculate_from_text(goal_text, profile)
+            self._set_headers(200)
+            self.wfile.write(json.dumps(res, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
 
     def handle_post_quick_potion(self, body):
         potion_type = body.get("potion_type", "water")

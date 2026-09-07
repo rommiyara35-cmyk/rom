@@ -98,12 +98,14 @@ const AppState = {
   skills: [],
   workouts: [],
   supplements: [],
+  waterLogs: [],
   achievements: [],
   totalWorkouts: 0,
   achievementsSummary: null,
   dailyDebrief: null,
   activeDebriefTab: 'maintain',
   codeReader: null,
+  customAIGoals: null,
 
   async init() {
     // Setup Service Worker
@@ -210,6 +212,8 @@ const AppState = {
       this.meals = data.meals;
       this.quests = data.quests;
       this.shiftInfo = data.shift_info;
+      this.waterLogs = data.water_logs || [];
+      if (data.supplements) this.supplements = data.supplements;
       if (data.total_workouts !== undefined) {
         this.totalWorkouts = data.total_workouts;
       }
@@ -260,6 +264,7 @@ const AppState = {
     this.renderAIInsights();
     this.renderCalorieGauge();
     this.renderMacroBars();
+    this.renderWaterCockpit();
     this.renderQuests();
     this.renderMicronutrients();
     this.renderMealsList();
@@ -463,6 +468,58 @@ const AppState = {
     document.getElementById('macro-fats-bar').style.width = `${fatsPct}%`;
   },
 
+  renderWaterCockpit() {
+    if (!this.profile || !this.consumed) return;
+    const p = this.profile;
+    const c = this.consumed;
+    const curWater = Math.round(c.water_ml || 0);
+    const tgtWater = Math.round(p.target_water || 3000);
+    const pct = Math.min(100, Math.round((curWater / Math.max(1, tgtWater)) * 100));
+
+    const curEl = document.getElementById('water-cur-amount');
+    if (curEl) curEl.innerText = curWater.toLocaleString();
+
+    const tgtEl = document.getElementById('water-tgt-amount');
+    if (tgtEl) tgtEl.innerText = tgtWater.toLocaleString();
+
+    const badgeEl = document.getElementById('water-pct-badge');
+    if (badgeEl) badgeEl.innerText = `${pct}%`;
+
+    const waveEl = document.getElementById('water-wave-fill');
+    if (waveEl) waveEl.style.height = `${pct}%`;
+
+    const remEl = document.getElementById('water-remaining-text');
+    if (remEl) {
+      if (curWater >= tgtWater) {
+        remEl.innerText = '🏆 יעד המים היומי הושלם בהצלחה!';
+        remEl.style.color = '#38bdf8';
+      } else {
+        const remaining = tgtWater - curWater;
+        remEl.innerText = `נותרו ${remaining.toLocaleString()} מ״ל ליעד`;
+        remEl.style.color = '#94a3b8';
+      }
+    }
+
+    // Water logs mini list
+    const listEl = document.getElementById('water-logs-mini-list');
+    const countEl = document.getElementById('water-logs-count');
+    if (countEl) countEl.innerText = this.waterLogs ? this.waterLogs.length : 0;
+
+    if (listEl) {
+      if (!this.waterLogs || this.waterLogs.length === 0) {
+        listEl.innerHTML = '<div style="color:var(--text-muted); font-size:11px; text-align:center; padding:8px;">אין עדיין לגימות מים רשומות היום</div>';
+      } else {
+        listEl.innerHTML = this.waterLogs.map(l => `
+          <div class="water-log-chip">
+            <span class="water-log-time">🕒 ${l.timestamp || '--:--'}</span>
+            <span class="water-log-vol">+${l.amount_ml} מ״ל</span>
+            <button class="water-log-del-btn" onclick="AppState.deleteWaterLog(${l.id})" title="מחק רישום זה">✕</button>
+          </div>
+        `).join('');
+      }
+    }
+  },
+
   renderQuests() {
     const listEl = document.getElementById('quest-list');
     if (!listEl || !this.quests) return;
@@ -620,6 +677,80 @@ const AppState = {
       await this.fetchTodayData();
     } catch (e) {
       console.error(e);
+    }
+  },
+
+  async addWater(amount) {
+    sfx.playPotion();
+    try {
+      const res = await fetch('/api/nutrition/water', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount_ml: amount })
+      });
+      const data = await res.json();
+      if (data.leveling && data.leveling.leveled_up) {
+        this.showLevelUpModal(data.leveling);
+      }
+      this.showToast(`💧 נוספו ${amount} מ״ל מים!`);
+      await this.fetchTodayData();
+      if (typeof this.fetchDailyDebrief === 'function') this.fetchDailyDebrief();
+    } catch (e) {
+      console.error('Error logging water:', e);
+    }
+  },
+
+  addCustomWater() {
+    const inp = document.getElementById('custom-water-input');
+    const val = parseInt(inp ? inp.value : 0);
+    if (val > 0) {
+      this.addWater(val);
+      if (inp) inp.value = '';
+    } else {
+      alert('אנא הזן כמות מים תקינה (במ״ל)');
+    }
+  },
+
+  async undoWater() {
+    sfx.playClick();
+    try {
+      const res = await fetch('/api/nutrition/water', { method: 'DELETE' });
+      if (res.ok) {
+        this.showToast('↩️ הרישום האחרון בוטל בהצלחה');
+        await this.fetchTodayData();
+        if (typeof this.fetchDailyDebrief === 'function') this.fetchDailyDebrief();
+      }
+    } catch (e) {
+      console.error('Undo water error:', e);
+    }
+  },
+
+  async deleteWaterLog(id) {
+    if (!confirm('האם למחוק רישום מים זה?')) return;
+    sfx.playClick();
+    try {
+      const res = await fetch(`/api/nutrition/water/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        this.showToast('✕ רישום מים נמחק');
+        await this.fetchTodayData();
+        if (typeof this.fetchDailyDebrief === 'function') this.fetchDailyDebrief();
+      }
+    } catch (e) {
+      console.error('Delete water log error:', e);
+    }
+  },
+
+  toggleWaterHistory() {
+    const el = document.getElementById('water-history-details');
+    if (!el) return;
+    const isHidden = el.style.display === 'none' || !el.style.display;
+    el.style.display = isHidden ? 'block' : 'none';
+    const btn = document.getElementById('toggle-water-history-btn');
+    if (btn) {
+      const count = this.waterLogs ? this.waterLogs.length : 0;
+      btn.innerHTML = isHidden
+        ? `📜 הסתר היסטוריית לגימות (${count})`
+        : `📜 הצג היסטוריית לגימות היום (<span id="water-logs-count">${count}</span>)`;
     }
   },
 
@@ -874,7 +1005,13 @@ const AppState = {
   },
 
   // Awakening Scientific Assessment Logic
-  updateAwakeningPreview() {
+  updateAwakeningPreview(keepCustom = false) {
+    if (!keepCustom) {
+      this.customAIGoals = null;
+      const resBox = document.getElementById('ai-goal-result-box');
+      if (resBox) resBox.style.display = 'none';
+    }
+
     const weight = parseFloat(document.getElementById('awakening-weight').value) || 75;
     const height = parseFloat(document.getElementById('awakening-height').value) || 175;
     const age = parseInt(document.getElementById('awakening-age').value) || 25;
@@ -913,6 +1050,95 @@ const AppState = {
     document.getElementById('prev-water').innerText = `${water} ml`;
   },
 
+  async calculateGoalsWithAI() {
+    const inputEl = document.getElementById('ai-goal-input');
+    const text = inputEl ? inputEl.value.trim() : '';
+    if (!text) {
+      alert('אנא תאר במילים שלך מה אתה רוצה להשיג (למשל: חיטוב לקראת הקיץ, עלייה נקייה במסה, שמירה על שריר ועבודה בלילות וכו\')');
+      return;
+    }
+    sfx.playClick();
+    const btn = document.getElementById('ai-calc-goals-btn');
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>⚡ מנתח פיזיולוגיה ויוצר תוכנית AI...</span>';
+    }
+
+    try {
+      const weight = parseFloat(document.getElementById('awakening-weight').value) || (this.profile ? this.profile.weight : 78);
+      const height = parseFloat(document.getElementById('awakening-height').value) || (this.profile ? this.profile.height : 178);
+      const age = parseInt(document.getElementById('awakening-age').value) || (this.profile ? this.profile.age : 25);
+      const sex = document.getElementById('awakening-sex').value || (this.profile ? this.profile.sex : 'male');
+      const activity = document.getElementById('awakening-activity').value || (this.profile ? this.profile.activity_level : 'moderate');
+
+      const res = await fetch('/api/goals/ai-calculate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          goal_text: text,
+          weight,
+          height,
+          age,
+          sex,
+          activity_level: activity
+        })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      this.customAIGoals = data;
+
+      // Update the awakening preview fields
+      const cals = data.target_calories;
+      const p = data.target_protein;
+      const c = data.target_carbs;
+      const f = data.target_fats;
+      const w = data.target_water;
+
+      const prevCals = document.getElementById('prev-target-cals');
+      if (prevCals) prevCals.innerText = `${cals} kcal`;
+      const prevP = document.getElementById('prev-protein');
+      if (prevP) prevP.innerText = `${p}g (${Math.round((p * 4 / cals) * 100)}%)`;
+      const prevC = document.getElementById('prev-carbs');
+      if (prevC) prevC.innerText = `${c}g (${Math.round((c * 4 / cals) * 100)}%)`;
+      const prevF = document.getElementById('prev-fats');
+      if (prevF) prevF.innerText = `${f}g (${Math.round((f * 9 / cals) * 100)}%)`;
+      const prevW = document.getElementById('prev-water');
+      if (prevW) prevW.innerText = `${w} ml`;
+
+      // Also sync path dropdown if applicable
+      const goalSelect = document.getElementById('awakening-goal');
+      if (goalSelect && data.goal_type) {
+        goalSelect.value = data.goal_type;
+      }
+
+      // Render the AI explanation box
+      const resultBox = document.getElementById('ai-goal-result-box');
+      const headlineEl = document.getElementById('ai-result-headline');
+      const expEl = document.getElementById('ai-result-explanation');
+      const tipEl = document.getElementById('ai-result-tip');
+
+      if (resultBox) resultBox.style.display = 'block';
+      if (headlineEl) headlineEl.innerText = `🎯 ${data.analysis_headline || 'יעדים מותאמים אישית'}`;
+      if (expEl) expEl.innerText = data.ai_explanation || '';
+      if (tipEl) {
+        tipEl.innerText = `💡 טיפ צייד מדעי: ${data.hunter_rank_tip || 'הקפד על עקביות יומית כדי למקסם תוצאות.'}`;
+        tipEl.style.display = 'block';
+      }
+
+      this.showToast('✨ היעדים חושבו בהצלחה לפי המטרה שלך!');
+    } catch (err) {
+      console.error('AI Goal calculation error:', err);
+      alert('שגיאה בחישוב היעדים: ' + err.message);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+    }
+  },
+
   async submitAwakening() {
     sfx.playClick();
     const payload = {
@@ -924,6 +1150,15 @@ const AppState = {
       activity_level: document.getElementById('awakening-activity').value,
       goal: document.getElementById('awakening-goal').value
     };
+
+    if (this.customAIGoals) {
+      payload.target_calories = this.customAIGoals.target_calories;
+      payload.target_protein = this.customAIGoals.target_protein;
+      payload.target_carbs = this.customAIGoals.target_carbs;
+      payload.target_fats = this.customAIGoals.target_fats;
+      payload.target_water = this.customAIGoals.target_water;
+      payload.target_fiber = this.customAIGoals.target_fiber;
+    }
 
     try {
       const res = await fetch('/api/awakening', {
@@ -953,6 +1188,22 @@ const AppState = {
       m.style.display = 'flex';
       m.style.pointerEvents = 'auto';
       if (id === 'awakening-modal') {
+        if (this.profile) {
+          const wEl = document.getElementById('awakening-weight');
+          const hEl = document.getElementById('awakening-height');
+          const aEl = document.getElementById('awakening-age');
+          const sEl = document.getElementById('awakening-sex');
+          const actEl = document.getElementById('awakening-activity');
+          const gEl = document.getElementById('awakening-goal');
+          const nEl = document.getElementById('awakening-name');
+          if (wEl && this.profile.weight) wEl.value = this.profile.weight;
+          if (hEl && this.profile.height) hEl.value = this.profile.height;
+          if (aEl && this.profile.age) aEl.value = this.profile.age;
+          if (sEl && this.profile.sex) sEl.value = this.profile.sex;
+          if (actEl && this.profile.activity_level) actEl.value = this.profile.activity_level;
+          if (gEl && this.profile.goal) gEl.value = this.profile.goal;
+          if (nEl && this.profile.name) nEl.value = this.profile.name;
+        }
         this.updateAwakeningPreview();
       }
     }
