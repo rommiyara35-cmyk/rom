@@ -149,9 +149,12 @@
           </div>
 
           <div class="char-id-row">
-            <span class="char-id-label">ID:</span>
-            <span id="hunter-system-id" class="char-id-code">HNT-77492</span>
-            <button type="button" class="copy-id-btn" onclick="AppState.copyHunterId()" title="העתק מזהה צייד">📋</button>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span class="char-id-label">ID:</span>
+              <span id="hunter-system-id" class="char-id-code">HNT-77492</span>
+              <button type="button" class="copy-id-btn" onclick="AppState.copyHunterId()" title="העתק מזהה צייד">📋</button>
+            </div>
+            <button type="button" class="re-awaken-bio-btn" onclick="AppState.openFirstTimeAwakening(true)" title="הגדרת יעדים ומבדק התעוררות עם AI">⚡ ערוך יעדים עם AI</button>
           </div>
         </div>
 
@@ -1903,6 +1906,186 @@
       <span id="nav-badge-pill" class="nav-badge-pill">1</span>
     </button>
   </nav>
+
+  <!-- FIRST-TIME HUNTER AWAKENING OVERLAY (מסך התעוררות והגדרת יעדים ראשונית) -->
+  <div id="first-time-awakening-overlay" class="first-time-awakening-overlay" style="display:none;">
+    <div class="awakening-screen-container">
+      
+      <!-- Monolith Header -->
+      <div class="awakening-screen-header">
+        <div class="awakening-gate-rune">⚡</div>
+        <div class="awakening-badge-tag">[ SYSTEM PROTOCOL: HUNTER AWAKENING ]</div>
+        <h1 class="awakening-main-title">טקס ההתעוררות של הצייד</h1>
+        <p class="awakening-sub-desc">
+          ברוך הבא למערכת הדירוג והפיקוח הגופני. כדי לפתוח את לוח הבקרה ולהתחיל לצבור EXP, הגדר את הנתונים האישיים שלך ותאר במילים שלך מה המטרה שתרצה להשיג. מנוע ה-AI יחשב עבורך מפרט מדעי מותאם אישית.
+        </p>
+      </div>
+
+      <!-- Step 1: Hunter Identity & Biometrics -->
+      <div class="awakening-card">
+        <div class="awakening-card-header">
+          <span class="awakening-step-num">01</span>
+          <div class="awakening-step-info">
+            <span class="awakening-step-title">זיהוי צייד ומדדים פיזיולוגיים</span>
+            <span class="awakening-step-sub">הנתונים הבסיסיים לחישוב חילוף החומרים (BMR / TDEE)</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">שם הצייד / כינוי</label>
+          <input type="text" id="init-name" class="form-input" placeholder="שם הצייד (למשל: צייד רום)" value="צייד רום">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">גיל</label>
+            <input type="number" id="init-age" class="form-input" value="26" min="14" max="100" oninput="AppState.updateOnboardingPreview()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">מין ביולוגי</label>
+            <select id="init-sex" class="form-select" onchange="AppState.updateOnboardingPreview()">
+              <option value="male" selected>גבר (Male)</option>
+              <option value="female">אישה (Female)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">גובה (ס״מ)</label>
+            <input type="number" id="init-height" class="form-input" value="180" step="1" oninput="AppState.updateOnboardingPreview()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">משקל נוכחי (ק״ג)</label>
+            <input type="number" id="init-weight" class="form-input" value="80" step="0.5" oninput="AppState.updateOnboardingPreview()">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">משקל יעד (ק״ג)</label>
+            <input type="number" id="init-target-weight" class="form-input" value="75" step="0.5">
+          </div>
+          <div class="form-group">
+            <label class="form-label">שגרת יום / משמרות</label>
+            <select id="init-shift-mode" class="form-select">
+              <option value="standard" selected>☀️ יום רגילה (איפוס בחצות)</option>
+              <option value="night">🌙 משמרת לילה (איפוס ב-08:00 בבוקר)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">רמת פעילות גופנית שבועית (PAL)</label>
+          <select id="init-activity" class="form-select" onchange="AppState.updateOnboardingPreview()">
+            <option value="sedentary">יושבני - משרדי, מעט מאוד פעילות (x1.2)</option>
+            <option value="light">פעילות קלה - הליכות, 1-2 אימונים בשבוע (x1.375)</option>
+            <option value="moderate" selected>פעילות בינונית - 3-5 אימוני כוח עצימים (x1.55)</option>
+            <option value="very_active">פעילות גבוהה - 6-7 אימונים בשבוע (x1.725)</option>
+            <option value="extra_active">ספורטאי עלית / עבודה פיזית קשה ביותר (x1.9)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Step 2: AI Goal Architect -->
+      <div class="awakening-card ai-highlight-card">
+        <div class="awakening-card-header">
+          <span class="awakening-step-num" style="background:rgba(0,240,255,0.2); color:#00f0ff; border-color:#00f0ff;">02</span>
+          <div class="awakening-step-info">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="awakening-step-title" style="color:#00f0ff;">המטרה שלך במילים שלך (AI Architect)</span>
+              <span class="quest-tag" style="background:rgba(0,240,255,0.15); border-color:#00f0ff; color:#00f0ff; font-size:10px;">✨ מופעל ע״י AI</span>
+            </div>
+            <span class="awakening-step-sub">כתוב בחופשיות בדיוק מה המטרה שתרצה להשיג בגוף ובכושר</span>
+          </div>
+        </div>
+
+        <div class="ai-onboarding-input-wrap">
+          <textarea id="init-goal-text" class="ai-goal-textarea" rows="3" placeholder="לדוגמה: אני רוצה חיטוב לקראת הקיץ, להוריד אחוזי שומן ולשמור על מסת שריר, מתאמן כוח 4 פעמים בשבוע..."></textarea>
+          
+          <button id="init-ai-calc-btn" class="ai-calc-goals-btn" onclick="AppState.calcOnboardingWithAI()">
+            <span>✨ נתח וחשב יעדים מותאמים אישית עם AI</span>
+          </button>
+        </div>
+
+        <!-- Dynamic AI Explanation Result Box -->
+        <div id="init-ai-result-box" class="ai-goal-result-box" style="display:none; margin-top:14px;">
+          <div class="ai-result-headline" id="init-ai-result-headline">ניתוח מטרה מותאם אישית</div>
+          <div class="ai-result-text" id="init-ai-result-explanation"></div>
+          <div class="ai-result-tip" id="init-ai-result-tip"></div>
+        </div>
+
+        <div class="form-group" style="margin-top:14px;">
+          <label class="form-label">נתיב היעד (Hunter's Path)</label>
+          <select id="init-goal-path" class="form-select" onchange="AppState.updateOnboardingPreview()">
+            <option value="cut" selected>חיטוב ושריפת שומן (גרעון מדעי 20% + שמירת שריר)</option>
+            <option value="maintain">שמירה על משקל ואיזון מטבולי (Maintenance)</option>
+            <option value="bulk">מסה נקייה (עודף מבוקר של 8-10% לבניית שריר)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Step 3: Live Blueprint Preview -->
+      <div class="awakening-card">
+        <div class="awakening-card-header">
+          <span class="awakening-step-num">03</span>
+          <div class="awakening-step-info">
+            <span class="awakening-step-title">מפרט היעדים המדעי המחושב (Blueprint)</span>
+            <span class="awakening-step-sub">יעדים מדויקים שישולבו במדי הדלק ובמשימות היומיות</span>
+          </div>
+        </div>
+
+        <div class="onboarding-blueprint-grid">
+          <div class="blueprint-stat-chip">
+            <span class="bp-label">BMR (חילוף חומרים)</span>
+            <span class="bp-val" id="init-prev-bmr">1,890 kcal</span>
+          </div>
+          <div class="blueprint-stat-chip">
+            <span class="bp-label">TDEE (הוצאה יומית)</span>
+            <span class="bp-val" id="init-prev-tdee">2,930 kcal</span>
+          </div>
+          <div class="blueprint-stat-chip highlight-cals">
+            <span class="bp-label">🔥 יעד קלוריות</span>
+            <span class="bp-val cals-glow" id="init-prev-cals">2,345 kcal</span>
+          </div>
+          <div class="blueprint-stat-chip highlight-prot">
+            <span class="bp-label">🥩 יעד חלבון (ISSN)</span>
+            <span class="bp-val prot-glow" id="init-prev-prot">180g</span>
+          </div>
+          <div class="blueprint-stat-chip">
+            <span class="bp-label">🍞 פחמימות (מאנה)</span>
+            <span class="bp-val" id="init-prev-carbs">235g</span>
+          </div>
+          <div class="blueprint-stat-chip">
+            <span class="bp-label">🥑 שומנים בריאים</span>
+            <span class="bp-val" id="init-prev-fats">70g</span>
+          </div>
+          <div class="blueprint-stat-chip highlight-water">
+            <span class="bp-label">💧 הידרציית מים</span>
+            <span class="bp-val water-glow" id="init-prev-water">3,600 ml</span>
+          </div>
+          <div class="blueprint-stat-chip">
+            <span class="bp-label">🌾 סיבים תזונתיים</span>
+            <span class="bp-val" id="init-prev-fiber">32g</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Footer -->
+      <div class="awakening-screen-footer">
+        <button id="submit-onboarding-btn" class="awakening-cta-btn" onclick="AppState.submitFirstTimeAwakening()">
+          <span class="cta-rune">⚔️</span>
+          <span class="cta-text">אשר התעוררות והיכנס למערכת (AWAKEN NOW)</span>
+        </button>
+        <div style="text-align:center; margin-top:10px;">
+          <button class="awakening-skip-btn" onclick="AppState.skipFirstTimeAwakening()">
+            דלג בינתיים (המשך עם הגדרות ברירת מחדל)
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
 
   <script src="/app.js?v=12"></script>
 </body>

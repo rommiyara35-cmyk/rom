@@ -233,6 +233,18 @@ class Database:
                 c.execute("ALTER TABLE hunter_profile ADD COLUMN day_reset_hour INTEGER DEFAULT 0")
             except Exception:
                 pass
+            try:
+                c.execute("ALTER TABLE hunter_profile ADD COLUMN is_awakened INTEGER DEFAULT 0")
+            except Exception:
+                pass
+            try:
+                c.execute("ALTER TABLE hunter_profile ADD COLUMN target_weight REAL DEFAULT 75.0")
+            except Exception:
+                pass
+            try:
+                c.execute("ALTER TABLE hunter_profile ADD COLUMN goal_custom_text TEXT DEFAULT ''")
+            except Exception:
+                pass
 
 
             # Food items table
@@ -2993,6 +3005,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
 
         if path == "/api/awakening":
             self.handle_post_awakening(body)
+        elif path == "/api/awakening/reset":
+            self.handle_reset_awakening()
         elif path == "/api/profile":
             self.handle_update_profile(body)
         elif path == "/api/profile/shift-mode":
@@ -3278,10 +3292,14 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             name = body.get("name", "צייד רום")
             weight = float(body.get("weight", 78.0))
             height = float(body.get("height", 178.0))
+            target_weight = float(body.get("target_weight", 74.0)) if body.get("target_weight") else 74.0
             age = int(body.get("age", 25))
             sex = body.get("sex", "male")
             activity = body.get("activity_level", "moderate")
             goal = body.get("goal", "cut")
+            shift_mode = body.get("shift_mode", "standard")
+            day_reset_hour = 8 if shift_mode == "night" else 0
+            goal_custom_text = str(body.get("goal_custom_text", "")).strip()
             body_fat = float(body.get("body_fat_pct", 0)) if body.get("body_fat_pct") else None
 
             sci = NutritionScienceEngine.calculate_full_profile(
@@ -3306,15 +3324,17 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 c = conn.cursor()
                 c.execute("""
                 UPDATE hunter_profile SET
-                    name = ?, weight = ?, height = ?, age = ?, sex = ?, activity_level = ?, goal = ?,
+                    name = ?, weight = ?, height = ?, target_weight = ?, age = ?, sex = ?, activity_level = ?, goal = ?,
                     body_fat_pct = ?, bmr = ?, tdee = ?, target_calories = ?, target_protein = ?,
                     target_carbs = ?, target_fats = ?, target_water = ?, target_fiber = ?,
+                    shift_mode = ?, day_reset_hour = ?, is_awakened = 1, goal_custom_text = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id=1
                 """, (
-                    name, weight, height, age, sex, activity, goal, body_fat or 0,
+                    name, weight, height, target_weight, age, sex, activity, goal, body_fat or 0,
                     sci["bmr"], sci["tdee"], target_calories, target_protein,
-                    target_carbs, target_fats, target_water, target_fiber
+                    target_carbs, target_fats, target_water, target_fiber,
+                    shift_mode, day_reset_hour, goal_custom_text
                 ))
                 conn.commit()
 
@@ -3326,18 +3346,28 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 "status": "awakened",
                 "message": "[SYSTEM: The Hunter has successfully completed the Awakening Assessment!]",
                 "science": sci,
-                "leveling": lvl_res
+                "leveling": lvl_res,
+                "is_awakened": 1
             }, ensure_ascii=False).encode("utf-8"))
         except Exception as e:
             self._set_headers(400)
             self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_reset_awakening(self):
+        with Database.get_connection() as conn:
+            c = conn.cursor()
+            c.execute("UPDATE hunter_profile SET is_awakened = 0 WHERE id=1")
+            conn.commit()
+        self._set_headers(200)
+        self.wfile.write(json.dumps({"status": "reset", "is_awakened": 0}, ensure_ascii=False).encode("utf-8"))
 
     def handle_update_profile(self, body):
         with Database.get_connection() as conn:
             c = conn.cursor()
             allowed = [
                 "name", "title", "target_calories", "target_protein", "target_carbs", 
-                "target_fats", "target_water", "target_fiber", "fatigue", "shift_mode", "day_reset_hour"
+                "target_fats", "target_water", "target_fiber", "fatigue", "shift_mode", "day_reset_hour",
+                "target_weight", "is_awakened", "goal_custom_text", "weight", "height", "age", "sex", "activity_level", "goal"
             ]
             fields = []
             values = []

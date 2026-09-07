@@ -158,6 +158,9 @@ const AppState = {
     this.saveLocalSnapshot();
     this.updateBackupUI();
 
+    // Check first-time awakening onboarding
+    this.checkFirstTimeAwakening();
+
     // Start Garmin Auto-Sync background heartbeat
     this.startGarminHeartbeat();
 
@@ -1176,6 +1179,316 @@ const AppState = {
       await this.fetchTodayData();
     } catch (e) {
       alert('שגיאה בחישוב ההתעוררות');
+    }
+  },
+
+  // First-Time Awakening Onboarding Logic
+  checkFirstTimeAwakening() {
+    const isAwakenedInDB = this.profile && this.profile.is_awakened;
+    const isAwakenedInCache = localStorage.getItem('hunter_awakened');
+    if (!isAwakenedInDB && !isAwakenedInCache) {
+      setTimeout(() => {
+        this.openFirstTimeAwakening(false);
+      }, 500);
+    }
+  },
+
+  openFirstTimeAwakening(force = false) {
+    sfx.playClick();
+    const overlay = document.getElementById('first-time-awakening-overlay');
+    if (!overlay) return;
+
+    const p = this.profile || {};
+    const nameEl = document.getElementById('init-name');
+    if (nameEl) nameEl.value = p.name || 'צייד רום';
+
+    const ageEl = document.getElementById('init-age');
+    if (ageEl) ageEl.value = p.age || 26;
+
+    const sexEl = document.getElementById('init-sex');
+    if (sexEl) sexEl.value = p.sex || 'male';
+
+    const heightEl = document.getElementById('init-height');
+    if (heightEl) heightEl.value = p.height || 180;
+
+    const weightEl = document.getElementById('init-weight');
+    if (weightEl) weightEl.value = p.weight || 80;
+
+    const targetWeightEl = document.getElementById('init-target-weight');
+    if (targetWeightEl) targetWeightEl.value = p.target_weight || 75;
+
+    const shiftModeEl = document.getElementById('init-shift-mode');
+    if (shiftModeEl) shiftModeEl.value = p.shift_mode || 'standard';
+
+    const actEl = document.getElementById('init-activity');
+    if (actEl) actEl.value = p.activity_level || 'moderate';
+
+    const goalPathEl = document.getElementById('init-goal-path');
+    if (goalPathEl) goalPathEl.value = p.goal || 'cut';
+
+    const goalTextEl = document.getElementById('init-goal-text');
+    if (goalTextEl && p.goal_custom_text) goalTextEl.value = p.goal_custom_text;
+
+    this.updateOnboardingPreview();
+
+    overlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  },
+
+  closeFirstTimeAwakening() {
+    const overlay = document.getElementById('first-time-awakening-overlay');
+    if (overlay) overlay.style.display = 'none';
+    document.body.style.overflow = '';
+  },
+
+  skipFirstTimeAwakening() {
+    sfx.playClick();
+    localStorage.setItem('hunter_awakened', 'true');
+    this.closeFirstTimeAwakening();
+    this.showToast('ℹ️ המשכת עם הגדרות ברירת מחדל. תוכל לערוך יעדים בכל שלב בפרופיל.');
+  },
+
+  updateOnboardingPreview(keepCustom = false) {
+    if (!keepCustom) {
+      this.customAIGoals = null;
+      const resBox = document.getElementById('init-ai-result-box');
+      if (resBox) resBox.style.display = 'none';
+    }
+
+    const weight = parseFloat(document.getElementById('init-weight')?.value) || 80;
+    const height = parseFloat(document.getElementById('init-height')?.value) || 180;
+    const age = parseInt(document.getElementById('init-age')?.value) || 26;
+    const sex = document.getElementById('init-sex')?.value || 'male';
+    const activity = document.getElementById('init-activity')?.value || 'moderate';
+    const goal = document.getElementById('init-goal-path')?.value || 'cut';
+
+    // BMR (Mifflin-St Jeor)
+    let bmr = (10 * weight) + (6.25 * height) - (5 * age);
+    bmr += (sex === 'female' ? -161 : 5);
+
+    const mults = { sedentary: 1.2, light: 1.375, moderate: 1.55, very_active: 1.725, extra_active: 1.9 };
+    const tdee = Math.round(bmr * (mults[activity] || 1.55));
+
+    let cals = tdee;
+    let protFactor = 1.9;
+    if (goal === 'cut') {
+      cals = Math.round(tdee * 0.8);
+      protFactor = 2.2;
+    } else if (goal === 'bulk') {
+      cals = Math.round(tdee * 1.09);
+      protFactor = 1.9;
+    }
+
+    const protein = Math.round(weight * protFactor);
+    const fats = Math.max(45, Math.round(weight * 0.85));
+    const carbs = Math.max(50, Math.round((cals - (protein * 4) - (fats * 9)) / 4));
+    const water = Math.round(weight * 38 + 500);
+    const fiber = Math.max(28, Math.round((cals / 1000) * 14));
+
+    const bmrEl = document.getElementById('init-prev-bmr');
+    if (bmrEl) bmrEl.innerText = `${Math.round(bmr).toLocaleString()} kcal`;
+
+    const tdeeEl = document.getElementById('init-prev-tdee');
+    if (tdeeEl) tdeeEl.innerText = `${tdee.toLocaleString()} kcal`;
+
+    const calsEl = document.getElementById('init-prev-cals');
+    if (calsEl) calsEl.innerText = `${cals.toLocaleString()} kcal`;
+
+    const protEl = document.getElementById('init-prev-prot');
+    if (protEl) protEl.innerText = `${protein}g (${Math.round((protein * 4 / cals) * 100)}%)`;
+
+    const carbsEl = document.getElementById('init-prev-carbs');
+    if (carbsEl) carbsEl.innerText = `${carbs}g (${Math.round((carbs * 4 / cals) * 100)}%)`;
+
+    const fatsEl = document.getElementById('init-prev-fats');
+    if (fatsEl) fatsEl.innerText = `${fats}g (${Math.round((fats * 9 / cals) * 100)}%)`;
+
+    const waterEl = document.getElementById('init-prev-water');
+    if (waterEl) waterEl.innerText = `${water.toLocaleString()} ml`;
+
+    const fiberEl = document.getElementById('init-prev-fiber');
+    if (fiberEl) fiberEl.innerText = `${fiber}g`;
+  },
+
+  async calcOnboardingWithAI() {
+    const inputEl = document.getElementById('init-goal-text');
+    const text = inputEl ? inputEl.value.trim() : '';
+    if (!text) {
+      alert('אנא תאר במילים שלך מה אתה רוצה להשיג (למשל: חיטוב לקראת הקיץ, שמירה על מסת שריר, הורדת שומן בטני, מסה נקייה וכו\')');
+      return;
+    }
+    sfx.playClick();
+    const btn = document.getElementById('init-ai-calc-btn');
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>⚡ מנתח פיזיולוגיה ובונה תוכנית AI...</span>';
+    }
+
+    try {
+      const weight = parseFloat(document.getElementById('init-weight')?.value) || 80;
+      const height = parseFloat(document.getElementById('init-height')?.value) || 180;
+      const age = parseInt(document.getElementById('init-age')?.value) || 26;
+      const sex = document.getElementById('init-sex')?.value || 'male';
+      const activity = document.getElementById('init-activity')?.value || 'moderate';
+
+      const res = await fetch('/api/goals/ai-calculate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          goal_text: text,
+          weight,
+          height,
+          age,
+          sex,
+          activity_level: activity
+        })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      this.customAIGoals = data;
+
+      // Update onboarding blueprint fields
+      const cals = data.target_calories;
+      const p = data.target_protein;
+      const c = data.target_carbs;
+      const f = data.target_fats;
+      const w = data.target_water;
+      const fib = data.target_fiber || 30;
+
+      const calsEl = document.getElementById('init-prev-cals');
+      if (calsEl) calsEl.innerText = `${cals.toLocaleString()} kcal`;
+
+      const protEl = document.getElementById('init-prev-prot');
+      if (protEl) protEl.innerText = `${p}g (${Math.round((p * 4 / cals) * 100)}%)`;
+
+      const carbsEl = document.getElementById('init-prev-carbs');
+      if (carbsEl) carbsEl.innerText = `${c}g (${Math.round((c * 4 / cals) * 100)}%)`;
+
+      const fatsEl = document.getElementById('init-prev-fats');
+      if (fatsEl) fatsEl.innerText = `${f}g (${Math.round((f * 9 / cals) * 100)}%)`;
+
+      const waterEl = document.getElementById('init-prev-water');
+      if (waterEl) waterEl.innerText = `${w.toLocaleString()} ml`;
+
+      const fibEl = document.getElementById('init-prev-fiber');
+      if (fibEl) fibEl.innerText = `${fib}g`;
+
+      // Sync goal path dropdown
+      const goalSelect = document.getElementById('init-goal-path');
+      if (goalSelect && data.goal_type) {
+        goalSelect.value = data.goal_type;
+      }
+
+      // Render AI result box
+      const resBox = document.getElementById('init-ai-result-box');
+      const headlineEl = document.getElementById('init-ai-result-headline');
+      const expEl = document.getElementById('init-ai-result-explanation');
+      const tipEl = document.getElementById('init-ai-result-tip');
+
+      if (resBox) resBox.style.display = 'block';
+      if (headlineEl) headlineEl.innerText = `🎯 ${data.analysis_headline || 'יעדים מותאמים אישית'}`;
+      if (expEl) expEl.innerText = data.ai_explanation || '';
+      if (tipEl) {
+        tipEl.innerText = `💡 טיפ צייד מדעי: ${data.hunter_rank_tip || 'הקפד על עקביות יומית כדי למקסם תוצאות.'}`;
+        tipEl.style.display = 'block';
+      }
+
+      this.showToast('✨ היעדים חושבו בהצלחה לפי המטרה שלך!');
+    } catch (err) {
+      console.error('AI Onboarding Goal error:', err);
+      alert('שגיאה בחישוב היעדים: ' + err.message);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+    }
+  },
+
+  async submitFirstTimeAwakening() {
+    sfx.playClick();
+    const name = document.getElementById('init-name')?.value || 'צייד רום';
+    const weight = parseFloat(document.getElementById('init-weight')?.value) || 80;
+    const height = parseFloat(document.getElementById('init-height')?.value) || 180;
+    const targetWeight = parseFloat(document.getElementById('init-target-weight')?.value) || (weight - 4);
+    const age = parseInt(document.getElementById('init-age')?.value) || 26;
+    const sex = document.getElementById('init-sex')?.value || 'male';
+    const activity = document.getElementById('init-activity')?.value || 'moderate';
+    const goal = document.getElementById('init-goal-path')?.value || 'cut';
+    const shiftMode = document.getElementById('init-shift-mode')?.value || 'standard';
+    const goalText = document.getElementById('init-goal-text')?.value || '';
+
+    const payload = {
+      name,
+      weight,
+      height,
+      target_weight: targetWeight,
+      age,
+      sex,
+      activity_level: activity,
+      goal,
+      shift_mode: shiftMode,
+      goal_custom_text: goalText
+    };
+
+    if (this.customAIGoals) {
+      payload.target_calories = this.customAIGoals.target_calories;
+      payload.target_protein = this.customAIGoals.target_protein;
+      payload.target_carbs = this.customAIGoals.target_carbs;
+      payload.target_fats = this.customAIGoals.target_fats;
+      payload.target_water = this.customAIGoals.target_water;
+      payload.target_fiber = this.customAIGoals.target_fiber;
+    }
+
+    const btn = document.getElementById('submit-onboarding-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳ מעדכן נתונים ומתעורר...</span>';
+    }
+
+    try {
+      const res = await fetch('/api/awakening', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      localStorage.setItem('hunter_awakened', 'true');
+      this.closeFirstTimeAwakening();
+
+      sfx.playLevelUp();
+      this.showToast('⚔️ טקס ההתעוררות הושלם בהצלחה! ברוך הבא לצייד.');
+
+      if (data.leveling && data.leveling.leveled_up) {
+        this.showLevelUpModal(data.leveling);
+      }
+      if (data.newly_unlocked_achievements && data.newly_unlocked_achievements.length > 0) {
+        this.checkNewlyUnlocked(data.newly_unlocked_achievements);
+      }
+      await this.fetchTodayData();
+      if (typeof this.fetchDailyDebrief === 'function') this.fetchDailyDebrief();
+    } catch (err) {
+      console.error('Awakening submit error:', err);
+      alert('שגיאה בשמירת נתוני ההתעוררות: ' + err.message);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="cta-rune">⚔️</span><span class="cta-text">אשר התעוררות והיכנס למערכת (AWAKEN NOW)</span>';
+      }
+    }
+  },
+
+  async resetAwakeningForTesting() {
+    if (!confirm('האם לאפס את סטטוס ההתעוררות כדי לצפות שוב במסך הפתיחה?')) return;
+    try {
+      localStorage.removeItem('hunter_awakened');
+      await fetch('/api/awakening/reset', { method: 'POST' });
+      await this.fetchTodayData();
+      this.openFirstTimeAwakening(true);
+    } catch (e) {
+      console.error(e);
     }
   },
 
