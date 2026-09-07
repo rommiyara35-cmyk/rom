@@ -1182,14 +1182,24 @@ const AppState = {
     }
   },
 
+  escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  },
+
   // First-Time Awakening Onboarding Logic
   checkFirstTimeAwakening() {
-    const isAwakenedInDB = this.profile && this.profile.is_awakened;
-    const isAwakenedInCache = localStorage.getItem('hunter_awakened');
-    if (!isAwakenedInDB && !isAwakenedInCache) {
+    const isAwakenedInDB = this.profile && (this.profile.is_awakened === 1 || this.profile.is_awakened === true);
+    if (!isAwakenedInDB) {
+      localStorage.removeItem('hunter_awakened');
       setTimeout(() => {
         this.openFirstTimeAwakening(false);
-      }, 500);
+      }, 400);
     }
   },
 
@@ -1226,13 +1236,22 @@ const AppState = {
     const goalPathEl = document.getElementById('init-goal-path');
     if (goalPathEl) goalPathEl.value = p.goal || 'cut';
 
-    const goalTextEl = document.getElementById('init-goal-text');
-    if (goalTextEl && p.goal_custom_text) goalTextEl.value = p.goal_custom_text;
+    if (p.goal_custom_text) {
+      this.lastAwakeningGoalText = p.goal_custom_text;
+    }
 
-    this.updateOnboardingPreview();
+    this.updateOnboardingPreview(true);
 
     overlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
+
+    // Auto-scroll chat stream to bottom and focus input
+    setTimeout(() => {
+      const stream = document.getElementById('awakening-chat-stream');
+      if (stream) stream.scrollTop = stream.scrollHeight;
+      const input = document.getElementById('awakening-chat-input');
+      if (input) input.focus();
+    }, 150);
   },
 
   closeFirstTimeAwakening() {
@@ -1248,11 +1267,18 @@ const AppState = {
     this.showToast('ℹ️ המשכת עם הגדרות ברירת מחדל. תוכל לערוך יעדים בכל שלב בפרופיל.');
   },
 
+  setAwakeningChatPrompt(text) {
+    const input = document.getElementById('awakening-chat-input');
+    if (input) {
+      input.value = text;
+      input.focus();
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  },
+
   updateOnboardingPreview(keepCustom = false) {
     if (!keepCustom) {
       this.customAIGoals = null;
-      const resBox = document.getElementById('init-ai-result-box');
-      if (resBox) resBox.style.display = 'none';
     }
 
     const weight = parseFloat(document.getElementById('init-weight')?.value) || 80;
@@ -1310,28 +1336,68 @@ const AppState = {
     if (fiberEl) fiberEl.innerText = `${fiber}g`;
   },
 
-  async calcOnboardingWithAI() {
-    const inputEl = document.getElementById('init-goal-text');
-    const text = inputEl ? inputEl.value.trim() : '';
+  async sendAwakeningChat() {
+    const input = document.getElementById('awakening-chat-input');
+    const text = input ? input.value.trim() : '';
     if (!text) {
-      alert('אנא תאר במילים שלך מה אתה רוצה להשיג (למשל: חיטוב לקראת הקיץ, שמירה על מסת שריר, הורדת שומן בטני, מסה נקייה וכו\')');
+      if (input) input.focus();
       return;
     }
+
     sfx.playClick();
-    const btn = document.getElementById('init-ai-calc-btn');
-    const origHtml = btn ? btn.innerHTML : '';
-    if (btn) {
-      btn.disabled = true;
-      btn.innerHTML = '<span>⚡ מנתח פיזיולוגיה ובונה תוכנית AI...</span>';
+    const stream = document.getElementById('awakening-chat-stream');
+    const sendBtn = document.getElementById('awakening-chat-send-btn');
+    if (sendBtn) sendBtn.disabled = true;
+
+    // Time tag
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+
+    // 1. Append user message bubble
+    if (stream) {
+      const userBubble = document.createElement('div');
+      userBubble.className = 'chat-bubble user-msg';
+      userBubble.innerHTML = `
+        <div class="chat-msg-header">
+          <span class="chat-sender-name">👤 הצייד</span>
+          <span class="chat-time-tag">${timeStr}</span>
+        </div>
+        <div class="chat-msg-body">${this.escapeHtml(text)}</div>
+      `;
+      stream.appendChild(userBubble);
+      stream.scrollTop = stream.scrollHeight;
     }
 
-    try {
-      const weight = parseFloat(document.getElementById('init-weight')?.value) || 80;
-      const height = parseFloat(document.getElementById('init-height')?.value) || 180;
-      const age = parseInt(document.getElementById('init-age')?.value) || 26;
-      const sex = document.getElementById('init-sex')?.value || 'male';
-      const activity = document.getElementById('init-activity')?.value || 'moderate';
+    // Clear input
+    if (input) input.value = '';
 
+    // 2. Append thinking bubble
+    let thinkingBubble = null;
+    if (stream) {
+      thinkingBubble = document.createElement('div');
+      thinkingBubble.className = 'chat-bubble ai-msg ai-thinking-bubble';
+      thinkingBubble.id = 'ai-thinking-bubble';
+      thinkingBubble.innerHTML = `
+        <div class="chat-msg-header">
+          <span class="chat-sender-name">⚡ SYSTEM AI</span>
+          <span class="chat-time-tag">מנתח ומחשב...</span>
+        </div>
+        <div class="chat-msg-body">
+          <span class="thinking-spinner">⚡</span> המערכת מנתחת את היעדים והנתונים הפיזיולוגיים ב-AI...
+        </div>
+      `;
+      stream.appendChild(thinkingBubble);
+      stream.scrollTop = stream.scrollHeight;
+    }
+
+    // 3. Collect current manual form values
+    const weight = parseFloat(document.getElementById('init-weight')?.value) || 80;
+    const height = parseFloat(document.getElementById('init-height')?.value) || 180;
+    const age = parseInt(document.getElementById('init-age')?.value) || 26;
+    const sex = document.getElementById('init-sex')?.value || 'male';
+    const activity = document.getElementById('init-activity')?.value || 'moderate';
+
+    try {
       const res = await fetch('/api/goals/ai-calculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1344,12 +1410,37 @@ const AppState = {
           activity_level: activity
         })
       });
+
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
+      // Save custom goals and last goal text
       this.customAIGoals = data;
+      this.lastAwakeningGoalText = text;
 
-      // Update onboarding blueprint fields
+      // Auto-update biometrics if detected in user text
+      if (data.detected_weight) {
+        const wEl = document.getElementById('init-weight');
+        if (wEl) wEl.value = data.detected_weight;
+      }
+      if (data.detected_height) {
+        const hEl = document.getElementById('init-height');
+        if (hEl) hEl.value = data.detected_height;
+      }
+      if (data.detected_age) {
+        const aEl = document.getElementById('init-age');
+        if (aEl) aEl.value = data.detected_age;
+      }
+      if (data.detected_target_weight) {
+        const twEl = document.getElementById('init-target-weight');
+        if (twEl) twEl.value = data.detected_target_weight;
+      }
+      if (data.goal_type) {
+        const gpEl = document.getElementById('init-goal-path');
+        if (gpEl) gpEl.value = data.goal_type;
+      }
+
+      // Update blueprint summary chips in overlay
       const cals = data.target_calories;
       const p = data.target_protein;
       const c = data.target_carbs;
@@ -1375,36 +1466,72 @@ const AppState = {
       const fibEl = document.getElementById('init-prev-fiber');
       if (fibEl) fibEl.innerText = `${fib}g`;
 
-      // Sync goal path dropdown
-      const goalSelect = document.getElementById('init-goal-path');
-      if (goalSelect && data.goal_type) {
-        goalSelect.value = data.goal_type;
+      // Remove thinking bubble
+      if (thinkingBubble && thinkingBubble.parentNode) {
+        thinkingBubble.parentNode.removeChild(thinkingBubble);
       }
 
-      // Render AI result box
-      const resBox = document.getElementById('init-ai-result-box');
-      const headlineEl = document.getElementById('init-ai-result-headline');
-      const expEl = document.getElementById('init-ai-result-explanation');
-      const tipEl = document.getElementById('init-ai-result-tip');
+      // Append rich AI response bubble
+      if (stream) {
+        const aiBubble = document.createElement('div');
+        aiBubble.className = 'chat-bubble ai-msg';
+        aiBubble.innerHTML = `
+          <div class="chat-msg-header">
+            <span class="chat-sender-name">⚡ SYSTEM AI</span>
+            <span class="chat-time-tag">${timeStr}</span>
+          </div>
+          <div class="chat-msg-body">
+            <div class="ai-msg-headline">🎯 ${this.escapeHtml(data.analysis_headline || 'מפרט מדעי מותאם אישית')}</div>
+            <div class="ai-msg-text">${this.escapeHtml(data.ai_explanation || '')}</div>
+            
+            <div class="ai-chat-blueprint">
+              <div class="ai-cb-item"><span class="ai-cb-k">🔥 יעד קלוריות:</span> <strong class="ai-cb-v cals-glow">${data.target_calories.toLocaleString()} kcal</strong></div>
+              <div class="ai-cb-item"><span class="ai-cb-k">🥩 יעד חלבון:</span> <strong class="ai-cb-v prot-glow">${data.target_protein}g</strong></div>
+              <div class="ai-cb-item"><span class="ai-cb-k">🍞 פחמימות:</span> <strong class="ai-cb-v">${data.target_carbs}g</strong></div>
+              <div class="ai-cb-item"><span class="ai-cb-k">🥑 שומנים:</span> <strong class="ai-cb-v">${data.target_fats}g</strong></div>
+              <div class="ai-cb-item"><span class="ai-cb-k">💧 מים יומי:</span> <strong class="ai-cb-v water-glow">${data.target_water.toLocaleString()} ml</strong></div>
+              <div class="ai-cb-item"><span class="ai-cb-k">🌾 סיבים:</span> <strong class="ai-cb-v">${data.target_fiber || 30}g</strong></div>
+            </div>
 
-      if (resBox) resBox.style.display = 'block';
-      if (headlineEl) headlineEl.innerText = `🎯 ${data.analysis_headline || 'יעדים מותאמים אישית'}`;
-      if (expEl) expEl.innerText = data.ai_explanation || '';
-      if (tipEl) {
-        tipEl.innerText = `💡 טיפ צייד מדעי: ${data.hunter_rank_tip || 'הקפד על עקביות יומית כדי למקסם תוצאות.'}`;
-        tipEl.style.display = 'block';
+            ${data.hunter_rank_tip ? `<div class="ai-chat-tip">💡 <strong>המלצת המערכת:</strong> ${this.escapeHtml(data.hunter_rank_tip)}</div>` : ''}
+          </div>
+        `;
+        stream.appendChild(aiBubble);
+        stream.scrollTop = stream.scrollHeight;
       }
 
-      this.showToast('✨ היעדים חושבו בהצלחה לפי המטרה שלך!');
+      sfx.playLevelUp();
+      this.showToast('✨ היעדים והמפרט חושבו בהצלחה לפי המטרה שלך!');
     } catch (err) {
-      console.error('AI Onboarding Goal error:', err);
-      alert('שגיאה בחישוב היעדים: ' + err.message);
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = origHtml;
+      console.error('sendAwakeningChat error:', err);
+      if (thinkingBubble && thinkingBubble.parentNode) {
+        thinkingBubble.parentNode.removeChild(thinkingBubble);
       }
+      if (stream) {
+        const errBubble = document.createElement('div');
+        errBubble.className = 'chat-bubble ai-msg';
+        errBubble.style.borderColor = '#ef4444';
+        errBubble.innerHTML = `
+          <div class="chat-msg-header">
+            <span class="chat-sender-name" style="color:#f87171;">⚠️ SYSTEM ERROR</span>
+            <span class="chat-time-tag">${timeStr}</span>
+          </div>
+          <div class="chat-msg-body" style="color:#fca5a5;">
+            אירעה שגיאה בעיבוד היעד: ${this.escapeHtml(err.message)}.<br>
+            נסה לנסח מחדש או לבדוק את הנתונים.
+          </div>
+        `;
+        stream.appendChild(errBubble);
+        stream.scrollTop = stream.scrollHeight;
+      }
+    } finally {
+      if (sendBtn) sendBtn.disabled = false;
     }
+  },
+
+  // Legacy fallback for backward compatibility
+  async calcOnboardingWithAI() {
+    return this.sendAwakeningChat();
   },
 
   async submitFirstTimeAwakening() {
@@ -1418,7 +1545,7 @@ const AppState = {
     const activity = document.getElementById('init-activity')?.value || 'moderate';
     const goal = document.getElementById('init-goal-path')?.value || 'cut';
     const shiftMode = document.getElementById('init-shift-mode')?.value || 'standard';
-    const goalText = document.getElementById('init-goal-text')?.value || '';
+    const goalText = this.lastAwakeningGoalText || document.getElementById('awakening-chat-input')?.value || '';
 
     const payload = {
       name,
@@ -1494,31 +1621,16 @@ const AppState = {
 
   // Modal helpers
   openModal(id) {
+    if (id === 'awakening-modal') {
+      this.openFirstTimeAwakening(true);
+      return;
+    }
     sfx.playClick();
     const m = document.getElementById(id);
     if (m) {
       m.classList.add('active');
       m.style.display = 'flex';
       m.style.pointerEvents = 'auto';
-      if (id === 'awakening-modal') {
-        if (this.profile) {
-          const wEl = document.getElementById('awakening-weight');
-          const hEl = document.getElementById('awakening-height');
-          const aEl = document.getElementById('awakening-age');
-          const sEl = document.getElementById('awakening-sex');
-          const actEl = document.getElementById('awakening-activity');
-          const gEl = document.getElementById('awakening-goal');
-          const nEl = document.getElementById('awakening-name');
-          if (wEl && this.profile.weight) wEl.value = this.profile.weight;
-          if (hEl && this.profile.height) hEl.value = this.profile.height;
-          if (aEl && this.profile.age) aEl.value = this.profile.age;
-          if (sEl && this.profile.sex) sEl.value = this.profile.sex;
-          if (actEl && this.profile.activity_level) actEl.value = this.profile.activity_level;
-          if (gEl && this.profile.goal) gEl.value = this.profile.goal;
-          if (nEl && this.profile.name) nEl.value = this.profile.name;
-        }
-        this.updateAwakeningPreview();
-      }
     }
   },
 
@@ -1751,7 +1863,6 @@ const AppState = {
       this.closeModal('reset-modal');
       await this.fetchTodayData();
       await this.fetchSupplements();
-      await this.fetchGarminStatus();
       await this.fetchDailyDebrief();
       this.saveLocalSnapshot();
     } catch (err) {
@@ -1803,6 +1914,7 @@ const AppState = {
       localStorage.removeItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
       localStorage.removeItem('hunter_profile');
       localStorage.removeItem('hunter_health_advisor');
+      localStorage.removeItem('hunter_awakened');
 
       sfx.playLevelUp();
       alert('[SYSTEM: לידה מחדש הושלמה!]\nהצייד חזר לרמה 1 (E-Rank) וכל הסקילים אופסו לרמה 1.\nעותק גיבוי חירום הורד בהצלחה למכשירך.');

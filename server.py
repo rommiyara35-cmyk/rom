@@ -2801,6 +2801,21 @@ class GoalAdvisorAI:
         sex = user_profile.get("sex", "male")
         activity = user_profile.get("activity_level", "moderate")
 
+        # Smart biometric extraction from free text if user mentions them in chat
+        import re
+        text_lower = (goal_text or "").lower()
+        w_match = re.search(r'(?:שוקל|משקל|משקלי|משקל נוכחי)\s*[:=]?\s*(\d+(?:\.\d+)?)', text_lower)
+        if w_match: weight = float(w_match.group(1))
+        h_match = re.search(r'(?:גובה|גובהי)\s*[:=]?\s*(\d+(?:\.\d+)?)', text_lower)
+        if h_match:
+            h_val = float(h_match.group(1))
+            if h_val < 2.5: h_val = h_val * 100
+            height = h_val
+        a_match = re.search(r'(?:בן|גיל|גילי)\s*[:=]?\s*(\d+)', text_lower)
+        if a_match: age = int(a_match.group(1))
+        tw_match = re.search(r'(?:יעד|משקל יעד|להגיע ל|להגיע למשקל)\s*[:=]?\s*(\d+(?:\.\d+)?)', text_lower)
+        target_weight = float(tw_match.group(1)) if tw_match else None
+
         # First attempt Gemini AI
         if GEMINI_API_KEY and goal_text.strip():
             prompt = cls.PROMPT_TEMPLATE.format(
@@ -2845,12 +2860,25 @@ class GoalAdvisorAI:
                         text = text.strip()
                     res = json.loads(text)
                     if "target_calories" in res and "target_protein" in res:
+                        res["detected_weight"] = weight
+                        res["detected_height"] = height
+                        res["detected_age"] = age
+                        if target_weight: res["detected_target_weight"] = target_weight
                         return res
                 except Exception as e:
                     print(f"GoalAdvisorAI error with {model}: {e}")
 
         # Scientific Fallback Algorithm based on text semantics
-        return cls.fallback_scientific_calculation(goal_text, user_profile)
+        fallback_profile = dict(user_profile)
+        fallback_profile["weight"] = weight
+        fallback_profile["height"] = height
+        fallback_profile["age"] = age
+        res = cls.fallback_scientific_calculation(goal_text, fallback_profile)
+        res["detected_weight"] = weight
+        res["detected_height"] = height
+        res["detected_age"] = age
+        if target_weight: res["detected_target_weight"] = target_weight
+        return res
 
     @classmethod
     def fallback_scientific_calculation(cls, goal_text: str, user_profile: dict) -> dict:
@@ -4325,6 +4353,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                     exp = 0,
                     exp_to_next = 300,
                     title = 'צייד שהתעורר (Awakened Novice)',
+                    is_awakened = 0,
+                    goal_custom_text = '',
                     stats_str = 10,
                     stats_agi = 10,
                     stats_vit = 10,
