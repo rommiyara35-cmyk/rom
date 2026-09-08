@@ -6739,4 +6739,134 @@ input:focus, select:focus, textarea:focus {
   background: #3f3f46;
 }
 
+/* ============================================================
+   OFFLINE BADGE & SYNC STYLES (פיצ'ר 4)
+   ============================================================ */
+.offline-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #181111;
+  border: 1px solid #7f1d1d;
+  color: #fca5a5;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.offline-status-badge .offline-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
+.offline-status-badge.is-syncing {
+  background: #0c1524;
+  border-color: #0284c7;
+  color: #7dd3fc;
+}
+
+.offline-status-badge.is-syncing .offline-dot {
+  background: #38bdf8;
+  animation: pulse 1.2s infinite;
+}
+
+/* ============================================================
+   WEEKLY HUNTER DEBRIEF MODAL STYLES (פיצ'ר 5)
+   ============================================================ */
+.weekly-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.weekly-kpi-card {
+  background: #0d111a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.weekly-kpi-card .kpi-icon {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.weekly-kpi-card .kpi-val {
+  font-size: 18px;
+  font-weight: 800;
+  color: #f8fafc;
+  font-family: var(--font-display);
+}
+
+.weekly-kpi-card .kpi-lbl {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.weekly-kpi-card .kpi-sub {
+  font-size: 10px;
+  color: #38bdf8;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.weekly-days-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.weekly-day-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #0e121b;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+/* Print CSS */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #weekly-report-modal,
+  #weekly-report-modal * {
+    visibility: visible;
+  }
+  #weekly-report-modal {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .weekly-report-modal-content {
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .close-modal-btn, .weekly-actions-row {
+    display: none !important;
+  }
+}
+
 

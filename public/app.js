@@ -113,13 +113,16 @@ const AppState = {
   async init() {
     // Setup Service Worker with force update
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js?v=21').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=22').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
 
     // Load sound toggle state
     this.updateSoundBtnUI();
+
+    // Initialize Offline-First Queue
+    this.initOfflineQueue();
 
     // Check cached profile for immediate offline display
     const cachedProfile = localStorage.getItem('hunter_profile');
@@ -773,7 +776,13 @@ const AppState = {
       await this.fetchTodayData();
       if (typeof this.fetchDailyDebrief === 'function') this.fetchDailyDebrief();
     } catch (e) {
-      console.error('Error logging water:', e);
+      console.warn('Network issue while logging water, queuing offline:', e);
+      this.queueOfflineAction('/api/nutrition/water', 'POST', { amount_ml: amount }, `${amount}ml מים`);
+      if (this.consumed) {
+        this.consumed.water_ml = (this.consumed.water_ml || 0) + amount;
+      }
+      this.updateGauges();
+      this.showToast(`💧 נוספו ${amount} מ״ל מים (נשמר מקומית)!`);
     }
   },
 
@@ -903,8 +912,38 @@ const AppState = {
       await this.fetchSkills();
       await this.fetchDailyDebrief();
     } catch (e) {
-      console.error('Error logging food:', e);
-      alert('שגיאה ברישום הארוחה: ' + (e.message || e));
+      console.warn('Network issue while logging food, queuing offline:', e);
+      // Optimistic offline queueing
+      this.queueOfflineAction('/api/nutrition/log', 'POST', payload, payload.food_name || 'ארוחה');
+      
+      // Optimistic UI update
+      if (!this.meals) this.meals = [];
+      this.meals.unshift({
+        id: 'off_' + Date.now(),
+        food_name: payload.food_name,
+        amount_grams: payload.amount_grams,
+        calories: payload.calories,
+        protein: payload.protein,
+        carbs: payload.carbs,
+        fats: payload.fats,
+        time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+        offline: true
+      });
+      if (this.consumed) {
+        this.consumed.calories = (this.consumed.calories || 0) + payload.calories;
+        this.consumed.protein = (this.consumed.protein || 0) + payload.protein;
+        this.consumed.carbs = (this.consumed.carbs || 0) + payload.carbs;
+        this.consumed.fats = (this.consumed.fats || 0) + payload.fats;
+      }
+      this.renderMealsList();
+      this.updateGauges();
+
+      this.selectedFood = null;
+      const sc = document.getElementById('staging-card');
+      if (sc) sc.style.display = 'none';
+      const fi = document.getElementById('food-search-input');
+      if (fi) fi.value = '';
+      sfx.playSystemNotification();
     }
   },
 
@@ -3880,8 +3919,17 @@ const AppState = {
         }
       }
     } catch (e) {
-      console.error('Error in saveAttentLog:', e);
-      alert('שגיאה ברישום נטילת אטנט: ' + (e.message || e));
+      console.warn('Network issue while logging attent, queuing offline:', e);
+      this.queueOfflineAction('/api/medication/attent', 'POST', {
+        dose_mg: dose,
+        timestamp: timeVal,
+        duration_hours: duration,
+        notes: notes,
+        date: dateVal
+      }, `אטנט ${dose}mg`);
+      sfx.playPotion();
+      this.closeModal('attent-modal');
+      this.showToast(`[SYSTEM: מנת אטנט (${dose}mg) נשמרה מקומית (אופליין)!]`);
     }
   },
 
@@ -4778,10 +4826,18 @@ const AppState = {
 
       await this.fetchSkills();
       await this.fetchTodayData();
-      await this.fetchDailyDebrief();
     } catch (e) {
-      console.error('Error in saveWorkoutLog:', e);
-      alert('שגיאה ברישום האימון: ' + (e.message || e));
+      console.warn('Network issue while logging workout, queuing offline:', e);
+      this.queueOfflineAction('/api/workouts/log', 'POST', {
+        workout_type: wType,
+        title: title,
+        duration_min: duration,
+        calories_burned: calories,
+        notes: notes
+      }, title);
+      this.closeModal('workout-modal');
+      sfx.playSystemNotification();
+      this.showToast(`[SYSTEM: אימון (${title}) נשמר מקומית (אופליין)!]`);
     }
   },
 
@@ -4895,8 +4951,26 @@ const AppState = {
       await this.fetchDailyDebrief();
       await this.fetchTodayData();
     } catch (e) {
-      console.error('Error in quickAddSupplement:', e);
-      alert('שגיאה ברישום התוסף: ' + (e.message || e));
+      console.warn('Network issue while logging supplement, queuing offline:', e);
+      this.queueOfflineAction('/api/supplements/log', 'POST', {
+        name: name,
+        dosage: dose,
+        unit: 'dose',
+        category: category
+      }, name);
+      sfx.playPotion();
+      this.showToast(`[SYSTEM: ${name} נשמר מקומית (אופליין)!]`);
+      if (!this.supplements) this.supplements = [];
+      this.supplements.unshift({
+        id: 'off_' + Date.now(),
+        name: name,
+        dosage: dose,
+        unit: 'dose',
+        category: category,
+        timestamp: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+        offline: true
+      });
+      this.renderSupplements();
     }
   },
 
@@ -5391,6 +5465,232 @@ const AppState = {
       if (viewAch) viewAch.style.display = 'none';
       this.renderRankModal();
     }
+  },
+
+  // ============================================================
+  // OFFLINE-FIRST QUEUE & SYNC (פיצ'ר 4)
+  // ============================================================
+  offlineQueue: [],
+  _isFlushingQueue: false,
+
+  initOfflineQueue() {
+    try {
+      this.offlineQueue = JSON.parse(localStorage.getItem('solo_offline_queue') || '[]');
+    } catch (e) {
+      this.offlineQueue = [];
+    }
+    this.updateOfflineBadge();
+
+    window.addEventListener('online', () => {
+      console.log('Network restored. Flushing offline queue...');
+      this.flushOfflineQueue();
+    });
+
+    window.addEventListener('offline', () => {
+      this.updateOfflineBadge();
+    });
+
+    // Auto-flush on startup if online
+    if (navigator.onLine && this.offlineQueue.length > 0) {
+      setTimeout(() => this.flushOfflineQueue(), 1500);
+    }
+  },
+
+  updateOfflineBadge() {
+    const badge = document.getElementById('offline-status-badge');
+    const countEl = document.getElementById('offline-queue-count');
+    const textEl = document.getElementById('offline-badge-text');
+    if (!badge) return;
+    const count = (this.offlineQueue || []).length;
+    if (!navigator.onLine || count > 0) {
+      badge.style.display = 'inline-flex';
+      if (countEl) countEl.innerText = count;
+      if (!navigator.onLine) {
+        badge.className = 'offline-status-badge is-offline';
+        if (textEl) textEl.innerHTML = `אופליין (${count})`;
+        badge.title = 'אין חיבור לרשת. נתונים נשמרים מקומית ויסונכרנו אוטומטית כשהקליטה תחזור.';
+      } else {
+        badge.className = 'offline-status-badge is-syncing';
+        if (textEl) textEl.innerHTML = `ממתין לסנכרון (${count})`;
+        badge.title = `${count} פעולות ממתינות לסנכרון. לחץ כאן לסנכרון מיידי.`;
+      }
+    } else {
+      badge.style.display = 'none';
+    }
+  },
+
+  queueOfflineAction(endpoint, method, body, desc = '') {
+    const action = {
+      id: 'act_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      endpoint,
+      method: method || 'POST',
+      body,
+      timestamp: new Date().toISOString(),
+      desc: desc || endpoint
+    };
+    if (!this.offlineQueue) this.offlineQueue = [];
+    this.offlineQueue.push(action);
+    try {
+      localStorage.setItem('solo_offline_queue', JSON.stringify(this.offlineQueue));
+    } catch (e) {
+      console.error('Failed to save offline queue', e);
+    }
+    this.updateOfflineBadge();
+  },
+
+  async flushOfflineQueue() {
+    if (!navigator.onLine || !this.offlineQueue || this.offlineQueue.length === 0) return;
+    if (this._isFlushingQueue) return;
+    this._isFlushingQueue = true;
+
+    this.showToast(`[SYSTEM: מסנכרן ${this.offlineQueue.length} פעולות אופליין לענן...]`);
+    const remaining = [];
+    let syncedCount = 0;
+
+    for (const item of this.offlineQueue) {
+      try {
+        const options = {
+          method: item.method || 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        };
+        if (item.body && item.method !== 'GET' && item.method !== 'HEAD') {
+          options.body = typeof item.body === 'string' ? item.body : JSON.stringify(item.body);
+        }
+        const res = await fetch(item.endpoint, options);
+        if (res.ok) {
+          syncedCount++;
+        } else if (res.status >= 500) {
+          remaining.push(item);
+        }
+      } catch (err) {
+        remaining.push(item);
+        break;
+      }
+    }
+
+    this.offlineQueue = remaining;
+    try {
+      localStorage.setItem('solo_offline_queue', JSON.stringify(this.offlineQueue));
+    } catch (e) {}
+    this.updateOfflineBadge();
+    this._isFlushingQueue = false;
+
+    if (syncedCount > 0) {
+      this.showToast(`✨ ${syncedCount} פעולות סונכרנו בהצלחה לענן!`);
+      sfx.playLevelUp();
+      await this.fetchTodayData();
+      if (typeof this.fetchDailyDebrief === 'function') this.fetchDailyDebrief();
+    }
+  },
+
+  // ============================================================
+  // WEEKLY HUNTER DEBRIEF & WHATSAPP EXPORT (פיצ'ר 5)
+  // ============================================================
+  weeklyReportData: null,
+
+  async openWeeklyReport() {
+    sfx.playClick();
+    this.openModal('weekly-report-modal');
+
+    const aiEl = document.getElementById('weekly-ai-text');
+    if (aiEl) aiEl.innerText = 'טוען ניתוח שבועי מקיף...';
+
+    try {
+      const res = await fetch('/api/reports/weekly');
+      if (!res.ok) throw new Error('שגיאה בטעינת דוח שבועי');
+      const data = await res.json();
+      this.weeklyReportData = data;
+      this.renderWeeklyReport(data);
+    } catch (e) {
+      console.error('Error fetching weekly report:', e);
+      if (aiEl) aiEl.innerText = 'לא ניתן היה לטעון דוח שבועי מהשרת כרגע.';
+    }
+  },
+
+  renderWeeklyReport(data) {
+    if (!data) return;
+
+    // Date range
+    const rangeEl = document.getElementById('weekly-date-range-sub');
+    if (rangeEl) rangeEl.innerText = `טווח תאריכים: ${data.start_date} עד ${data.end_date} (${data.active_days} ימים פעילים)`;
+
+    // Shift badge
+    const shiftBadge = document.getElementById('weekly-shift-badge');
+    if (shiftBadge) shiftBadge.innerText = data.shift_label || 'סדר יום רגיל';
+
+    // KPIs
+    const calVal = document.getElementById('weekly-cal-val');
+    const calSub = document.getElementById('weekly-cal-sub');
+    if (calVal) calVal.innerText = `${data.avg_calories || 0} קק״ל`;
+    if (calSub) calSub.innerText = `${data.cal_adherence || 0}% עמידה ביעד (${data.target_calories})`;
+
+    const protVal = document.getElementById('weekly-prot-val');
+    const protSub = document.getElementById('weekly-prot-sub');
+    if (protVal) protVal.innerText = `${data.avg_protein || 0}g`;
+    if (protSub) protSub.innerText = `${data.prot_adherence || 0}% עמידה ביעד (${data.target_protein}g)`;
+
+    const waterVal = document.getElementById('weekly-water-val');
+    const waterSub = document.getElementById('weekly-water-sub');
+    if (waterVal) waterVal.innerText = `${data.total_water_liters || 0} ליטר`;
+    if (waterSub) waterSub.innerText = `ממוצע ${data.avg_water_ml || 0} מ״ל ליום`;
+
+    const workVal = document.getElementById('weekly-workouts-val');
+    const workSub = document.getElementById('weekly-shifts-sub');
+    if (workVal) workVal.innerText = `${data.workout_count || 0}`;
+    if (workSub) workSub.innerText = data.workout_count > 0 ? 'אימונים תועדו' : 'לא תועדו אימונים';
+
+    // AI takeaway
+    const aiText = document.getElementById('weekly-ai-text');
+    if (aiText) aiText.innerText = data.ai_insight || 'המערכת ממליצה להמשיך להקפיד על צריכת חלבון מספקת ומים לאורך כל המשמרת.';
+
+    // Daily breakdown table
+    const daysList = document.getElementById('weekly-days-list');
+    if (daysList && data.daily_records) {
+      daysList.innerHTML = data.daily_records.map(r => `
+        <div class="weekly-day-row">
+          <span style="font-weight:700; color:#94a3b8; font-size:11px;">${r.date.slice(5)}</span>
+          <span style="color:#e2e8f0; font-size:11px;">🔥 ${Math.round(r.calories)} קק״ל</span>
+          <span style="color:#38bdf8; font-weight:700; font-size:11px;">🥩 ${Math.round(r.protein)}g חלבון</span>
+          <span style="color:#60a5fa; font-size:11px;">💧 ${r.water_ml}ml</span>
+          <span style="color:#64748b; font-size:10px;">${r.meal_count} ארוחות</span>
+        </div>
+      `).join('');
+    }
+  },
+
+  shareWeeklyWhatsApp() {
+    sfx.playClick();
+    if (!this.weeklyReportData || !this.weeklyReportData.whatsapp_text) {
+      this.showToast('טוען דוח שבועי...');
+      return;
+    }
+    const text = encodeURIComponent(this.weeklyReportData.whatsapp_text);
+    const url = `https://api.whatsapp.com/send?text=${text}`;
+    window.open(url, '_blank');
+  },
+
+  copyWeeklyReport() {
+    sfx.playClick();
+    if (!this.weeklyReportData || !this.weeklyReportData.whatsapp_text) return;
+    navigator.clipboard.writeText(this.weeklyReportData.whatsapp_text).then(() => {
+      const icon = document.getElementById('copy-report-icon');
+      const txt = document.getElementById('copy-report-text');
+      if (icon) icon.innerText = '✓';
+      if (txt) txt.innerText = 'הועתק!';
+      this.showToast('📋 דוח שבועי הועתק ללוח בהצלחה!');
+      setTimeout(() => {
+        if (icon) icon.innerText = '📋';
+        if (txt) txt.innerText = 'העתק';
+      }, 2500);
+    }).catch(err => {
+      console.error('Clipboard copy failed:', err);
+      alert('לא ניתן היה להעתיק ישירות. אנא העתק ידנית.');
+    });
+  },
+
+  printWeeklyReport() {
+    sfx.playClick();
+    window.print();
   }
 };
 

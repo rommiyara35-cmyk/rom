@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <title>Solo Leveling | The System</title>
-  <link rel="stylesheet" href="/styles.css?v=21">
+  <link rel="stylesheet" href="/styles.css?v=22">
   <!-- ZXing Industry-Standard Multi-Format Barcode Scanner (EAN-13, EAN-8, UPC, Code 128) -->
   <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 </head>
@@ -41,6 +41,11 @@
       </div>
 
       <div class="top-bar-actions">
+        <div id="offline-status-badge" class="offline-status-badge" style="display:none;" onclick="AppState.flushOfflineQueue()" title="מצב אופליין - לחץ לסנכרון מיידי">
+          <span class="offline-dot"></span>
+          <span id="offline-badge-text">אופליין (<span id="offline-queue-count">0</span>)</span>
+        </div>
+        <button id="weekly-report-btn" class="hud-btn-icon" onclick="AppState.openWeeklyReport()" title="דוח ביצועים שבועי ושיתוף WhatsApp" style="border-color:rgba(56,189,248,0.3); color:#38bdf8;">📊</button>
         <button id="shift-toggle-btn" class="hud-btn-icon" onclick="AppState.toggleShiftMode()" title="החלף בין משמרת יום למשמרת לילה">☀️</button>
         <button id="sound-toggle-btn" class="hud-btn-icon" title="השתק/הפעל סאונד">🔊</button>
         <button id="calendar-toggle-btn" class="hud-btn-icon" onclick="AppState.openCalendarModal()" title="לוח שנה ומעקב היסטורי כרוני" style="border-color:rgba(56,189,248,0.4); color:#38bdf8;">📅</button>
@@ -1877,6 +1882,89 @@
     </div>
   </div>
 
+  <!-- WEEKLY HUNTER DEBRIEF MODAL (שיתוף WhatsApp ו-PDF) -->
+  <div id="weekly-report-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) AppState.closeModal('weekly-report-modal')">
+    <div class="modal-content weekly-report-modal-content" style="max-width:520px; max-height:92vh; overflow-y:auto; background:#080a0f; border:1px solid #1e2433; box-shadow: 0 20px 50px rgba(0,0,0,0.9);">
+      <div class="modal-header" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:22px;">📊</span>
+          <div>
+            <span class="modal-title" style="font-size:16px; font-weight:800; color:#f8fafc;">דוח ביצועים שבועי • The System</span>
+            <span id="weekly-date-range-sub" style="display:block; font-size:11px; color:var(--text-secondary); margin-top:2px;">7 ימים אחרונים</span>
+          </div>
+        </div>
+        <button class="close-modal-btn" onclick="AppState.closeModal('weekly-report-modal')">✕</button>
+      </div>
+
+      <!-- SHIFT & ACTIVITY STATUS CHIP -->
+      <div style="display:flex; justify-content:space-between; align-items:center; background:#10141f; padding:8px 12px; border-radius:10px; margin: 14px 0; border:1px solid rgba(255,255,255,0.06);">
+        <span style="font-size:12px; color:var(--text-secondary);">מצב פעילות עיקרי:</span>
+        <span id="weekly-shift-badge" style="font-size:11px; font-weight:700; color:#38bdf8; background:rgba(56,189,248,0.12); padding:3px 10px; border-radius:20px; border:1px solid rgba(56,189,248,0.25);">סדר יום רגיל</span>
+      </div>
+
+      <!-- KPI CARDS GRID -->
+      <div class="weekly-kpi-grid">
+        <div class="weekly-kpi-card">
+          <span class="kpi-icon">🔥</span>
+          <span class="kpi-val" id="weekly-cal-val">0</span>
+          <span class="kpi-lbl">ממוצע קלוריות</span>
+          <span class="kpi-sub" id="weekly-cal-sub">0% מהיעד</span>
+        </div>
+        <div class="weekly-kpi-card">
+          <span class="kpi-icon">🥩</span>
+          <span class="kpi-val" id="weekly-prot-val">0g</span>
+          <span class="kpi-lbl">ממוצע חלבון</span>
+          <span class="kpi-sub" id="weekly-prot-sub">0% מהיעד</span>
+        </div>
+        <div class="weekly-kpi-card">
+          <span class="kpi-icon">💧</span>
+          <span class="kpi-val" id="weekly-water-val">0L</span>
+          <span class="kpi-lbl">סך מים שבועי</span>
+          <span class="kpi-sub" id="weekly-water-sub">0 מ״ל ליום</span>
+        </div>
+        <div class="weekly-kpi-card">
+          <span class="kpi-icon">🏋️</span>
+          <span class="kpi-val" id="weekly-workouts-val">0</span>
+          <span class="kpi-lbl">אימונים שבוצעו</span>
+          <span class="kpi-sub" id="weekly-shifts-sub">השבוע</span>
+        </div>
+      </div>
+
+      <!-- AI TAKEAWAY BOX -->
+      <div class="weekly-ai-card" style="background:#0e131f; border:1px solid rgba(56,189,248,0.2); border-radius:12px; padding:14px; margin: 14px 0;">
+        <div class="weekly-ai-hdr" style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+          <span style="font-size:16px;">💡</span>
+          <span style="font-weight:700; font-size:12px; color:#38bdf8;">תובנת AI ומדע לשבוע הבא</span>
+        </div>
+        <p id="weekly-ai-text" style="font-size:12px; color:#e2e8f0; line-height:1.6; margin:0;">טוען ניתוח שבועי...</p>
+      </div>
+
+      <!-- DAILY 7-DAY MINI BREAKDOWN TABLE -->
+      <div class="weekly-table-wrap" style="margin-top:12px;">
+        <div style="font-size:11px; font-weight:700; color:var(--text-secondary); margin-bottom:8px;">פירוט 7 ימים אחרונים:</div>
+        <div id="weekly-days-list" class="weekly-days-list">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- ACTION BUTTONS (WHATSAPP, CLIPBOARD, PRINT) -->
+      <div class="weekly-actions-row" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; margin-top:16px;">
+        <button type="button" class="weekly-action-btn btn-whatsapp" onclick="AppState.shareWeeklyWhatsApp()" style="background:#15803d; color:#ffffff; border:none; border-radius:8px; padding:10px 6px; font-weight:700; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px;">
+          <span>🟢</span>
+          <span>WhatsApp</span>
+        </button>
+        <button type="button" class="weekly-action-btn btn-copy" onclick="AppState.copyWeeklyReport()" style="background:#1e2433; color:#f8fafc; border:1px solid #2d3748; border-radius:8px; padding:10px 6px; font-weight:700; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px;">
+          <span id="copy-report-icon">📋</span>
+          <span id="copy-report-text">העתק</span>
+        </button>
+        <button type="button" class="weekly-action-btn btn-print" onclick="AppState.printWeeklyReport()" style="background:#11141c; color:#cbd5e1; border:1px solid #1e2433; border-radius:8px; padding:10px 6px; font-weight:700; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px;">
+          <span>🖨️</span>
+          <span>PDF / הדפסה</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- FIXED BOTTOM NAVIGATION BAR (6 Clean Tab Panels) -->
   <nav class="bottom-nav-bar" id="bottom-nav-bar">
     <button type="button" class="bottom-nav-item active" id="nav-item-profile" onclick="AppState.navTo('profile')" title="פרופיל ראשי">
@@ -2213,6 +2301,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=21"></script>
+  <script src="/app.js?v=22"></script>
 </body>
 </html>

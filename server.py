@@ -3674,6 +3674,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.handle_get_supplements()
         elif path == "/api/health-synergy/daily-debrief":
             self.handle_get_daily_debrief()
+        elif path == "/api/reports/weekly":
+            self.handle_get_weekly_report()
         elif path == "/api/history/calendar":
             month = query.get("month", [""])[0]
             self.handle_get_calendar_history(month)
@@ -4004,6 +4006,143 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             debrief = HunterHealthAIAdvisor.generate_daily_debrief(conn, today)
         self._set_headers()
         self.wfile.write(json.dumps(debrief, ensure_ascii=False).encode("utf-8"))
+
+    # --- Weekly Hunter Debrief & WhatsApp/PDF Report ---
+    def handle_get_weekly_report(self):
+        with Database.get_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM hunter_profile WHERE id=1")
+            prof_row = c.fetchone()
+            profile = dict(prof_row) if prof_row else {}
+
+            today = get_hunter_shift_date(conn)
+            today_dt = datetime.date.fromisoformat(today)
+            past_dates = [(today_dt - datetime.timedelta(days=i)).isoformat() for i in range(7)]
+            past_dates.reverse()
+
+            start_date_str = past_dates[0]
+            end_date_str = past_dates[-1]
+
+            # 1. Daily logs for 7 dates
+            c.execute("""
+                SELECT date,
+                       COUNT(id) as meal_count,
+                       COALESCE(SUM(calories), 0) as cals,
+                       COALESCE(SUM(protein), 0) as prot,
+                       COALESCE(SUM(carbs), 0) as carb,
+                       COALESCE(SUM(fats), 0) as fat
+                FROM daily_logs
+                WHERE date >= ? AND date <= ?
+                GROUP BY date
+            """, (start_date_str, end_date_str))
+            day_map = {r["date"]: dict(r) for r in c.fetchall()}
+
+            # 2. Water logs for 7 dates
+            c.execute("""
+                SELECT date, COALESCE(SUM(amount_ml), 0) as water
+                FROM water_logs
+                WHERE date >= ? AND date <= ?
+                GROUP BY date
+            """, (start_date_str, end_date_str))
+            water_map = {r["date"]: r["water"] for r in c.fetchall()}
+
+            # 3. Workouts in 7 dates
+            c.execute("""
+                SELECT COUNT(*) as total_workouts
+                FROM workout_logs
+                WHERE date >= ? AND date <= ?
+            """, (start_date_str, end_date_str))
+            workout_count = c.fetchone()["total_workouts"] or 0
+
+            daily_records = []
+            total_cals = 0
+            total_prot = 0
+            total_water = 0
+            active_days_count = 0
+
+            target_cal = profile.get("target_calories", 2000)
+            target_prot = profile.get("target_protein", 160)
+            target_water = profile.get("target_water", 3000)
+
+            for d_str in past_dates:
+                m_info = day_map.get(d_str, {"meal_count": 0, "cals": 0, "prot": 0, "carb": 0, "fat": 0})
+                w_ml = water_map.get(d_str, 0)
+                is_active = (m_info["meal_count"] > 0 or w_ml > 0)
+                if is_active:
+                    active_days_count += 1
+                total_cals += m_info["cals"]
+                total_prot += m_info["prot"]
+                total_water += w_ml
+
+                daily_records.append({
+                    "date": d_str,
+                    "calories": round(m_info["cals"], 1),
+                    "protein": round(m_info["prot"], 1),
+                    "water_ml": w_ml,
+                    "meal_count": m_info["meal_count"]
+                })
+
+            divisor = max(1, active_days_count) if active_days_count > 0 else 7
+            avg_cal = round(total_cals / divisor)
+            avg_prot = round(total_prot / divisor, 1)
+            avg_water = round(total_water / divisor)
+
+            prot_adherence = min(100, round((avg_prot / max(1, target_prot)) * 100))
+            cal_adherence = min(100, round((1.0 - abs(avg_cal - target_cal) / max(1, target_cal)) * 100))
+
+            is_night = profile.get("shift_mode") == "night"
+            shift_label = "משמרות לילה" if is_night else "סדר יום רגיל"
+
+            if prot_adherence >= 90:
+                ai_insight = "עמידה מצוינת ביעד החלבון השבועי! שמירה על עקביות זו מבטיחה שימור והיפרטרופיה מיטבית של מסת השריר."
+            elif prot_adherence >= 75:
+                ai_insight = f"עמידה טובה של {prot_adherence}% ביעד החלבון. להשלמת היעד מומלץ לשלב שייק חלבון או מנת יוגורט מועשרת בתחילת המשמרת."
+            else:
+                ai_insight = f"זוהה גרעון חלבוני ממוצע השבוע ({prot_adherence}% מהיעד). מומלץ לתכנן מראש 'ארוחת עוגן' חלבונית של לפחות 40 גרם חלבון."
+
+            if is_night:
+                ai_insight += " דגש משמרת לילה: הקפד על פחמימות מורכבות בעלות עומס גליקמי נמוך כדי למנוע ירידות סוכר ורדמת בשעות 02:00-05:00."
+
+            name = profile.get("name", "צייד")
+            rank = profile.get("rank", "E")
+            whatsapp_text = (
+                f"🛡️ *דוח שבועי • The System Fitness*\n"
+                f"צייד: {name} (דרגה {rank})\n"
+                f"📅 שבוע: {start_date_str[5:]} עד {end_date_str[5:]}\n"
+                f"⚙️ מצב פעילות: {shift_label}\n"
+                f"━━━━━━━━━━━━━━━\n"
+                f"🔥 קלוריות יומיות: {avg_cal} קק\"ל (יעד: {target_cal})\n"
+                f"🥩 חלבון יומי: {avg_prot}g ({prot_adherence}% מהיעד)\n"
+                f"💧 מים שבועיים: {round(total_water / 1000.0, 1)} ליטר (ממוצע {avg_water} מ\"ל ליום)\n"
+                f"🏋️ אימונים שבוצעו: {workout_count} אימונים\n"
+                f"━━━━━━━━━━━━━━━\n"
+                f"💡 *תובנת AI שבועית:*\n{ai_insight}\n"
+                f"━━━━━━━━━━━━━━━\n"
+                f"🚀 נוצר באמצעות The System | Solo Leveling OS"
+            )
+
+            report = {
+                "start_date": start_date_str,
+                "end_date": end_date_str,
+                "active_days": active_days_count,
+                "avg_calories": avg_cal,
+                "target_calories": target_cal,
+                "cal_adherence": cal_adherence,
+                "avg_protein": avg_prot,
+                "target_protein": target_prot,
+                "prot_adherence": prot_adherence,
+                "total_water_liters": round(total_water / 1000.0, 1),
+                "avg_water_ml": avg_water,
+                "target_water_ml": target_water,
+                "workout_count": workout_count,
+                "shift_label": shift_label,
+                "ai_insight": ai_insight,
+                "whatsapp_text": whatsapp_text,
+                "daily_records": daily_records
+            }
+
+            self._set_headers()
+            self.wfile.write(json.dumps(report, ensure_ascii=False).encode("utf-8"))
 
     def handle_get_profile(self):
         with Database.get_connection() as conn:
