@@ -123,30 +123,30 @@ const AppState = {
     } catch (e) {}
   },
 
-  // --- iOS Scroll Locking for Modals (Zero Touch Blocking) ---
+  // --- Modal Scroll Locking (Clean, zero touch freeze on iOS) ---
   lockBodyScroll() {
     document.body.classList.add('modal-open');
   },
 
   unlockBodyScroll() {
-    let anyOpen = false;
-    document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop, .first-time-awakening-overlay').forEach(m => {
-      if (m.classList.contains('active') || (m.style.display && m.style.display !== 'none')) {
-        anyOpen = true;
-      }
-    });
-    if (!anyOpen) {
-      document.body.classList.remove('modal-open');
-      document.body.style.top = '';
-      document.body.style.overflow = '';
-    }
+    document.body.classList.remove('modal-open');
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    document.body.style.width = '';
+    document.body.style.overflow = '';
   },
 
   forceUnlockBody() {
     document.body.classList.remove('modal-open');
+    document.body.style.position = '';
     document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    document.body.style.width = '';
     document.body.style.overflow = '';
-    document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop, .first-time-awakening-overlay').forEach(m => {
+    document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop').forEach(m => {
       m.classList.remove('active');
       m.style.display = 'none';
       m.style.pointerEvents = 'none';
@@ -214,7 +214,7 @@ const AppState = {
 
     // Setup Service Worker with force update
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js?v=28').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=29').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -1150,8 +1150,8 @@ const AppState = {
       if (el) el.addEventListener('input', () => this.updateAwakeningPreview());
     });
 
-    // Close any modal on backdrop click or touch
-    document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop, .first-time-awakening-overlay').forEach(modal => {
+    // Close any modal on backdrop click or touch (excluding fullscreen awakening overlay)
+    document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop').forEach(modal => {
       const dismissBackdrop = (e) => {
         if (e.target === modal) {
           e.preventDefault();
@@ -1162,8 +1162,6 @@ const AppState = {
             AppState.closeQuickEditBiometrics();
           } else if (modal.id === 'penalty-modal') {
             AppState.closePenaltyModal();
-          } else if (modal.id === 'first-time-awakening-overlay') {
-            AppState.closeFirstTimeAwakening();
           } else {
             AppState.closeModal(modal.id);
           }
@@ -3151,11 +3149,16 @@ const AppState = {
         } catch(e) {}
       }
 
-      this.showToast('🔄 נתוני יום זה אופסו בהצלחה!');
+      this.showToast('🔄 נתוני יום זה אופסו בהצלחה! מעביר לטקס ההתעוררות...', 'success');
       await this.fetchTodayData();
       await this.fetchSupplements();
       await this.fetchDailyDebrief();
       await this.saveLocalSnapshot(null, true);
+
+      // Open Awakening modal right away so the hunter can calibrate goals
+      setTimeout(() => {
+        this.openFirstTimeAwakening(true);
+      }, 300);
     } catch (err) {
       this.closeModal('reset-modal');
       this.forceUnlockBody();
@@ -3211,19 +3214,29 @@ const AppState = {
         this.consumed.iron_mg = 0;
       }
 
+      // Also ensure profile reflects unawakened state locally
+      if (this.profile) {
+        this.profile.is_awakened = 0;
+        this.profile.level = 1;
+      }
+
       sfx.playLevelUp();
       this.showToast('✨ לידה מחדש הושלמה! מעביר לטקס ההתעוררות...', 'success');
 
       // Refresh data from server (profile now at level 1 with is_awakened = 0)
-      await this.fetchTodayData();
-      await this.fetchSkills();
-      await this.fetchSupplements();
-      await this.fetchDailyDebrief();
+      try {
+        await this.fetchTodayData();
+        await this.fetchSkills();
+        await this.fetchSupplements();
+        await this.fetchDailyDebrief();
+      } catch (fetchErr) {
+        console.warn('Post-rebirth fetch failed, opening awakening anyway:', fetchErr);
+      }
 
-      // Open First-Time Awakening screen directly and smoothly!
+      // Open First-Time Awakening screen directly - always, no matter what
       setTimeout(() => {
         this.openFirstTimeAwakening(true);
-      }, 350);
+      }, 200);
     } catch (err) {
       this.forceUnlockBody();
       alert('שגיאה בתהליך הלידה מחדש: ' + err.message);
