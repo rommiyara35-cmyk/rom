@@ -6669,3 +6669,57 @@ textarea {
   cursor: pointer;
 }
 
+/* Editable Bio Box Items & Quick Biometrics Modal */
+.editable-bio-item {
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.editable-bio-item:hover {
+  background: rgba(0, 240, 255, 0.08);
+  border-color: rgba(0, 240, 255, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 240, 255, 0.15);
+}
+
+.bio-item-lbl-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.bio-pencil {
+  font-size: 11px;
+  opacity: 0.6;
+  transition: all 0.2s;
+}
+
+.editable-bio-item:hover .bio-pencil {
+  opacity: 1;
+  transform: scale(1.25);
+}
+
+.quick-step-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.quick-step-btn:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #00f0ff;
+  color: #ffffff;
+}
+

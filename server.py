@@ -2927,21 +2927,51 @@ class GoalAdvisorAI:
         age = int(user_profile.get("age", 25))
         sex = user_profile.get("sex", "male")
         activity = user_profile.get("activity_level", "moderate")
+        target_weight = float(user_profile.get("target_weight", 0.0) or 0.0)
 
         # Smart biometric extraction from free text if user mentions them in chat
         import re
         text_lower = (goal_text or "").lower()
-        w_match = re.search(r'(?:שוקל|משקל|משקלי|משקל נוכחי)\s*[:=]?\s*(\d+(?:\.\d+)?)', text_lower)
-        if w_match: weight = float(w_match.group(1))
-        h_match = re.search(r'(?:גובה|גובהי)\s*[:=]?\s*(\d+(?:\.\d+)?)', text_lower)
+
+        # Height extraction (e.g. הגובה שלי 180, הגובה שלי הוא 180, גובה 180, 180 ס"מ, 1.80 מטר)
+        h_match = re.search(
+            r'(?:הגובה\s*שלי(?:\s*הוא|\s*זה)?|גובהי(?:\s*הוא)?|גובה\s*שלי|ב?גובה|עדכן\s*גובה(?:\s*ל)?|height)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:ס["״]?מ|מטר|cm|m)?',
+            text_lower
+        )
         if h_match:
             h_val = float(h_match.group(1))
             if h_val < 2.5: h_val = h_val * 100
-            height = h_val
-        a_match = re.search(r'(?:בן|גיל|גילי)\s*[:=]?\s*(\d+)', text_lower)
+            if 100 <= h_val <= 250: height = h_val
+        else:
+            h2 = re.search(r'\b(1[4-9]\d|2[0-2]\d)\s*(?:ס["״]?מ|cm)\b', text_lower)
+            if h2:
+                height = float(h2.group(1))
+            else:
+                h3 = re.search(r'\b(1\.[4-9]\d|2\.[0-2]\d)\s*(?:מטר|m)\b', text_lower)
+                if h3:
+                    height = float(h3.group(1)) * 100
+
+        # Weight extraction (e.g. משקל 83, שוקל 83.5, המשקל שלי 83, 83 ק"ג)
+        w_match = re.search(
+            r'(?:המשקל\s*שלי(?:\s*הוא|\s*זה)?|משקלי(?:\s*הוא)?|משקל\s*שלי|שוקל|ב?משקל|עדכן\s*משקל(?:\s*ל)?|משקל\s*נוכחי|weight)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:ק["״]?ג|קילו|kg)?',
+            text_lower
+        )
+        if w_match:
+            weight = float(w_match.group(1))
+        else:
+            w2 = re.search(r'\b([4-9]\d(?:\.\d+)?|1[0-9]\d(?:\.\d+)?)\s*(?:ק["״]?ג|קילו|kg)\b', text_lower)
+            if w2: weight = float(w2.group(1))
+
+        # Target Weight extraction
+        tw_match = re.search(
+            r'(?:יעד(?:\s*המשקל)?|משקל\s*יעד|להגיע\s*ל(?:משקל)?|מטרה\s*(?:היא|שלי)?(?:\s*להיות)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:ק["״]?ג|קילו|kg)?',
+            text_lower
+        )
+        if tw_match: target_weight = float(tw_match.group(1))
+
+        # Age extraction
+        a_match = re.search(r'(?:בן|גילי|הגיל\s*שלי(?:\s*הוא)?|ב?גיל|age)\s*[:=]?\s*(\d+)', text_lower)
         if a_match: age = int(a_match.group(1))
-        tw_match = re.search(r'(?:יעד|משקל יעד|להגיע ל|להגיע למשקל)\s*[:=]?\s*(\d+(?:\.\d+)?)', text_lower)
-        target_weight = float(tw_match.group(1)) if tw_match else None
 
         # First attempt Gemini AI
         if GEMINI_API_KEY and goal_text.strip():
@@ -3098,12 +3128,96 @@ class HunterAIConsultant:
     MODELS = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-pro"]
 
     @classmethod
+    def extract_biometrics_from_text(cls, text: str) -> dict:
+        import re
+        text_lower = (text or "").lower()
+        res = {}
+
+        # Height extraction (e.g. הגובה שלי 180, הגובה שלי הוא 180, גובה 180, 180 ס"מ, 1.80 מטר)
+        h_match = re.search(
+            r'(?:הגובה\s*שלי(?:\s*הוא|\s*זה)?|גובהי(?:\s*הוא)?|גובה\s*שלי|ב?גובה|עדכן\s*גובה(?:\s*ל)?|height)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:ס["״]?מ|מטר|cm|m)?',
+            text_lower
+        )
+        if h_match:
+            val = float(h_match.group(1))
+            if val < 2.5: val = val * 100
+            if 100 <= val <= 250: res["height"] = val
+        else:
+            h2 = re.search(r'\b(1[4-9]\d|2[0-2]\d)\s*(?:ס["״]?מ|cm)\b', text_lower)
+            if h2:
+                res["height"] = float(h2.group(1))
+            else:
+                h3 = re.search(r'\b(1\.[4-9]\d|2\.[0-2]\d)\s*(?:מטר|m)\b', text_lower)
+                if h3:
+                    res["height"] = float(h3.group(1)) * 100
+
+        # Weight extraction
+        w_match = re.search(
+            r'(?:המשקל\s*שלי(?:\s*הוא|\s*זה)?|משקלי(?:\s*הוא)?|משקל\s*שלי|שוקל|ב?משקל|עדכן\s*משקל(?:\s*ל)?|משקל\s*נוכחי|weight)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:ק["״]?ג|קילו|kg)?',
+            text_lower
+        )
+        if w_match:
+            res["weight"] = float(w_match.group(1))
+        else:
+            w2 = re.search(r'\b([4-9]\d(?:\.\d+)?|1[0-9]\d(?:\.\d+)?)\s*(?:ק["״]?ג|קילו|kg)\b', text_lower)
+            if w2: res["weight"] = float(w2.group(1))
+
+        # Target Weight extraction
+        tw_match = re.search(
+            r'(?:יעד(?:\s*המשקל)?|משקל\s*יעד|להגיע\s*ל(?:משקל)?|מטרה\s*(?:היא|שלי)?(?:\s*להיות)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:ק["״]?ג|קילו|kg)?',
+            text_lower
+        )
+        if tw_match: res["target_weight"] = float(tw_match.group(1))
+
+        # Age extraction
+        a_match = re.search(r'(?:בן|גילי|הגיל\s*שלי(?:\s*הוא)?|ב?גיל|age)\s*[:=]?\s*(\d+)', text_lower)
+        if a_match: res["age"] = int(a_match.group(1))
+
+        return res
+
+    @classmethod
     def consult(cls, conn, user_message: str, chat_history: list = None) -> dict:
         c = conn.cursor()
         c.execute("SELECT * FROM hunter_profile WHERE id = 1")
         prof_row = c.fetchone()
         prof = dict(prof_row) if prof_row else {}
         today = get_hunter_shift_date(conn)
+
+        # Check if user mentioned height, weight, target_weight, age in the message
+        bio = cls.extract_biometrics_from_text(user_message)
+        updated_bio = []
+        if bio.get("height"):
+            new_h = bio["height"]
+            c.execute("UPDATE hunter_profile SET height = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_h,))
+            prof["height"] = new_h
+            updated_bio.append(f"גובה: {new_h} ס״מ")
+        if bio.get("weight"):
+            new_w = bio["weight"]
+            c.execute("UPDATE hunter_profile SET weight = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_w,))
+            prof["weight"] = new_w
+            updated_bio.append(f"משקל: {new_w} ק״ג")
+        if bio.get("target_weight"):
+            new_tw = bio["target_weight"]
+            c.execute("UPDATE hunter_profile SET target_weight = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_tw,))
+            prof["target_weight"] = new_tw
+            updated_bio.append(f"משקל יעד: {new_tw} ק״ג")
+        if bio.get("age"):
+            new_age = bio["age"]
+            c.execute("UPDATE hunter_profile SET age = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_age,))
+            prof["age"] = new_age
+            updated_bio.append(f"גיל: {new_age}")
+
+        if updated_bio:
+            sci = NutritionScienceEngine.calculate_full_profile(
+                weight_kg=float(prof.get("weight", 83.0)),
+                height_cm=float(prof.get("height", 180.0)),
+                age=int(prof.get("age", 26)),
+                sex=prof.get("sex", "male"),
+                activity_level=prof.get("activity_level", "moderate"),
+                goal=prof.get("goal", "bulk")
+            )
+            c.execute("UPDATE hunter_profile SET bmr = ?, tdee = ? WHERE id = 1", (sci["bmr"], sci["tdee"]))
+            conn.commit()
 
         # Today's nutrition
         c.execute("SELECT COALESCE(SUM(calories), 0) as cal, COALESCE(SUM(protein), 0) as prot, COALESCE(SUM(carbs), 0) as carb, COALESCE(SUM(fats), 0) as fat FROM daily_logs WHERE date = ?", (today,))
@@ -3129,6 +3243,14 @@ class HunterAIConsultant:
             chat_history=chat_history or []
         )
 
+        if updated_bio:
+            prefix = f"⚡ **המערכת עדכנה בהצלחה את הנתונים שלך:** {', '.join(updated_bio)}!\nה-BMR וה-TDEE חושבו מחדש.\n\n"
+            result["reply"] = prefix + result.get("reply", "")
+            if "suggested_targets" not in result or not result["suggested_targets"]:
+                result["suggested_targets"] = {}
+            for k, v in bio.items():
+                result["suggested_targets"][k] = v
+
         # 1. Save user message to database
         c.execute("INSERT INTO ai_chat_messages (sender, message) VALUES (?, ?)", ("user", user_message))
 
@@ -3153,8 +3275,8 @@ class HunterAIConsultant:
             st = result["suggested_targets"]
             fields = []
             vals = []
-            for k in ["target_calories", "target_protein", "target_carbs", "target_fats", "target_water", "target_weight"]:
-                if k in st and st[k]:
+            for k in ["target_calories", "target_protein", "target_carbs", "target_fats", "target_water", "target_weight", "height", "weight", "age"]:
+                if k in st and st[k] is not None:
                     fields.append(f"{k} = ?")
                     vals.append(st[k])
             if fields:
@@ -3463,7 +3585,7 @@ class HunterAIConsultant:
     @classmethod
     def apply_targets(cls, conn, body: dict) -> dict:
         c = conn.cursor()
-        allowed = ["target_calories", "target_protein", "target_carbs", "target_fats", "target_water", "target_weight", "goal"]
+        allowed = ["target_calories", "target_protein", "target_carbs", "target_fats", "target_water", "target_weight", "goal", "height", "weight", "age", "sex"]
         fields = []
         vals = []
         for k in allowed:
@@ -3473,6 +3595,20 @@ class HunterAIConsultant:
         if fields:
             vals.append(1)
             c.execute(f"UPDATE hunter_profile SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", vals)
+            
+            # Recalculate BMR/TDEE if biometrics changed
+            c.execute("SELECT weight, height, age, sex, activity_level, goal FROM hunter_profile WHERE id=1")
+            p_row = c.fetchone()
+            if p_row:
+                sci = NutritionScienceEngine.calculate_full_profile(
+                    weight_kg=float(p_row[0] or 83.0),
+                    height_cm=float(p_row[1] or 180.0),
+                    age=int(p_row[2] or 26),
+                    sex=p_row[3] or "male",
+                    activity_level=p_row[4] or "moderate",
+                    goal=p_row[5] or "bulk"
+                )
+                c.execute("UPDATE hunter_profile SET bmr = ?, tdee = ? WHERE id=1", (sci["bmr"], sci["tdee"]))
             conn.commit()
         c.execute("SELECT * FROM hunter_profile WHERE id = 1")
         return dict(c.fetchone() or {})
@@ -3989,6 +4125,21 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 values.append(1)
                 sql = "UPDATE hunter_profile SET " + ", ".join(fields) + ", updated_at=CURRENT_TIMESTAMP WHERE id=?"
                 c.execute(sql, values)
+
+                # If height, weight, age, sex, activity_level or goal were updated, recalculate bmr & tdee
+                c.execute("SELECT weight, height, age, sex, activity_level, goal FROM hunter_profile WHERE id=1")
+                p_row = c.fetchone()
+                if p_row:
+                    sci = NutritionScienceEngine.calculate_full_profile(
+                        weight_kg=float(p_row["weight"] or 83.0),
+                        height_cm=float(p_row["height"] or 180.0),
+                        age=int(p_row["age"] or 26),
+                        sex=p_row["sex"] or "male",
+                        activity_level=p_row["activity_level"] or "moderate",
+                        goal=p_row["goal"] or "bulk"
+                    )
+                    c.execute("UPDATE hunter_profile SET bmr = ?, tdee = ? WHERE id=1", (sci["bmr"], sci["tdee"]))
+
                 conn.commit()
             
             c.execute("SELECT * FROM hunter_profile WHERE id=1")

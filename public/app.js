@@ -108,11 +108,12 @@ const AppState = {
   customAIGoals: null,
   aiConsultHistory: [],
   aiRecommendations: [],
+  currentQuickBioField: 'height',
 
   async init() {
     // Setup Service Worker with force update
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js?v=18').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=19').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -315,16 +316,16 @@ const AppState = {
 
     // Hunter Bio Box
     const heightEl = document.getElementById('char-bio-height');
-    if (heightEl) heightEl.innerText = `${p.height || 178} cm`;
+    if (heightEl) heightEl.innerText = `${p.height || 180} cm`;
 
     const weightEl = document.getElementById('char-bio-weight');
-    if (weightEl) weightEl.innerText = `${Number(p.weight || 78).toFixed(1)} kg`;
+    if (weightEl) weightEl.innerText = `${Number(p.weight || 83).toFixed(1)} kg`;
 
     const ageEl = document.getElementById('char-bio-age');
-    if (ageEl) ageEl.innerText = p.age || 25;
+    if (ageEl) ageEl.innerText = p.age || 26;
 
     const targetEl = document.getElementById('char-bio-target');
-    if (targetEl) targetEl.innerText = `${Number(p.target_weight || 74).toFixed(1)} kg`;
+    if (targetEl) targetEl.innerText = `${Number(p.target_weight || 87).toFixed(1)} kg`;
 
     const hunterIdEl = document.getElementById('hunter-system-id');
     if (hunterIdEl) {
@@ -1761,6 +1762,8 @@ const AppState = {
 
     // Update live hunter status strip inside the modal
     const p = this.profile || {};
+    const hEl = document.getElementById('consult-hunter-height');
+    if (hEl) hEl.innerText = p.height || '180';
     const wEl = document.getElementById('consult-hunter-weight');
     if (wEl) wEl.innerText = p.weight ? Number(p.weight).toFixed(1) : '83.0';
     const twEl = document.getElementById('consult-hunter-target');
@@ -2023,6 +2026,139 @@ const AppState = {
       this.saveLocalSnapshot();
     } catch (err) {
       alert('שגיאה בעדכון יעדים: ' + err.message);
+    }
+  },
+
+  openQuickEditBiometrics(field = 'height') {
+    sfx.playClick();
+    this.currentQuickBioField = field;
+    const modal = document.getElementById('quick-biometrics-modal');
+    if (!modal) return;
+
+    const titleEl = document.getElementById('quick-bio-modal-title');
+    const labelEl = document.getElementById('quick-bio-input-label');
+    const valInput = document.getElementById('quick-bio-input-val');
+    const helpEl = document.getElementById('quick-bio-help-text');
+    const p = this.profile || {};
+
+    const configs = {
+      height: {
+        title: 'עדכון גובה (Height)',
+        label: 'גובה בסנטימטרים (ס״מ)',
+        val: p.height || 180,
+        step: 1,
+        help: 'עדכון הגובה מחושב מיד מחדש במשוואות BMR ו-TDEE לעדכון דיוק קלורי ומסת שריר.'
+      },
+      weight: {
+        title: 'עדכון משקל נוכחי (Weight)',
+        label: 'משקל נוכחי (ק״ג)',
+        val: p.weight ? Number(p.weight).toFixed(1) : 83.0,
+        step: 0.5,
+        help: 'עדכון המשקל ישפיע מיידית על גרף ההתקדמות, קצב ההתקדמות ומשוואות חילוף החומרים.'
+      },
+      target_weight: {
+        title: 'עדכון יעד משקל (Target Weight)',
+        label: 'יעד משקל מבוקש (ק״ג)',
+        val: p.target_weight ? Number(p.target_weight).toFixed(1) : 87.0,
+        step: 0.5,
+        help: 'משקל המטרה קובע את משך התוכנית ומסייע לאלגוריתם ה-AI לבנות גירעון או עודף קלורי מדויק.'
+      },
+      age: {
+        title: 'עדכון גיל (Age)',
+        label: 'גיל בשנים',
+        val: p.age || 26,
+        step: 1,
+        help: 'גיל משמש כגורם מפתח לחישוב קצב שריפת שומנים וחילוף חומרים במנוחה.'
+      }
+    };
+
+    const cfg = configs[field] || configs.height;
+    if (titleEl) titleEl.innerText = cfg.title;
+    if (labelEl) labelEl.innerText = cfg.label;
+    if (valInput) {
+      valInput.value = cfg.val;
+      valInput.step = cfg.step || 1;
+    }
+    if (helpEl) helpEl.innerText = cfg.help;
+
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => {
+      if (valInput) {
+        valInput.focus();
+        valInput.select();
+      }
+    }, 120);
+  },
+
+  closeQuickEditBiometrics() {
+    const modal = document.getElementById('quick-biometrics-modal');
+    if (modal) modal.style.display = 'none';
+    document.body.style.overflow = '';
+  },
+
+  stepBioInput(delta) {
+    sfx.playClick();
+    const valInput = document.getElementById('quick-bio-input-val');
+    if (!valInput) return;
+    let curr = parseFloat(valInput.value) || 0;
+    const step = parseFloat(valInput.step) || 1;
+    curr += (delta * step);
+    if (step < 1) {
+      valInput.value = curr.toFixed(1);
+    } else {
+      valInput.value = Math.round(curr);
+    }
+  },
+
+  async saveQuickEditBiometrics() {
+    sfx.playClick();
+    const valInput = document.getElementById('quick-bio-input-val');
+    if (!valInput) return;
+    const val = parseFloat(valInput.value);
+    if (!val || val <= 0) {
+      this.showToast('⚠️ נא להזין ערך תקין', 'error');
+      return;
+    }
+
+    const field = this.currentQuickBioField || 'height';
+    const payload = {};
+    payload[field] = val;
+
+    try {
+      this.showToast('⚡ מעדכן מדדים ומחשב BMR/TDEE מחדש...', 'info');
+      const res = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        this.profile = { ...this.profile, ...updated, ...payload };
+        localStorage.setItem('hunter_profile', JSON.stringify(this.profile));
+
+        this.renderProfile();
+        if (typeof this.renderCalorieGauge === 'function') this.renderCalorieGauge();
+        if (typeof this.renderMacroBars === 'function') this.renderMacroBars();
+        if (typeof this.renderWaterCockpit === 'function') this.renderWaterCockpit();
+        this.saveLocalSnapshot();
+
+        this.closeQuickEditBiometrics();
+        sfx.playLevelUp();
+        const fieldHebrew = {
+          height: `גובה עודכן ל-${val} ס״מ`,
+          weight: `משקל עודכן ל-${val} ק״ג`,
+          target_weight: `יעד משקל עודכן ל-${val} ק״ג`,
+          age: `גיל עודכן ל-${val}`
+        }[field] || 'המדד עודכן בהצלחה!';
+        this.showToast(`✅ ${fieldHebrew} ונשמר במערכת!`, 'success');
+      } else {
+        this.showToast('❌ שגיאה בעדכון הנתונים', 'error');
+      }
+    } catch (e) {
+      console.error('Error saving biometrics:', e);
+      this.showToast('❌ שגיאת תקשורת עם המערכת', 'error');
     }
   },
 
