@@ -757,6 +757,30 @@ body {
   gap: 6px;
 }
 
+.water-beverages-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.bev-btn-coffee:hover {
+  border-color: #d97706 !important;
+  background: rgba(217, 119, 6, 0.12) !important;
+}
+
+.bev-btn-juice:hover {
+  border-color: #f59e0b !important;
+  background: rgba(245, 158, 11, 0.12) !important;
+}
+
+.bev-btn-tea:hover {
+  border-color: #10b981 !important;
+  background: rgba(16, 185, 129, 0.12) !important;
+}
+
+.bev-btn-elec:hover {
+  border-color: #a855f7 !important;
+  background: rgba(168, 85, 247, 0.12) !important;
+}
+
 .water-quick-btn {
   background: #0e111a;
   border: 1px solid #1c2230;
@@ -803,6 +827,23 @@ body {
   align-items: center;
 }
 
+.water-custom-select {
+  background: #0d0f17;
+  border: 1px solid #1a202c;
+  border-radius: 8px;
+  padding: 8px 6px;
+  color: #f1f5f9;
+  font-size: 11px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  max-width: 140px;
+}
+
+.water-custom-select:focus {
+  border-color: #38bdf8;
+}
+
 .water-custom-input {
   flex: 1;
   background: #0d0f17;
@@ -847,15 +888,20 @@ body {
 }
 
 .water-log-chip {
-  background: rgba(56, 189, 248, 0.1);
-  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: #0d111b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
   padding: 3px 8px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 10.5px;
+  font-size: 11px;
   color: #e0f2fe;
+}
+
+.water-log-bev {
+  font-weight: 700;
+  color: #f8fafc;
 }
 
 .water-log-chip-del {

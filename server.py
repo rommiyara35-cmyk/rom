@@ -378,6 +378,18 @@ class Database:
                 except Exception:
                     pass
 
+            # Migration: Ensure beverage columns exist in water_logs
+            for col_def in [
+                ("beverage_type", "TEXT DEFAULT 'water'"),
+                ("beverage_name", "TEXT DEFAULT 'מים'"),
+                ("beverage_icon", "TEXT DEFAULT '💧'"),
+                ("caffeine_mg", "INTEGER DEFAULT 0")
+            ]:
+                try:
+                    c.execute(f"ALTER TABLE water_logs ADD COLUMN {col_def[0]} {col_def[1]}")
+                except Exception:
+                    pass
+
             # Medication / Attent logs table
             c.execute("""
             CREATE TABLE IF NOT EXISTS medication_logs (
@@ -4502,13 +4514,29 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 # Award XP to Nutrition Mastery skill
                 skill_res = HunterLevelingEngine.add_skill_exp(conn, "nutrition_mastery", 15 + int(protein * 0.3))
 
+                # Scientific Auto-Hydration: Check if logged food is a fluid/beverage (e.g. juice, coffee, tea, soup, shake)
+                fluid_keywords = ["מיץ", "קפה", "תה", "חלב", "שייק", "משקה", "מרק", "קולה", "סודה", "שוקו"]
+                is_fluid = any(kw in food_name for kw in fluid_keywords) or body.get("is_fluid", False)
+                added_water_ml = 0
+                if is_fluid and serving_size_g > 0:
+                    fluid_factor = 0.90 if "מיץ" in food_name else (0.98 if "קפה" in food_name else 0.88)
+                    added_water_ml = int(round(serving_size_g * serving_count * fluid_factor))
+                    if added_water_ml >= 40:
+                        icon = "🧃" if "מיץ" in food_name else ("☕" if "קפה" in food_name else ("🥛" if ("חלב" in food_name or "שייק" in food_name) else "💧"))
+                        c.execute("""
+                        INSERT INTO water_logs (date, amount_ml, timestamp, beverage_type, beverage_name, beverage_icon)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """, (today, added_water_ml, now_time, "food_fluid", f"{food_name} (נוזלים)", icon))
+                        conn.commit()
+
             self._set_headers(201)
             self.wfile.write(json.dumps({
                 "status": "success",
                 "log_id": log_id,
                 "exp_awarded": exp_awarded,
                 "leveling": lvl_res,
-                "skill_leveling": skill_res
+                "skill_leveling": skill_res,
+                "added_water_ml": added_water_ml
             }, ensure_ascii=False).encode("utf-8"))
         except Exception as e:
             self._set_headers(400)
@@ -4524,15 +4552,32 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
 
     def handle_post_water(self, body):
         now_time = datetime.datetime.now().strftime("%H:%M")
-        amount = int(body.get("amount_ml") or body.get("amount") or 250)
+        raw_amount = int(body.get("amount_ml") or body.get("amount") or 250)
+        bev_type = body.get("beverage_type", "water")
+        bev_name = body.get("beverage_name", "מים")
+        bev_icon = body.get("beverage_icon", "💧")
+        caffeine_mg = int(body.get("caffeine_mg") or 0)
+
+        # Beverage Hydration Index (BHI) scientific factors
+        hydration_factors = {
+            "water": 1.0,
+            "tea": 1.0,
+            "coffee": 0.98,
+            "juice": 0.90,
+            "electrolyte": 1.0,
+            "milk": 0.88,
+            "soda": 0.95
+        }
+        factor = hydration_factors.get(bev_type, 1.0)
+        effective_ml = max(10, int(round(raw_amount * factor)))
 
         with Database.get_connection() as conn:
             today = get_hunter_shift_date(conn)
             c = conn.cursor()
             c.execute("""
-            INSERT INTO water_logs (date, amount_ml, timestamp)
-            VALUES (?, ?, ?)
-            """, (today, amount, now_time))
+            INSERT INTO water_logs (date, amount_ml, timestamp, beverage_type, beverage_name, beverage_icon, caffeine_mg)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (today, effective_ml, now_time, bev_type, bev_name, bev_icon, caffeine_mg))
             conn.commit()
 
             c.execute("UPDATE hunter_profile SET fatigue = max(0, fatigue - 3) WHERE id=1")
@@ -4542,7 +4587,11 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         self._set_headers(200)
         self.wfile.write(json.dumps({
             "status": "success",
-            "added_ml": amount,
+            "added_ml": effective_ml,
+            "raw_amount_ml": raw_amount,
+            "beverage_name": bev_name,
+            "beverage_icon": bev_icon,
+            "caffeine_mg": caffeine_mg,
             "exp_awarded": 10,
             "leveling": lvl_res
         }, ensure_ascii=False).encode("utf-8"))

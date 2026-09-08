@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <title>Solo Leveling | The System</title>
-  <link rel="stylesheet" href="/styles.css?v=22">
+  <link rel="stylesheet" href="/styles.css?v=23">
   <!-- ZXing Industry-Standard Multi-Format Barcode Scanner (EAN-13, EAN-8, UPC, Code 128) -->
   <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 </head>
@@ -420,35 +420,54 @@
               </div>
             </div>
 
-            <!-- Quick Add Water Controls -->
+            <!-- Quick Add Water & Beverages Controls -->
             <div class="water-controls-card">
-              <div class="water-buttons-grid">
-                <button class="water-quick-btn" onclick="AppState.addWater(250)" title="+250 מ״ל כוס מים">
-                  <span class="water-btn-icon">🥛</span>
+              <div class="water-buttons-grid water-beverages-grid">
+                <button type="button" class="water-quick-btn" onclick="AppState.addBeverage('water', 250, 'מים', '💧', 0)" title="+250 מ״ל כוס מים">
+                  <span class="water-btn-icon">💧</span>
                   <span class="water-btn-amt">+250ml</span>
                   <span class="water-btn-sub">כוס מים</span>
                 </button>
-                <button class="water-quick-btn" onclick="AppState.addWater(500)" title="+500 מ״ל בקבוק מים">
-                  <span class="water-btn-icon">💧</span>
-                  <span class="water-btn-amt">+500ml</span>
-                  <span class="water-btn-sub">חצי ליטר</span>
-                </button>
-                <button class="water-quick-btn" onclick="AppState.addWater(750)" title="+750 מ״ל פלאסק צייד">
-                  <span class="water-btn-icon">🧪</span>
-                  <span class="water-btn-amt">+750ml</span>
-                  <span class="water-btn-sub">פלאסק צייד</span>
-                </button>
-                <button class="water-quick-btn" onclick="AppState.addWater(1000)" title="+1000 מ״ל בקבוק ליטר">
+                <button type="button" class="water-quick-btn" onclick="AppState.addBeverage('water', 500, 'מים', '💧', 0)" title="+500 מ״ל בקבוק מים">
                   <span class="water-btn-icon">🍶</span>
-                  <span class="water-btn-amt">+1.0L</span>
-                  <span class="water-btn-sub">בקבוק ליטר</span>
+                  <span class="water-btn-amt">+500ml</span>
+                  <span class="water-btn-sub">בקבוק מים</span>
+                </button>
+                <button type="button" class="water-quick-btn bev-btn-coffee" onclick="AppState.addBeverage('coffee', 200, 'קפה', '☕', 75)" title="+200 מ״ל כוס קפה (תורם נוזלים + קפאין)">
+                  <span class="water-btn-icon">☕</span>
+                  <span class="water-btn-amt">+200ml</span>
+                  <span class="water-btn-sub">כוס קפה</span>
+                </button>
+                <button type="button" class="water-quick-btn bev-btn-juice" onclick="AppState.addBeverage('juice', 250, 'מיץ טבעי', '🧃', 0)" title="+250 מ״ל כוס מיץ (90% מים נטו)">
+                  <span class="water-btn-icon">🧃</span>
+                  <span class="water-btn-amt">+250ml</span>
+                  <span class="water-btn-sub">כוס מיץ</span>
+                </button>
+                <button type="button" class="water-quick-btn bev-btn-tea" onclick="AppState.addBeverage('tea', 250, 'תה / חליטה', '🍵', 25)" title="+250 מ״ל כוס תה או חליטה">
+                  <span class="water-btn-icon">🍵</span>
+                  <span class="water-btn-amt">+250ml</span>
+                  <span class="water-btn-sub">תה / חליטה</span>
+                </button>
+                <button type="button" class="water-quick-btn bev-btn-elec" onclick="AppState.addBeverage('electrolyte', 500, 'אלקטרוליטים', '⚡', 0)" title="+500 מ״ל משקה אלקטרוליטים או שייק">
+                  <span class="water-btn-icon">⚡</span>
+                  <span class="water-btn-amt">+500ml</span>
+                  <span class="water-btn-sub">אלקטרוליטים</span>
                 </button>
               </div>
 
-              <!-- Custom Water Amount Input -->
+              <!-- Custom Water & Beverage Amount Input -->
               <div class="water-custom-row">
-                <input type="number" id="custom-water-input" class="water-custom-input" placeholder="כמות מותאמת (מ״ל)" min="50" max="3000" step="50">
-                <button class="water-custom-btn" onclick="AppState.addCustomWater()">+ שתיתי</button>
+                <select id="custom-water-type" class="water-custom-select" title="בחר סוג משקה">
+                  <option value="water" data-name="מים" data-icon="💧" data-caffeine="0">💧 מים (100%)</option>
+                  <option value="coffee" data-name="קפה" data-icon="☕" data-caffeine="75">☕ קפה (98% נוזלים)</option>
+                  <option value="juice" data-name="מיץ" data-icon="🧃" data-caffeine="0">🧃 מיץ (90% נוזלים)</option>
+                  <option value="tea" data-name="תה" data-icon="🍵" data-caffeine="25">🍵 תה / חליטה (100%)</option>
+                  <option value="electrolyte" data-name="אלקטרוליטים" data-icon="⚡" data-caffeine="0">⚡ אלקטרוליטים (100%)</option>
+                  <option value="soda" data-name="משקה קל" data-icon="🥤" data-caffeine="0">🥤 משקה קל / זירו</option>
+                  <option value="milk" data-name="חלב / שייק" data-icon="🥛" data-caffeine="0">🥛 חלב / שייק</option>
+                </select>
+                <input type="number" id="custom-water-input" class="water-custom-input" placeholder="כמות (מ״ל)" min="50" max="3000" step="50">
+                <button type="button" class="water-custom-btn" onclick="AppState.addCustomWater()">+ שתיתי</button>
               </div>
             </div>
           </div>
@@ -2301,6 +2320,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=22"></script>
+  <script src="/app.js?v=23"></script>
 </body>
 </html>

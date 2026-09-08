@@ -113,7 +113,7 @@ const AppState = {
   async init() {
     // Setup Service Worker with force update
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js?v=22').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=23').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -587,10 +587,11 @@ const AppState = {
 
     if (listEl) {
       if (!this.waterLogs || this.waterLogs.length === 0) {
-        listEl.innerHTML = '<div style="color:var(--text-muted); font-size:11px; text-align:center; padding:8px;">אין עדיין לגימות מים רשומות היום</div>';
+        listEl.innerHTML = '<div style="color:var(--text-muted); font-size:11px; text-align:center; padding:8px;">אין עדיין לגימות או משקאות רשומים היום</div>';
       } else {
         listEl.innerHTML = this.waterLogs.map(l => `
           <div class="water-log-chip">
+            <span class="water-log-bev">${l.beverage_icon || '💧'} ${l.beverage_name || 'מים'}</span>
             <span class="water-log-time">🕒 ${l.timestamp || '--:--'}</span>
             <span class="water-log-vol">+${l.amount_ml} מ״ל</span>
             <button class="water-log-del-btn" onclick="AppState.deleteWaterLog(${l.id})" title="מחק רישום זה">✕</button>
@@ -760,40 +761,70 @@ const AppState = {
     }
   },
 
-  async addWater(amount) {
+  async addWater(amount, bevType = 'water', bevName = 'מים', bevIcon = '💧', caffeineMg = 0) {
     sfx.playPotion();
     try {
       const res = await fetch('/api/nutrition/water', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount_ml: amount })
+        body: JSON.stringify({
+          amount_ml: amount,
+          beverage_type: bevType,
+          beverage_name: bevName,
+          beverage_icon: bevIcon,
+          caffeine_mg: caffeineMg
+        })
       });
       const data = await res.json();
       if (data.leveling && data.leveling.leveled_up) {
         this.showLevelUpModal(data.leveling);
       }
-      this.showToast(`💧 נוספו ${amount} מ״ל מים!`);
+      const addedMl = data.added_ml || amount;
+      const caffText = caffeineMg > 0 ? ` (+${caffeineMg}mg קפאין)` : '';
+      this.showToast(`${bevIcon} נוספו ${addedMl} מ״ל הידרציה מ${bevName}${caffText}!`);
       await this.fetchTodayData();
       if (typeof this.fetchDailyDebrief === 'function') this.fetchDailyDebrief();
     } catch (e) {
-      console.warn('Network issue while logging water, queuing offline:', e);
-      this.queueOfflineAction('/api/nutrition/water', 'POST', { amount_ml: amount }, `${amount}ml מים`);
+      console.warn('Network issue while logging water/beverage, queuing offline:', e);
+      this.queueOfflineAction('/api/nutrition/water', 'POST', {
+        amount_ml: amount,
+        beverage_type: bevType,
+        beverage_name: bevName,
+        beverage_icon: bevIcon,
+        caffeine_mg: caffeineMg
+      }, `${amount}ml ${bevName}`);
       if (this.consumed) {
         this.consumed.water_ml = (this.consumed.water_ml || 0) + amount;
       }
       this.updateGauges();
-      this.showToast(`💧 נוספו ${amount} מ״ל מים (נשמר מקומית)!`);
+      this.showToast(`${bevIcon} נוספו ${amount} מ״ל ${bevName} (נשמר מקומית)!`);
     }
+  },
+
+  addBeverage(bevType, amount, bevName, bevIcon, caffeineMg = 0) {
+    this.addWater(amount, bevType, bevName, bevIcon, caffeineMg);
   },
 
   addCustomWater() {
     const inp = document.getElementById('custom-water-input');
+    const select = document.getElementById('custom-water-type');
     const val = parseInt(inp ? inp.value : 0);
     if (val > 0) {
-      this.addWater(val);
+      let bevType = 'water';
+      let bevName = 'מים';
+      let bevIcon = '💧';
+      let caffeineMg = 0;
+      if (select) {
+        const opt = select.options[select.selectedIndex];
+        bevType = select.value || 'water';
+        bevName = opt ? (opt.getAttribute('data-name') || 'מים') : 'מים';
+        bevIcon = opt ? (opt.getAttribute('data-icon') || '💧') : '💧';
+        caffeineMg = opt ? (parseInt(opt.getAttribute('data-caffeine') || '0') || 0) : 0;
+      }
+      this.addWater(val, bevType, bevName, bevIcon, caffeineMg);
       if (inp) inp.value = '';
     } else {
-      alert('אנא הזן כמות מים תקינה (במ״ל)');
+      alert('אנא הזן כמות תקינה (במ״ל)');
     }
   },
 
