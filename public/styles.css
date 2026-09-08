@@ -1331,6 +1331,8 @@ button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:activ
   justify-content: center;
   padding: 16px;
   pointer-events: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .modal-overlay.active {
@@ -1347,21 +1349,26 @@ button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:activ
   max-width: 480px;
   max-height: 90vh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
   position: relative;
-  pointer-events: auto;
+  pointer-events: auto !important;
+  cursor: default;
 }
 
 .modal-header {
-  position: relative;
+  position: sticky;
+  top: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid rgba(0, 240, 255, 0.2);
   padding-bottom: 10px;
+  background: inherit;
+  z-index: 20;
 }
 
 .modal-title {
@@ -1374,14 +1381,16 @@ button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:activ
 }
 
 .close-modal-btn {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #e2e8f0;
-  font-size: 18px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 800;
   cursor: pointer;
-  width: 36px;
-  height: 36px;
-  min-height: 36px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1389,12 +1398,12 @@ button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:activ
   touch-action: manipulation;
   transition: all 0.15s ease;
   flex-shrink: 0;
-  z-index: 2;
+  z-index: 25;
 }
 
 .close-modal-btn:active {
-  background: rgba(239, 68, 68, 0.3);
-  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.6);
+  color: #ffffff;
   transform: scale(0.92);
 }
 
@@ -5180,8 +5189,16 @@ button:active,
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  padding: max(env(safe-area-inset-top, 0px), 20px) 16px calc(90px + env(safe-area-inset-bottom, 24px)) 16px;
+  padding: max(env(safe-area-inset-top, 0px), 16px) 16px calc(90px + env(safe-area-inset-bottom, 24px)) 16px;
   direction: rtl;
+  display: none;
+  pointer-events: none;
+  cursor: pointer;
+}
+
+.first-time-awakening-overlay.active {
+  display: block !important;
+  pointer-events: auto !important;
 }
 
 .awakening-screen-container {
@@ -5192,6 +5209,8 @@ button:active,
   flex-direction: column;
   gap: 20px;
   animation: fadeInAwakening 0.3s ease-out;
+  cursor: default;
+  pointer-events: auto !important;
 }
 
 @keyframes fadeInAwakening {
@@ -5455,23 +5474,27 @@ button:active,
 
 /* Awakening Close Top Button */
 .awakening-close-top-btn {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #94a3b8;
-  width: 32px;
-  height: 32px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 20px;
+  font-weight: 800;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
   touch-action: manipulation;
+  z-index: 50;
 }
 .awakening-close-top-btn:active {
   transform: scale(0.92);
-  background: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.6);
   color: #ffffff;
   border-color: #ef4444;
 }
@@ -6289,18 +6312,23 @@ button:active,
 }
 
 .ai-consult-close-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   color: #94a3b8;
-  border-radius: 10px;
-  width: 34px;
-  height: 34px;
-  font-size: 14px;
+  border-radius: 12px;
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  font-size: 20px;
+  font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .ai-consult-close-btn:hover {

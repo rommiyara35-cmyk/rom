@@ -214,7 +214,7 @@ const AppState = {
 
     // Setup Service Worker with force update
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js?v=27').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=28').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -1150,10 +1150,12 @@ const AppState = {
       if (el) el.addEventListener('input', () => this.updateAwakeningPreview());
     });
 
-    // Close any modal on backdrop click
+    // Close any modal on backdrop click or touch
     document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop, .first-time-awakening-overlay').forEach(modal => {
-      modal.addEventListener('click', (e) => {
+      const dismissBackdrop = (e) => {
         if (e.target === modal) {
+          e.preventDefault();
+          e.stopPropagation();
           if (modal.id === 'ai-consultation-modal') {
             AppState.closeAIConsultationModal();
           } else if (modal.id === 'quick-biometrics-modal') {
@@ -1166,7 +1168,9 @@ const AppState = {
             AppState.closeModal(modal.id);
           }
         }
-      });
+      };
+      modal.addEventListener('click', dismissBackdrop);
+      modal.addEventListener('touchend', dismissBackdrop, { passive: false });
     });
 
     // Close active modal on Escape key
@@ -1507,18 +1511,20 @@ const AppState = {
       this.lastAwakeningGoalText = p.goal_custom_text;
     }
 
-    this.updateOnboardingPreview(true);
+    overlay.classList.add('active');
+    overlay.style.display = 'block';
+    overlay.style.pointerEvents = 'auto';
+    overlay.style.visibility = 'visible';
+    overlay.style.opacity = '1';
+    overlay.scrollTop = 0;
 
-    overlay.style.display = 'flex';
     this.lockBodyScroll();
     this.triggerHaptic('light');
 
-    // Auto-scroll chat stream to bottom and focus input
+    // Auto-scroll chat stream to bottom safely
     setTimeout(() => {
       const stream = document.getElementById('awakening-chat-stream');
       if (stream) stream.scrollTop = stream.scrollHeight;
-      const input = document.getElementById('awakening-chat-input');
-      if (input) input.focus();
     }, 150);
   },
 
@@ -1526,7 +1532,11 @@ const AppState = {
     this.triggerHaptic('light');
     localStorage.setItem('hunter_awakened', 'true');
     const overlay = document.getElementById('first-time-awakening-overlay');
-    if (overlay) overlay.style.display = 'none';
+    if (overlay) {
+      overlay.classList.remove('active');
+      overlay.style.display = 'none';
+      overlay.style.pointerEvents = 'none';
+    }
     this.unlockBodyScroll();
   },
 
@@ -1959,7 +1969,9 @@ const AppState = {
     const watEl = document.getElementById('consult-hunter-water');
     if (watEl) watEl.innerText = p.target_water ? p.target_water.toLocaleString() : '3,300';
 
+    modal.classList.add('active');
     modal.style.display = 'flex';
+    modal.style.pointerEvents = 'auto';
     this.lockBodyScroll();
     this.triggerHaptic('light');
 
@@ -1981,7 +1993,11 @@ const AppState = {
   closeAIConsultationModal() {
     this.triggerHaptic('light');
     const modal = document.getElementById('ai-consultation-modal');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+      modal.classList.remove('active');
+      modal.style.display = 'none';
+      modal.style.pointerEvents = 'none';
+    }
     this.unlockBodyScroll();
   },
 
@@ -2262,7 +2278,9 @@ const AppState = {
     }
     if (helpEl) helpEl.innerText = cfg.help;
 
+    modal.classList.add('active');
     modal.style.display = 'flex';
+    modal.style.pointerEvents = 'auto';
     this.lockBodyScroll();
     this.triggerHaptic('light');
     setTimeout(() => {
@@ -2276,7 +2294,11 @@ const AppState = {
   closeQuickEditBiometrics() {
     this.triggerHaptic('light');
     const modal = document.getElementById('quick-biometrics-modal');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+      modal.classList.remove('active');
+      modal.style.display = 'none';
+      modal.style.pointerEvents = 'none';
+    }
     this.unlockBodyScroll();
   },
 
@@ -2663,14 +2685,20 @@ const AppState = {
 
     this.triggerHaptic('heavy');
     sfx.playAlert?.() || sfx.playClick();
+    modal.classList.add('active');
     modal.style.display = 'flex';
+    modal.style.pointerEvents = 'auto';
     this.lockBodyScroll();
   },
 
   closePenaltyModal() {
     this.triggerHaptic('light');
     const modal = document.getElementById('penalty-modal');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+      modal.classList.remove('active');
+      modal.style.display = 'none';
+      modal.style.pointerEvents = 'none';
+    }
     this.unlockBodyScroll();
   },
 
@@ -4501,6 +4529,7 @@ const AppState = {
       modal.classList.add('active');
       modal.style.display = 'flex';
       modal.style.pointerEvents = 'auto';
+      this.lockBodyScroll();
     }
     if (loading) loading.style.display = 'block';
     if (resultsBody) resultsBody.style.display = 'none';
@@ -4550,6 +4579,7 @@ const AppState = {
       modal.classList.add('active');
       modal.style.display = 'flex';
       modal.style.pointerEvents = 'auto';
+      this.lockBodyScroll();
     }
     if (loading) loading.style.display = 'block';
     if (resultsBody) resultsBody.style.display = 'none';
@@ -4674,6 +4704,7 @@ const AppState = {
       modal.style.pointerEvents = 'none';
     }
     this._visionItems = null;
+    this.unlockBodyScroll();
   },
 
   async addAllVisionItems() {
