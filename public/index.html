@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
   <link rel="apple-touch-icon" href="/icons/icon.svg">
   <title>Solo Leveling | The System</title>
-  <link rel="stylesheet" href="/styles.css?v=19">
+  <link rel="stylesheet" href="/styles.css?v=20">
   <!-- ZXing Industry-Standard Multi-Format Barcode Scanner (EAN-13, EAN-8, UPC, Code 128) -->
   <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 </head>
@@ -461,39 +461,7 @@
         <!-- NUTRITION AI RECOMMENDATIONS CONTAINER -->
         <div id="nutrition-ai-recs-container"></div>
 
-        <!-- QUICK POTIONS / INVENTORY -->
-        <section class="inventory-section">
-          <div class="section-title-wrap">
-            <span class="section-title">🎒 אינוונטר ושיקויים מהירים (Quick Potions)</span>
-          </div>
-          <div class="potion-grid">
-            <div class="potion-btn" onclick="AppState.logQuickPotion('water_250')">
-              <span class="potion-icon">💧</span>
-              <span class="potion-title">שיקוי חיים</span>
-              <span class="potion-effect">+250ml מים</span>
-            </div>
-            <div class="potion-btn" onclick="AppState.logQuickPotion('water_500')">
-              <span class="potion-icon">🧪</span>
-              <span class="potion-title">חיים מוגבר</span>
-              <span class="potion-effect">+500ml מים</span>
-            </div>
-            <div class="potion-btn" onclick="AppState.logQuickPotion('protein_shake')">
-              <span class="potion-icon">⚡</span>
-              <span class="potion-title">שיקוי כוח</span>
-              <span class="potion-effect">+27g חלבון</span>
-            </div>
-            <div class="potion-btn" onclick="AppState.logQuickPotion('multivitamin')">
-              <span class="potion-icon">✨</span>
-              <span class="potion-title">חיוניות</span>
-              <span class="potion-effect">+מולטי ויטמין</span>
-            </div>
-            <div class="potion-btn attent" onclick="AppState.openAttentModal()">
-              <span class="potion-icon">💊</span>
-              <span class="potion-title">שיקוי ריכוז</span>
-              <span class="potion-effect">אטנט (Attent)</span>
-            </div>
-          </div>
-        </section>
+
 
         <!-- MEAL LOGGER & SEARCH -->
         <section class="log-section">
@@ -835,7 +803,7 @@
             <div class="supplements-title-wrap">
               <span class="supplements-title-icon">🧪</span>
               <div>
-                <span class="supplements-title-text">שיקויי צייד ותוספים • ALCHEMY & VITAMINS</span>
+                <span class="supplements-title-text">תוספי תזונה וויטמינים • SUPPLEMENTS & VITAMINS</span>
                 <span class="supplements-title-sub">ויטמינים ומינרלים קריטיים לתמיכה במערכת העצבים</span>
               </div>
             </div>
@@ -1417,8 +1385,8 @@
 
   <!-- FOOD VISION AI RESULTS MODAL -->
   <div id="vision-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) AppState.closeVisionModal()">
-    <div class="modal-content" style="max-width:480px; max-height:90vh; overflow-y:auto; border:1px solid #7c3aed; box-shadow: 0 0 30px rgba(124,58,237,0.4);">
-      <div class="modal-header" style="background: linear-gradient(135deg, rgba(124,58,237,0.2), rgba(79,70,229,0.1));">
+    <div class="modal-content" style="max-width:480px; max-height:90vh; overflow-y:auto; border:1px solid #1e2433; box-shadow: 0 10px 35px rgba(0,0,0,0.8); background:#0c0e14;">
+      <div class="modal-header" style="background: #11141d; border-bottom: 1px solid #1a202c;">
         <span class="modal-title">🔍 AI זיהוי מזון מתמונה</span>
         <button class="close-modal-btn" onclick="AppState.closeVisionModal()">✕</button>
       </div>
@@ -1461,7 +1429,7 @@
   <div id="attent-modal" class="modal-overlay">
     <div class="modal-content" style="max-width: 440px; max-height: 90vh; overflow-y: auto;">
       <div class="modal-header">
-        <span class="modal-title">💊 ניהול מנות שיקוי ריכוז (אטנט / Attent)</span>
+        <span class="modal-title">💊 ניהול מנות פוקוס (אטנט / Attent)</span>
         <button class="close-modal-btn" onclick="AppState.closeModal('attent-modal')">✕</button>
       </div>
       <p style="font-size:12px; color:var(--text-secondary); line-height:1.5;">
@@ -2244,6 +2212,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=19"></script>
+  <script src="/app.js?v=20"></script>
 </body>
 </html>

@@ -113,7 +113,7 @@ const AppState = {
   async init() {
     // Setup Service Worker with force update
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js?v=19').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=20').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -669,7 +669,7 @@ const AppState = {
 
     if (listEl) {
       if (!this.meals || this.meals.length === 0) {
-        listEl.innerHTML = `<div style="text-align:center; padding: 14px; font-size: 12px; color: var(--text-dim);">טרם נרשמו ארוחות היום. בחר מזון למעלה או השתמש בשיקויי האינוונטר!</div>`;
+        listEl.innerHTML = `<div style="text-align:center; padding: 14px; font-size: 12px; color: var(--text-dim);">טרם נרשמו ארוחות היום. חפש מזון למעלה או השתמש בסריקת ברקוד/צילום AI!</div>`;
       } else {
         listEl.innerHTML = '';
         this.meals.forEach(m => {
@@ -3345,15 +3345,15 @@ const AppState = {
       let subText = '';
       if (isAct) {
         if (count > 1) {
-          titleText = `BUFF פעיל: שיקוי ריכוז (${totalDose}mg סה״כ • ${count} מנות)`;
+          titleText = `BUFF פוקוס פעיל: אטנט (${totalDose}mg סה״כ • ${count} מנות)`;
           const doseSummary = (attent.doses || []).map(d => `${d.dose_mg}mg ב-${d.timestamp}`).join(' + ');
           subText = `מנות: ${doseSummary} • נותרו כ-${rem.toFixed(1)} שעות השפעה שיא`;
         } else {
-          titleText = `BUFF פעיל: שיקוי ריכוז והיפר-פוקוס (Attent ${totalDose}mg)`;
+          titleText = `BUFF פוקוס פעיל: אטנט (${totalDose}mg)`;
           subText = `נלקח ב-${attent.timestamp || '09:00'} • נותרו כ-${rem.toFixed(1)} שעות שיא`;
         }
       } else {
-        titleText = `שיקוי ריכוז (${totalDose}mg סה״כ - השפעה הסתיימה)`;
+        titleText = `מעקב אטנט (${totalDose}mg סה״כ - השפעה הסתיימה)`;
         subText = `נלקחו ${count} מנות היום. הטווח הפרמקולוגי הסתיים • לחץ להוספת מנת בוסטר חדשה`;
       }
 
@@ -3392,7 +3392,7 @@ const AppState = {
           <div style="display:flex; align-items:center; gap:8px;">
             <span style="font-size:18px;">💊</span>
             <div>
-              <span style="font-size:12px; font-weight:700; color:#e9d5ff;">שיקוי ריכוז (אטנט / Attent)</span>
+              <span style="font-size:12px; font-weight:700; color:#e9d5ff;">מעקב אטנט ופוקוס (Attent)</span>
               <span style="font-size:10px; color:var(--text-secondary); display:block;">נטלת אטנט היום? לחץ כאן לבחירת מינון (10, 15, 20, 30mg), שעה ורישום בוסטרים</span>
             </div>
           </div>
@@ -3793,7 +3793,7 @@ const AppState = {
     } else {
       if (dosesListWrap) dosesListWrap.style.display = 'none';
       if (formHeading) formHeading.innerText = '➕ רשום מנת אטנט ראשונה';
-      if (submitBtn) submitBtn.innerText = '✨ הפעל BUFF שיקוי ריכוז (רשום נטילה)';
+      if (submitBtn) submitBtn.innerText = '⚡ שמור נטילת אטנט (הפעל BUFF)';
     }
 
     const cancelWrap = document.getElementById('attent-active-cancel-wrap');
