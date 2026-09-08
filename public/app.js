@@ -113,7 +113,7 @@ const AppState = {
   async init() {
     // Setup Service Worker with force update
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js?v=20').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=21').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
