@@ -159,7 +159,17 @@ class NutritionScienceEngine:
             "micros": micronutrient_targets
         }
 
-def get_hunter_shift_date(conn):
+def get_israel_now():
+    try:
+        import zoneinfo
+        return datetime.datetime.now(zoneinfo.ZoneInfo("Asia/Jerusalem"))
+    except Exception:
+        tz = datetime.timezone(datetime.timedelta(hours=3))
+        return datetime.datetime.now(tz)
+
+def get_hunter_shift_date(conn, client_date=None):
+    if client_date and isinstance(client_date, str) and len(client_date) == 10:
+        return client_date
     try:
         c = conn.cursor()
         c.execute("SELECT day_reset_hour FROM hunter_profile WHERE id=1")
@@ -167,7 +177,7 @@ def get_hunter_shift_date(conn):
         reset_hour = row["day_reset_hour"] if row and row["day_reset_hour"] is not None else 0
     except Exception:
         reset_hour = 0
-    now = datetime.datetime.now()
+    now = get_israel_now()
     if now.hour < reset_hour:
         return (now.date() - datetime.timedelta(days=1)).isoformat()
     return now.date().isoformat()
@@ -4532,10 +4542,10 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             duration = int(body.get("duration_min") or 45)
             calories = int(body.get("calories_burned") or (duration * 7))
             notes = body.get("notes") or ""
-            now_time = datetime.datetime.now().strftime("%H:%M")
+            now_time = body.get("timestamp") or get_israel_now().strftime("%H:%M")
 
             with Database.get_connection() as conn:
-                today = get_hunter_shift_date(conn)
+                today = body.get("date") or get_hunter_shift_date(conn, body.get("client_date"))
                 c = conn.cursor()
                 c.execute("""
                 INSERT INTO workout_logs (date, workout_type, title, duration_min, calories_burned, notes, timestamp)
@@ -4589,10 +4599,10 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             unit = body.get("unit") or "mg"
             category = body.get("category") or "vitamin"
             notes = body.get("notes") or ""
-            now_time = datetime.datetime.now().strftime("%H:%M")
+            now_time = body.get("timestamp") or get_israel_now().strftime("%H:%M")
 
             with Database.get_connection() as conn:
-                today = get_hunter_shift_date(conn)
+                today = body.get("date") or get_hunter_shift_date(conn, body.get("client_date"))
                 c = conn.cursor()
                 c.execute("""
                 INSERT INTO supplements_log (date, name, dosage, unit, category, notes, timestamp)
@@ -4922,8 +4932,11 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         return self.handle_get_nutrition_today()
 
     def handle_get_nutrition_today(self):
+        parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+        client_date = query.get("client_date", [None])[0] or query.get("date", [None])[0]
         with Database.get_connection() as conn:
-            today = get_hunter_shift_date(conn)
+            today = get_hunter_shift_date(conn, client_date)
             c = conn.cursor()
             c.execute("SELECT * FROM daily_logs WHERE date = ? ORDER BY id DESC", (today,))
             meals = [dict(r) for r in c.fetchall()]
@@ -4934,7 +4947,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             c.execute("SELECT * FROM hunter_profile WHERE id=1")
             profile = dict(c.fetchone())
 
-            now = datetime.datetime.now()
+            now = get_israel_now()
             reset_h = profile.get("day_reset_hour") if profile.get("day_reset_hour") is not None else 0
             if now.hour < reset_h:
                 reset_dt = now.replace(hour=reset_h, minute=0, second=0, microsecond=0)
@@ -5126,7 +5139,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
 
     def handle_post_log(self, body):
         try:
-            now_time = datetime.datetime.now().strftime("%H:%M")
+            now_time = body.get("timestamp") or get_israel_now().strftime("%H:%M")
             
             food_id = body.get("food_id")
             food_name = body.get("food_name", "ארוחת צייד")
@@ -5147,7 +5160,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             meal_type = body.get("meal_type", "snack") or "snack"
 
             with Database.get_connection() as conn:
-                today = get_hunter_shift_date(conn)
+                today = body.get("date") or get_hunter_shift_date(conn, body.get("client_date"))
                 c = conn.cursor()
                 c.execute("""
                 INSERT INTO daily_logs (
@@ -5210,7 +5223,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         self.wfile.write(json.dumps({"status": "deleted", "id": log_id}).encode("utf-8"))
 
     def handle_post_water(self, body):
-        now_time = datetime.datetime.now().strftime("%H:%M")
+        now_time = body.get("timestamp") or get_israel_now().strftime("%H:%M")
         raw_amount = int(body.get("amount_ml") or body.get("amount") or 250)
         bev_type = body.get("beverage_type", "water")
         bev_name = body.get("beverage_name", "מים")
@@ -5231,7 +5244,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         effective_ml = max(10, int(round(raw_amount * factor)))
 
         with Database.get_connection() as conn:
-            today = get_hunter_shift_date(conn)
+            today = body.get("date") or get_hunter_shift_date(conn, body.get("client_date"))
             c = conn.cursor()
             c.execute("""
             INSERT INTO water_logs (date, amount_ml, timestamp, beverage_type, beverage_name, beverage_icon, caffeine_mg)

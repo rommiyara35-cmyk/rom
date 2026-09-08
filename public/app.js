@@ -123,21 +123,81 @@ const AppState = {
     } catch (e) {}
   },
 
-  // --- iOS Background Scroll Locking for Bottom Sheets & Modals ---
-  _modalScrollY: 0,
+  // --- iOS Scroll Locking for Modals (Zero Touch Blocking) ---
   lockBodyScroll() {
-    this._modalScrollY = window.scrollY || window.pageYOffset || 0;
     document.body.classList.add('modal-open');
-    document.body.style.top = `-${this._modalScrollY}px`;
   },
 
   unlockBodyScroll() {
-    const anyActive = document.querySelector('.modal-overlay.active, .modal-overlay[style*="display: flex"], .ai-consult-modal-overlay[style*="display: flex"], .solo-modal-backdrop[style*="display: flex"], .first-time-awakening-overlay[style*="display: flex"]');
-    if (!anyActive) {
+    let anyOpen = false;
+    document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop, .first-time-awakening-overlay').forEach(m => {
+      if (m.classList.contains('active') || (m.style.display && m.style.display !== 'none')) {
+        anyOpen = true;
+      }
+    });
+    if (!anyOpen) {
       document.body.classList.remove('modal-open');
-      const y = this._modalScrollY || 0;
       document.body.style.top = '';
-      window.scrollTo(0, y);
+    }
+  },
+
+  forceUnlockBody() {
+    document.body.classList.remove('modal-open');
+    document.body.style.top = '';
+    document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop').forEach(m => {
+      m.classList.remove('active');
+      m.style.display = 'none';
+      m.style.pointerEvents = 'none';
+    });
+  },
+
+  getClientDateStr() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  },
+
+  loadLocalCache() {
+    try {
+      const p = localStorage.getItem('hunter_profile');
+      if (p) this.profile = JSON.parse(p);
+
+      const c = localStorage.getItem('hunter_consumed');
+      if (c) this.consumed = JSON.parse(c);
+
+      const m = localStorage.getItem('hunter_meals');
+      if (m) this.meals = JSON.parse(m);
+
+      const w = localStorage.getItem('hunter_water_logs');
+      if (w) this.waterLogs = JSON.parse(w);
+
+      const s = localStorage.getItem('hunter_supplements');
+      if (s) this.supplements = JSON.parse(s);
+
+      const ha = localStorage.getItem('hunter_health_advisor');
+      if (ha) this.healthAdvisor = JSON.parse(ha);
+
+      const ach = localStorage.getItem('hunter_achievements');
+      if (ach) this.achievements = JSON.parse(ach);
+    } catch (e) {
+      console.warn('Local cache load warning:', e);
+    }
+  },
+
+  saveLocalCache() {
+    try {
+      if (this.profile) localStorage.setItem('hunter_profile', JSON.stringify(this.profile));
+      if (this.consumed) localStorage.setItem('hunter_consumed', JSON.stringify(this.consumed));
+      if (this.meals) localStorage.setItem('hunter_meals', JSON.stringify(this.meals));
+      if (this.waterLogs) localStorage.setItem('hunter_water_logs', JSON.stringify(this.waterLogs));
+      if (this.supplements) localStorage.setItem('hunter_supplements', JSON.stringify(this.supplements));
+      if (this.healthAdvisor) localStorage.setItem('hunter_health_advisor', JSON.stringify(this.healthAdvisor));
+      if (this.achievements) localStorage.setItem('hunter_achievements', JSON.stringify(this.achievements));
+      localStorage.setItem('hunter_cache_date', this.getClientDateStr());
+    } catch (e) {
+      console.warn('Local cache save warning:', e);
     }
   },
 
@@ -147,9 +207,12 @@ const AppState = {
       history.scrollRestoration = 'manual';
     }
 
+    // Always start with body unlocked to prevent any stuck scroll
+    this.forceUnlockBody();
+
     // Setup Service Worker with force update
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js?v=25').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=26').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -160,31 +223,14 @@ const AppState = {
     // Initialize Offline-First Queue
     this.initOfflineQueue();
 
-    // Check cached profile for immediate offline display
-    const cachedProfile = localStorage.getItem('hunter_profile');
-    if (cachedProfile) {
-      try {
-        this.profile = JSON.parse(cachedProfile);
-        this.renderProfile();
-      } catch (e) {}
-    }
+    // 1. FAST LOCAL HYDRATION: Immediately render cached data so screen is never blank
+    this.loadLocalCache();
+    this.renderAll();
 
-    const cachedHA = localStorage.getItem('hunter_health_advisor');
-    if (cachedHA) {
-      try {
-        this.healthAdvisor = JSON.parse(cachedHA);
-      } catch (e) {}
-    }
+    // 2. DISASTER RECOVERY: If server restarted fresh while browser has data, heal the server FIRST!
+    await this.checkAndHealServerInstance();
 
-    const cachedAch = localStorage.getItem('hunter_achievements');
-    if (cachedAch) {
-      try {
-        this.achievements = JSON.parse(cachedAch);
-        this.renderAchievements();
-      } catch (e) {}
-    }
-
-    // Fetch live data from server
+    // 3. Fetch live synchronized data from server
     await this.fetchNetworkInfo();
     await this.fetchTodayData();
     await this.fetchAchievements();
@@ -198,8 +244,8 @@ const AppState = {
     // Setup input listeners
     this.bindEvents();
 
-    // Check disaster recovery & auto snapshotting
-    this.checkDisasterRecovery();
+    // Save fresh local snapshot
+    this.saveLocalCache();
     this.saveLocalSnapshot();
     this.updateBackupUI();
 
@@ -252,13 +298,14 @@ const AppState = {
 
   async fetchTodayData() {
     try {
-      const res = await fetch('/api/nutrition/today');
+      const clientDate = this.getClientDateStr();
+      const res = await fetch(`/api/nutrition/today?client_date=${clientDate}`);
       if (!res.ok) throw new Error('API error');
       const data = await res.json();
       this.profile = data.profile;
       this.consumed = data.consumed;
-      this.meals = data.meals;
-      this.quests = data.quests;
+      this.meals = data.meals || [];
+      this.quests = data.quests || [];
       this.shiftInfo = data.shift_info;
       this.waterLogs = data.water_logs || [];
       if (data.supplements) this.supplements = data.supplements;
@@ -273,22 +320,17 @@ const AppState = {
       }
       if (data.health_advisor) {
         this.healthAdvisor = data.health_advisor;
-        localStorage.setItem('hunter_health_advisor', JSON.stringify(this.healthAdvisor));
       }
       this.activePenalty = data.active_penalty || null;
 
-      // Save to localStorage
-      localStorage.setItem('hunter_profile', JSON.stringify(this.profile));
-      localStorage.setItem('hunter_consumed', JSON.stringify(this.consumed));
+      // Save complete local cache so reloading instantly renders everything
+      this.saveLocalCache();
 
       this.renderAll();
       this.triggerDebouncedSnapshot();
     } catch (err) {
-      console.warn('Using offline cache:', err);
-      const cachedC = localStorage.getItem('hunter_consumed');
-      if (cachedC) this.consumed = JSON.parse(cachedC);
-      const cachedHA = localStorage.getItem('hunter_health_advisor');
-      if (cachedHA) this.healthAdvisor = JSON.parse(cachedHA);
+      console.warn('Using offline cache for today data:', err);
+      this.loadLocalCache();
       this.renderAll();
     }
   },
@@ -837,6 +879,7 @@ const AppState = {
         this.consumed.water_ml = (this.consumed.water_ml || 0) + amount;
       }
       this.updateGauges();
+      this.saveLocalCache();
       this.showToast(`${bevIcon} נוספו ${amount} מ״ל ${bevName} (נשמר מקומית)!`);
     }
   },
@@ -1011,6 +1054,7 @@ const AppState = {
       }
       this.renderMealsList();
       this.updateGauges();
+      this.saveLocalCache();
 
       this.selectedFood = null;
       const sc = document.getElementById('staging-card');
@@ -2771,22 +2815,9 @@ const AppState = {
     }, 1500);
   },
 
-  async saveLocalSnapshot(optionalData = null) {
+  async saveLocalSnapshot(optionalData = null, isIntentionalReset = false) {
     try {
       if (optionalData) {
-        // Protect existing local snapshot if incoming data is empty
-        const existingRaw = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
-        if (existingRaw) {
-          try {
-            const existing = JSON.parse(existingRaw);
-            const exCount = (existing.daily_logs || []).length + (existing.workout_logs || []).length + (existing.supplements_log || []).length;
-            const newCount = (optionalData.daily_logs || []).length + (optionalData.workout_logs || []).length + (optionalData.supplements_log || []).length;
-            if (exCount > 0 && newCount === 0) {
-              console.warn('Prevented overwriting rich local snapshot with empty optionalData.');
-              return;
-            }
-          } catch(e) {}
-        }
         localStorage.setItem('SOLO_HUNTER_SYSTEM_SNAPSHOT', JSON.stringify(optionalData));
         localStorage.setItem('SOLO_HUNTER_SNAPSHOT_TIMESTAMP', new Date().toISOString());
         this.updateBackupUI();
@@ -2795,20 +2826,22 @@ const AppState = {
       const res = await fetch('/api/backup');
       if (res.ok) {
         const data = await res.json();
-        // SAFEGUARD: If we have a richer snapshot in localStorage and incoming server DB is empty,
-        // do not wipe client data. Instead, automatically heal the server!
-        const existingRaw = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
-        if (existingRaw) {
-          try {
-            const existing = JSON.parse(existingRaw);
-            const exCount = (existing.daily_logs || []).length + (existing.workout_logs || []).length + (existing.supplements_log || []).length;
-            const newCount = (data.daily_logs || []).length + (data.workout_logs || []).length + (data.supplements_log || []).length;
-            if (exCount > 0 && newCount === 0) {
-              console.warn('Server database is empty while client has local data. Auto-healing server from local snapshot...');
-              this.restoreFromLocalSnapshot(true);
-              return;
-            }
-          } catch(e) {}
+        // SAFEGUARD: If server DB was wiped/restarted while client has saved data,
+        // and this is NOT an intentional user reset, heal the server!
+        if (!isIntentionalReset) {
+          const existingRaw = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
+          if (existingRaw) {
+            try {
+              const existing = JSON.parse(existingRaw);
+              const exCount = (existing.daily_logs || []).length + (existing.workout_logs || []).length + (existing.supplements_log || []).length + (existing.water_logs || []).length;
+              const newCount = (data.daily_logs || []).length + (data.workout_logs || []).length + (data.supplements_log || []).length + (data.water_logs || []).length;
+              if (exCount > 0 && newCount === 0) {
+                console.warn('Server database is empty while client has local data. Auto-healing server from local snapshot...');
+                await this.restoreFromLocalSnapshot(true);
+                return;
+              }
+            } catch(e) {}
+          }
         }
         localStorage.setItem('SOLO_HUNTER_SYSTEM_SNAPSHOT', JSON.stringify(data));
         localStorage.setItem('SOLO_HUNTER_SNAPSHOT_TIMESTAMP', new Date().toISOString());
@@ -2835,6 +2868,42 @@ const AppState = {
     }
   },
 
+  // Auto-heal server on launch if Render container was restarted/wiped
+  async checkAndHealServerInstance() {
+    try {
+      const rawSnapshot = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
+      if (!rawSnapshot) return;
+
+      const snapshot = JSON.parse(rawSnapshot);
+      const snapProfile = snapshot.hunter_profile || snapshot.profile || {};
+      const snapDailyLogs = snapshot.daily_logs || snapshot.logs || [];
+      const snapWorkouts = snapshot.workout_logs || [];
+      const snapSupps = snapshot.supplements_log || [];
+      const snapWater = snapshot.water_logs || snapshot.water || [];
+
+      const totalSnapRecords = snapDailyLogs.length + snapWorkouts.length + snapSupps.length + snapWater.length;
+      const hasMeaningfulData = (snapProfile.level && snapProfile.level > 1) || totalSnapRecords > 0 || snapProfile.is_awakened;
+      if (!hasMeaningfulData) return;
+
+      // Probe server with client date
+      const clientDate = this.getClientDateStr();
+      const res = await fetch(`/api/nutrition/today?client_date=${clientDate}`);
+      if (!res.ok) return;
+      const srvData = await res.json();
+      const srvMeals = srvData.meals || [];
+      const srvWater = srvData.water_logs || [];
+      const srvProfile = srvData.profile || {};
+
+      // If server is clean slate (fresh container restart) while browser has stored history:
+      if (srvMeals.length === 0 && srvWater.length === 0 && (srvProfile.level || 1) <= 1 && totalSnapRecords > 0) {
+        console.log('Detected fresh server instance with existing browser snapshot. Auto-restoring database...');
+        await this.restoreFromLocalSnapshot(true);
+      }
+    } catch (e) {
+      console.warn('Check and heal server error:', e);
+    }
+  },
+
   async checkDisasterRecovery() {
     try {
       const banner = document.getElementById('disaster-recovery-banner');
@@ -2848,13 +2917,12 @@ const AppState = {
       const snapDailyLogs = snapshot.daily_logs || snapshot.logs || [];
       const snapWorkouts = snapshot.workout_logs || [];
       const snapSupps = snapshot.supplements_log || [];
+      const snapWater = snapshot.water_logs || [];
 
-      const totalSnapRecords = snapDailyLogs.length + snapWorkouts.length + snapSupps.length;
-      const isServerFresh = (!this.profile || this.profile.level <= 1) && (!this.todayMeals || this.todayMeals.length === 0);
+      const totalSnapRecords = snapDailyLogs.length + snapWorkouts.length + snapSupps.length + snapWater.length;
+      const isServerFresh = (!this.profile || this.profile.level <= 1) && (!this.meals || this.meals.length === 0);
 
-      // If server is fresh but browser snapshot has existing history or awakened profile, auto-heal!
       if (isServerFresh && (snapProfile.level > 1 || totalSnapRecords > 0 || snapProfile.is_awakened)) {
-        console.log('Detected fresh server instance with existing browser snapshot. Auto-restoring...');
         const healed = await this.restoreFromLocalSnapshot(true);
         if (healed) {
           if (banner) banner.style.display = 'none';
@@ -2893,6 +2961,7 @@ const AppState = {
       if (!res.ok) throw new Error(data.error || 'Restore failed');
       const banner = document.getElementById('disaster-recovery-banner');
       if (banner) banner.style.display = 'none';
+
       if (!silent) {
         sfx.playLevelUp();
         this.showToast('✨ כל הנתונים שוחזרו בהצלחה מהגיבוי המקומי!');
@@ -2900,6 +2969,11 @@ const AppState = {
       } else {
         console.log('Auto-healed server database from local snapshot successfully.');
         this.showToast('🛡️ הנתונים סונכרנו ושוחזרו אוטומטית מהגיבוי השמור במכשיר!');
+        // Refresh live data so the user immediately sees their restored state!
+        await this.fetchTodayData();
+        await this.fetchSkills();
+        await this.fetchSupplements();
+        await this.fetchAchievements();
       }
       return true;
     } catch (err) {
@@ -3010,13 +3084,54 @@ const AppState = {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Reset failed');
       sfx.playSystemNotification();
-      this.showToast('🔄 נתוני יום זה אופסו בהצלחה!');
+
+      // 1. Unconditionally close all modals and unlock screen
       this.closeModal('reset-modal');
+      this.closeModal('settings-modal');
+      this.forceUnlockBody();
+
+      // 2. Clear today's in-memory and local cache
+      this.meals = [];
+      this.waterLogs = [];
+      if (this.consumed) {
+        this.consumed.calories = 0;
+        this.consumed.protein = 0;
+        this.consumed.carbs = 0;
+        this.consumed.fats = 0;
+        this.consumed.fiber = 0;
+        this.consumed.water_ml = 0;
+        this.consumed.sodium_mg = 0;
+        this.consumed.potassium_mg = 0;
+        this.consumed.magnesium_mg = 0;
+        this.consumed.zinc_mg = 0;
+        this.consumed.vit_c_mg = 0;
+        this.consumed.vit_d_iu = 0;
+        this.consumed.iron_mg = 0;
+      }
+      this.saveLocalCache();
+
+      // 3. Remove today's records from the local snapshot so it doesn't auto-restore them
+      const rawSnapshot = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
+      if (rawSnapshot) {
+        try {
+          const snap = JSON.parse(rawSnapshot);
+          const todayStr = this.getClientDateStr();
+          if (snap.daily_logs) snap.daily_logs = snap.daily_logs.filter(l => l.date !== todayStr);
+          if (snap.water_logs) snap.water_logs = snap.water_logs.filter(l => l.date !== todayStr);
+          if (snap.workout_logs) snap.workout_logs = snap.workout_logs.filter(l => l.date !== todayStr);
+          if (snap.supplements_log) snap.supplements_log = snap.supplements_log.filter(l => l.date !== todayStr);
+          localStorage.setItem('SOLO_HUNTER_SYSTEM_SNAPSHOT', JSON.stringify(snap));
+        } catch(e) {}
+      }
+
+      this.showToast('🔄 נתוני יום זה אופסו בהצלחה!');
       await this.fetchTodayData();
       await this.fetchSupplements();
       await this.fetchDailyDebrief();
-      this.saveLocalSnapshot();
+      await this.saveLocalSnapshot(null, true);
     } catch (err) {
+      this.closeModal('reset-modal');
+      this.forceUnlockBody();
       alert('שגיאה באיפוס היום: ' + err.message);
     }
   },
@@ -3031,6 +3146,9 @@ const AppState = {
     }
 
     sfx.playClick();
+    this.closeModal('reset-modal');
+    this.closeModal('settings-modal');
+    this.forceUnlockBody();
 
     // Call /api/reset/full FIRST so the reset is guaranteed to execute without browser interference
     try {
@@ -3042,15 +3160,14 @@ const AppState = {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Rebirth failed');
 
-      localStorage.removeItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
-      localStorage.removeItem('hunter_profile');
-      localStorage.removeItem('hunter_health_advisor');
-      localStorage.removeItem('hunter_awakened');
+      localStorage.clear();
+      localStorage.setItem('hunter_awakened', 'false');
 
       sfx.playLevelUp();
       alert('[SYSTEM: לידה מחדש הושלמה!]\nהצייד חזר לרמה 1 (E-Rank) וכל הסקילים אופסו לרמה 1.\nהינך מועבר למסך ההתעוררות מחדש.');
       window.location.reload();
     } catch (err) {
+      this.forceUnlockBody();
       alert('שגיאה בתהליך הלידה מחדש: ' + err.message);
     }
   },

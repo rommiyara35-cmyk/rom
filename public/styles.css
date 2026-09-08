@@ -72,9 +72,6 @@ body {
 /* Prevents background page scrolling when modal is open */
 body.modal-open {
   overflow: hidden !important;
-  position: fixed;
-  width: 100%;
-  height: 100%;
 }
 
 /* System Container */
@@ -7486,23 +7483,11 @@ input, select, textarea, [contenteditable="true"] {
   font-size: 16px !important;
 }
 
-/* 2. Lock body scroll cleanly when modal or bottom sheet is open */
+/* 2. Lock background scroll cleanly without blocking touch */
 body.modal-open {
   overflow: hidden !important;
-  position: fixed !important;
-  width: 100% !important;
-  height: 100% !important;
-  touch-action: none;
 }
 
-/* 3. Ensure modals allow internal momentum scrolling on iOS */
-.modal-overlay.active > .modal-content,
-.ai-consult-modal-overlay > .ai-consult-container,
-.solo-modal-backdrop > .penalty-modal-content,
-.first-time-awakening-overlay > .awakening-modal-card {
-  touch-action: pan-y;
-  -webkit-overflow-scrolling: touch;
-}
 
 
 
