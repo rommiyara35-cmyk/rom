@@ -257,6 +257,29 @@ class Database:
                 c.execute("ALTER TABLE hunter_profile ADD COLUMN ai_hunter_tip TEXT DEFAULT ''")
             except Exception:
                 pass
+            try:
+                c.execute("ALTER TABLE hunter_profile ADD COLUMN has_penalty_debuff INTEGER DEFAULT 0")
+            except Exception:
+                pass
+
+            # Solo Leveling Hunter Penalties table
+            c.execute("""
+            CREATE TABLE IF NOT EXISTS hunter_penalties (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                penalty_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                infraction_details TEXT NOT NULL,
+                quest_title TEXT NOT NULL,
+                quest_requirement TEXT NOT NULL,
+                exp_deducted INTEGER DEFAULT 75,
+                exp_restored INTEGER DEFAULT 50,
+                status TEXT DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                redeemed_at TIMESTAMP
+            )
+            """)
 
             # AI Consultation Messages History
             c.execute("""
@@ -829,6 +852,163 @@ class HunterAchievementEngine:
     @staticmethod
     def add_skill_exp(conn, skill_code, amount):
         return HunterLevelingEngine.add_skill_exp(conn, skill_code, amount)
+
+
+# -------------------------------------------------------------
+# Solo Leveling Hunter Penalty Zone & Redemption Engine
+# -------------------------------------------------------------
+class HunterPenaltyEngine:
+    @staticmethod
+    def evaluate_and_apply(conn, today):
+        """
+        Evaluates daily nutrition logs against hunter profile goals.
+        Triggers Solo Leveling Penalty Zone if infractions occur.
+        Returns the active penalty dict if exists, or None.
+        """
+        c = conn.cursor()
+        c.execute("SELECT * FROM hunter_profile WHERE id=1")
+        p_row = c.fetchone()
+        if not p_row:
+            return None
+        profile = dict(p_row)
+        goal = profile.get("goal", "cut")
+        target_calories = float(profile.get("target_calories") or 2100)
+        target_fats = float(profile.get("target_fats") or 65)
+        target_protein = float(profile.get("target_protein") or 160)
+
+        # Check today's consumed macros
+        c.execute("""
+            SELECT COALESCE(SUM(calories), 0) as cals,
+                   COALESCE(SUM(protein), 0) as prot,
+                   COALESCE(SUM(fats), 0) as fats,
+                   COUNT(*) as meal_count
+            FROM daily_logs
+            WHERE date = ?
+        """, (today,))
+        m_row = c.fetchone()
+        cals = float(m_row["cals"] or 0)
+        prot = float(m_row["prot"] or 0)
+        fats = float(m_row["fats"] or 0)
+        meal_count = int(m_row["meal_count"] or 0)
+
+        # Check if an active penalty already exists for today
+        c.execute("""
+            SELECT * FROM hunter_penalties 
+            WHERE date = ? AND status = 'active'
+            ORDER BY id DESC LIMIT 1
+        """, (today,))
+        active_p = c.fetchone()
+        if active_p:
+            return dict(active_p)
+
+        # Check what penalty types have already been issued today (active or redeemed)
+        c.execute("SELECT penalty_type FROM hunter_penalties WHERE date = ?", (today,))
+        existing_types = [r["penalty_type"] for r in c.fetchall()]
+
+        # 1. Fat Excess on Cut (>25% overrun)
+        if goal == "cut" and fats > (target_fats * 1.25) and "fat_excess" not in existing_types:
+            excess_g = round(fats - target_fats)
+            infraction = f"חריגת שומן חמורה בחיטוב: נצרכו {round(fats)}g שומן מתוך יעד מקסימלי של {round(target_fats)}g (+{excess_g}g חריגה)."
+            title = "⚠️ חריגת שומן מעל התקרה בחיטוב (Fat Limit Exceeded)"
+            desc = f"המערכת זיהתה חריגה של {excess_g} גרם שומן מעבר ליעד. משטר חיטוב מבוסס מדע דורש בקרה הדוקה על שומנים להבטחת שריפת שומן ושימור רגישות לאינסולין."
+            q_title = "משימת עונש: הישרדות במדבר הקלורי (Caloric Desert Survival)"
+            q_req = "בצע 50 שכיבות סמיכה + 40 סקוואטים כנגד משקל גוף לגירוי גיוס גליקוגן והגברת קצב שריפת חומצות שומן."
+            return HunterPenaltyEngine._apply_penalty(conn, today, "fat_excess", title, desc, infraction, q_title, q_req)
+
+        # 2. Caloric Blowout on Cut (>20% excess) or other goals (>30% excess)
+        cals_threshold = target_calories * 1.20 if goal == "cut" else target_calories * 1.30
+        if cals > cals_threshold and "caloric_blowout" not in existing_types:
+            excess_cals = round(cals - target_calories)
+            infraction = f"חריגה קלורית חמורה: נצרכו {round(cals)} קלוריות לעומת יעד של {round(target_calories)} קק\"ל (+{excess_cals} קק\"ל מעבר ליעד)."
+            title = "🚨 חריגה קלורית קיצונית (Caloric Overrun)"
+            desc = f"חרגת ב-{excess_cals} קלוריות מעל הגירעון המתוכנן. המערכת מחייבת הוצאה אנרגטית אקטיבית לקיזוז העודף ושמירה על קצב ההתקדמות."
+            q_title = "משימת עונש: מסע כפרה מטאבולי (Metabolic Redemption March)"
+            q_req = "בצע צעידה ממוקדת של 3,000 צעדים בקצב מהיר (או 35 ברפיז) להגברת הוצאת האנרגיה היומית (NEAT) ואיפוס המאזן האנרגטי."
+            return HunterPenaltyEngine._apply_penalty(conn, today, "caloric_blowout", title, desc, infraction, q_title, q_req)
+
+        # 3. Severe Protein Neglect at High Calories (>=90% calories eaten but <60% protein)
+        if cals >= (target_calories * 0.90) and prot < (target_protein * 0.60) and meal_count >= 2 and "protein_deficit" not in existing_types:
+            infraction = f"הפקרת מסת שריר: נוצלו {round(cals)} קלוריות אך נצרכו רק {round(prot)}g חלבון מתוך יעד של {round(target_protein)}g ({round((prot/max(1, target_protein))*100)}%)."
+            title = "🩸 הפקרת פרוטוקול בניית שריר (Severe Protein Deficit)"
+            desc = "צריכת חלבון נמוכה לצד צריכת מרבית הקלוריות מעודדת פירוק רקמת שריר (קטאבוליזם). המערכת מחייבת גירוי שרירי מיידי לשימור רקמת השריר."
+            q_title = "משימת עונש: אימון איזומטרי לשימור שריר (MPS Preservation)"
+            q_req = "בצע 3 סטים של פלאנק של 60 שניות + 40 שכיבות סמיכה בשיפוע לגירוי סינתזת חלבון בשריר."
+            return HunterPenaltyEngine._apply_penalty(conn, today, "protein_deficit", title, desc, infraction, q_title, q_req)
+
+        return None
+
+    @staticmethod
+    def _apply_penalty(conn, today, p_type, title, desc, infraction, q_title, q_req):
+        c = conn.cursor()
+        exp_deducted = 75
+        c.execute("""
+            INSERT INTO hunter_penalties 
+            (date, penalty_type, title, description, infraction_details, quest_title, quest_requirement, exp_deducted, exp_restored, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
+        """, (today, p_type, title, desc, infraction, q_title, q_req, exp_deducted, 50))
+        penalty_id = c.lastrowid
+
+        # Apply debuff & fatigue & deduct EXP
+        c.execute("""
+            UPDATE hunter_profile 
+            SET exp = max(0, exp - ?),
+                fatigue = min(100, fatigue + 25),
+                has_penalty_debuff = 1
+            WHERE id=1
+        """, (exp_deducted,))
+        conn.commit()
+
+        c.execute("SELECT * FROM hunter_penalties WHERE id = ?", (penalty_id,))
+        return dict(c.fetchone())
+
+    @staticmethod
+    def get_active_penalty(conn, today):
+        c = conn.cursor()
+        c.execute("""
+            SELECT * FROM hunter_penalties 
+            WHERE date = ? AND status = 'active'
+            ORDER BY id DESC LIMIT 1
+        """, (today,))
+        row = c.fetchone()
+        return dict(row) if row else None
+
+    @staticmethod
+    def redeem_penalty(conn, penalty_id):
+        c = conn.cursor()
+        c.execute("SELECT * FROM hunter_penalties WHERE id = ?", (penalty_id,))
+        row = c.fetchone()
+        if not row:
+            return {"success": False, "error": "Penalty not found"}
+        penalty = dict(row)
+        if penalty["status"] == "redeemed":
+            return {"success": True, "already_redeemed": True, "penalty": penalty}
+
+        # Update penalty status
+        c.execute("UPDATE hunter_penalties SET status = 'redeemed', redeemed_at = CURRENT_TIMESTAMP WHERE id = ?", (penalty_id,))
+
+        # Remove debuff and reduce fatigue
+        c.execute("""
+            UPDATE hunter_profile 
+            SET fatigue = max(0, fatigue - 20),
+                has_penalty_debuff = 0
+            WHERE id=1
+        """)
+        conn.commit()
+
+        # Restore +50 EXP via HunterLevelingEngine
+        level_res = HunterLevelingEngine.add_exp(conn, penalty.get("exp_restored", 50))
+
+        c.execute("SELECT * FROM hunter_profile WHERE id=1")
+        updated_profile = dict(c.fetchone())
+
+        return {
+            "success": True,
+            "redeemed": True,
+            "exp_awarded": penalty.get("exp_restored", 50),
+            "leveling": level_res,
+            "profile": updated_profile,
+            "message": "⚔️ משימת העונש הושלמה בהצלחה! ה-Debuff נוקה והושבו 50 EXP לצייד!"
+        }
 
 
 
@@ -3627,6 +3807,434 @@ class HunterAIConsultant:
 
 
 # -------------------------------------------------------------
+# Adaptive Habit-Based Meal Recommendation Engine
+# -------------------------------------------------------------
+class MealRecommendationEngine:
+    @staticmethod
+    def get_recommendations(conn, today):
+        c = conn.cursor()
+        c.execute("SELECT * FROM hunter_profile WHERE id=1")
+        p_row = c.fetchone()
+        if not p_row:
+            return {"error": "Profile not found"}
+        profile = dict(p_row)
+        goal = profile.get("goal", "cut")
+        target_calories = float(profile.get("target_calories") or 2100)
+        target_protein = float(profile.get("target_protein") or 160)
+        target_carbs = float(profile.get("target_carbs") or 220)
+        target_fats = float(profile.get("target_fats") or 65)
+
+        # Consumed macros today
+        c.execute("""
+            SELECT COALESCE(SUM(calories), 0) as cals,
+                   COALESCE(SUM(protein), 0) as prot,
+                   COALESCE(SUM(carbs), 0) as carbs,
+                   COALESCE(SUM(fats), 0) as fats
+            FROM daily_logs
+            WHERE date = ?
+        """, (today,))
+        cons = c.fetchone()
+        cons_cals = float(cons["cals"] or 0)
+        cons_prot = float(cons["prot"] or 0)
+        cons_carbs = float(cons["carbs"] or 0)
+        cons_fats = float(cons["fats"] or 0)
+
+        rem_cals = max(0, round(target_calories - cons_cals))
+        rem_prot = max(0, round(target_protein - cons_prot))
+        rem_carbs = max(0, round(target_carbs - cons_carbs))
+        rem_fats = max(0, round(target_fats - cons_fats))
+
+        # Query user eating history across all logs
+        c.execute("""
+            SELECT food_name,
+                   AVG(serving_size_g) as avg_size,
+                   AVG(calories) as avg_cals,
+                   AVG(protein) as avg_prot,
+                   AVG(carbs) as avg_carbs,
+                   AVG(fats) as avg_fats,
+                   AVG(fiber) as avg_fiber,
+                   COUNT(*) as frequency
+            FROM daily_logs
+            GROUP BY food_name
+            ORDER BY frequency DESC, MAX(id) DESC
+        """)
+        history_rows = [dict(r) for r in c.fetchall()]
+        unique_foods_count = len(history_rows)
+
+        is_personalized = unique_foods_count >= 3
+
+        if not is_personalized:
+            recommendations = MealRecommendationEngine._get_baseline_recommendations(rem_cals, rem_prot, rem_carbs, rem_fats, goal)
+        else:
+            recommendations = MealRecommendationEngine._get_personalized_recommendations(history_rows, rem_cals, rem_prot, rem_carbs, rem_fats, goal)
+
+        return {
+            "is_personalized": is_personalized,
+            "unique_foods_learned": unique_foods_count,
+            "today_status": {
+                "consumed": {
+                    "calories": round(cons_cals),
+                    "protein": round(cons_prot),
+                    "carbs": round(cons_carbs),
+                    "fats": round(cons_fats)
+                },
+                "target": {
+                    "calories": round(target_calories),
+                    "protein": round(target_protein),
+                    "carbs": round(target_carbs),
+                    "fats": round(target_fats)
+                },
+                "remaining": {
+                    "calories": rem_cals,
+                    "protein": rem_prot,
+                    "carbs": rem_carbs,
+                    "fats": rem_fats
+                }
+            },
+            "system_message": (
+                f"🎯 המלצות חכמות שנלמדו מ-{unique_foods_count} מאכלים שרשמת ביומן"
+                if is_personalized else
+                "🌱 מצב למידה ראשוני: המלצות בסיס מדעיות מותאמות ליעדים (המערכת תלמד את העדפותיך ככל שתמשיך לרשום ארוחות ביומן)"
+            ),
+            "recommendations": recommendations
+        }
+
+    @staticmethod
+    def _get_baseline_recommendations(rem_cals, rem_prot, rem_carbs, rem_fats, goal):
+        # Build 4 versatile scientific staple Israeli meals tailored to remaining deficits
+        recs = [
+            {
+                "id": "rec_base_chicken",
+                "title": "חזה עוף צלוי עם שעועית ירוקה",
+                "badge": "🚀 חלבון מלא דל שומן",
+                "badge_type": "protein",
+                "why": "חלבון טהור לסגירת פער החלבון היומי עם 6.8 גרם שומן בלבד. מושלם לחיטוב ולשימור מסת שריר ללא עודף קלוריות.",
+                "total_calories": 344,
+                "total_protein": 58.6,
+                "total_carbs": 10.5,
+                "total_fats": 6.8,
+                "foods": [
+                    {
+                        "food_name": "חזה עוף מבושל / צלוי",
+                        "serving_count": 1.8,
+                        "serving_size_g": 100,
+                        "calories": 297,
+                        "protein": 55.8,
+                        "carbs": 0,
+                        "fats": 6.5,
+                        "meal_type": "lunch"
+                    },
+                    {
+                        "food_name": "שעועית ירוקה מאודה",
+                        "serving_count": 1.5,
+                        "serving_size_g": 100,
+                        "calories": 47,
+                        "protein": 2.8,
+                        "carbs": 10.5,
+                        "fats": 0.3,
+                        "meal_type": "lunch"
+                    }
+                ]
+            },
+            {
+                "id": "rec_base_cottage",
+                "title": "גביע קוטג' 5% עם ביצה וירקות",
+                "badge": "⏱️ ללא בישול • קזאין מושהה",
+                "badge_type": "quick",
+                "why": "חלבון קזאין בעל שחרור איטי להשבעה מתמשכת ומניעת רעב, בליווי שומן איכותי מביצה וירקות טריים לסיבים.",
+                "total_calories": 335,
+                "total_protein": 35.0,
+                "total_carbs": 9.2,
+                "total_fats": 17.6,
+                "foods": [
+                    {
+                        "food_name": "גבינת קוטג 5%",
+                        "serving_count": 2.5,
+                        "serving_size_g": 100,
+                        "calories": 238,
+                        "protein": 27.5,
+                        "carbs": 3.8,
+                        "fats": 12.5,
+                        "meal_type": "dinner"
+                    },
+                    {
+                        "food_name": "ביצה גדולה שלמה (L)",
+                        "serving_count": 1.0,
+                        "serving_size_g": 60,
+                        "calories": 72,
+                        "protein": 6.3,
+                        "carbs": 0.4,
+                        "fats": 4.8,
+                        "meal_type": "dinner"
+                    },
+                    {
+                        "food_name": "מלפפון ועגבניה חתוכים",
+                        "serving_count": 1.5,
+                        "serving_size_g": 100,
+                        "calories": 25,
+                        "protein": 1.2,
+                        "carbs": 5.0,
+                        "fats": 0.3,
+                        "meal_type": "dinner"
+                    }
+                ]
+            },
+            {
+                "id": "rec_base_pro_yogurt",
+                "title": "גביע יוגורט פרו עם שקדים טבעיים",
+                "badge": "⚡ נשנוש חלבון קל ומהיר",
+                "badge_type": "snack",
+                "why": "מנת התאוששות קומפקטית עם 23 גרם חלבון ב-217 קלוריות בלבד. אידיאלית כנשנוש ביניים או בסיום משמרת.",
+                "total_calories": 217,
+                "total_protein": 23.2,
+                "total_carbs": 10.2,
+                "total_fats": 9.0,
+                "foods": [
+                    {
+                        "food_name": "יוגורט פרו / יווני מועשר בחלבון",
+                        "serving_count": 2.0,
+                        "serving_size_g": 100,
+                        "calories": 130,
+                        "protein": 20.0,
+                        "carbs": 7.0,
+                        "fats": 1.5,
+                        "meal_type": "snack"
+                    },
+                    {
+                        "food_name": "שקדים טבעיים",
+                        "serving_count": 0.15,
+                        "serving_size_g": 100,
+                        "calories": 87,
+                        "protein": 3.2,
+                        "carbs": 3.2,
+                        "fats": 7.5,
+                        "meal_type": "snack"
+                    }
+                ]
+            },
+            {
+                "id": "rec_base_tuna",
+                "title": "טונה במים עם 2 פרוסות לחם מלא וכפית טחינה",
+                "badge": "🐟 חלבון רזה + פחמימה מורכבת",
+                "badge_type": "balanced",
+                "why": "39 גרם חלבון מלא ממקור ימי דל שומן, בשילוב פחמימה מורכבת שמעניקה שובע ושומן בלתי-רווי איכותי מטחינה.",
+                "total_calories": 355,
+                "total_protein": 39.2,
+                "total_carbs": 28.8,
+                "total_fats": 8.6,
+                "foods": [
+                    {
+                        "food_name": "טונה בהירה במים (מסוננת)",
+                        "serving_count": 1.12,
+                        "serving_size_g": 100,
+                        "calories": 130,
+                        "protein": 29.1,
+                        "carbs": 0.0,
+                        "fats": 0.9,
+                        "meal_type": "lunch"
+                    },
+                    {
+                        "food_name": "פרוסת לחם מלא 100%",
+                        "serving_count": 2.0,
+                        "serving_size_g": 35,
+                        "calories": 160,
+                        "protein": 7.6,
+                        "carbs": 27.0,
+                        "fats": 2.2,
+                        "meal_type": "lunch"
+                    },
+                    {
+                        "food_name": "טחינה גולמית (כפית)",
+                        "serving_count": 0.1,
+                        "serving_size_g": 100,
+                        "calories": 65,
+                        "protein": 2.5,
+                        "carbs": 1.8,
+                        "fats": 5.5,
+                        "meal_type": "lunch"
+                    }
+                ]
+            }
+        ]
+        return recs
+
+    @staticmethod
+    def _get_personalized_recommendations(history_rows, rem_cals, rem_prot, rem_carbs, rem_fats, goal):
+        protein_sources = []
+        carb_sources = []
+        snacks = []
+
+        for f in history_rows:
+            p = float(f.get("avg_prot") or 0)
+            c = float(f.get("avg_carbs") or 0)
+            cal = float(f.get("avg_cals") or 0)
+            
+            # High protein
+            if p >= 12 or (cal > 0 and (p * 4 / cal) >= 0.30):
+                protein_sources.append(f)
+            # Carb source
+            if c >= 15:
+                carb_sources.append(f)
+            # Snack/light
+            if cal <= 250 and p >= 4:
+                snacks.append(f)
+
+        recs = []
+
+        # Card 1: Favorite Protein Powerhouse
+        if protein_sources:
+            top_p = protein_sources[0]
+            avg_p = float(top_p.get("avg_prot") or 25)
+            target_need = max(20, min(55, rem_prot if rem_prot > 0 else 30))
+            scale = round(min(2.5, max(0.6, target_need / max(1, avg_p))), 2)
+            
+            p_cals = round(float(top_p.get("avg_cals") or 150) * scale)
+            p_prot = round(avg_p * scale, 1)
+            p_carbs = round(float(top_p.get("avg_carbs") or 0) * scale, 1)
+            p_fats = round(float(top_p.get("avg_fats") or 0) * scale, 1)
+            p_grams = round(float(top_p.get("avg_size") or 100) * scale)
+
+            recs.append({
+                "id": "rec_custom_protein",
+                "title": f"השלמת חלבון: {top_p['food_name']}",
+                "badge": f"🏆 מועדף עליך (נרשם {top_p['frequency']} פעמים)",
+                "badge_type": "favorite",
+                "why": f"מנה מדודה של {p_grams} גרם מספקת {p_prot}g חלבון ותסגור {min(100, round((p_prot / max(1, rem_prot)) * 100)) if rem_prot > 0 else 100}% מיעד החלבון שנותר להיום.",
+                "total_calories": p_cals,
+                "total_protein": p_prot,
+                "total_carbs": p_carbs,
+                "total_fats": p_fats,
+                "foods": [
+                    {
+                        "food_name": top_p["food_name"],
+                        "serving_count": scale,
+                        "serving_size_g": float(top_p.get("avg_size") or 100),
+                        "calories": p_cals,
+                        "protein": p_prot,
+                        "carbs": p_carbs,
+                        "fats": p_fats,
+                        "meal_type": "lunch"
+                    }
+                ]
+            })
+
+        # Card 2: Learned Balanced Combo (Top Protein + Top Carb)
+        if protein_sources and carb_sources:
+            top_p = protein_sources[0]
+            top_c = carb_sources[0]
+            
+            p_scale = 1.0
+            c_scale = 1.0
+            if rem_cals > 0:
+                combo_budget = max(300, min(650, int(rem_cals * 0.7)))
+                base_sum = float(top_p.get("avg_cals") or 150) + float(top_c.get("avg_cals") or 150)
+                if base_sum > 0:
+                    mult = min(1.8, max(0.6, combo_budget / base_sum))
+                    p_scale = round(mult, 2)
+                    c_scale = round(mult, 2)
+
+            f1_cals = round(float(top_p.get("avg_cals") or 150) * p_scale)
+            f1_prot = round(float(top_p.get("avg_prot") or 25) * p_scale, 1)
+            f1_carbs = round(float(top_p.get("avg_carbs") or 0) * p_scale, 1)
+            f1_fats = round(float(top_p.get("avg_fats") or 0) * p_scale, 1)
+
+            f2_cals = round(float(top_c.get("avg_cals") or 150) * c_scale)
+            f2_prot = round(float(top_c.get("avg_prot") or 3) * c_scale, 1)
+            f2_carbs = round(float(top_c.get("avg_carbs") or 30) * c_scale, 1)
+            f2_fats = round(float(top_c.get("avg_fats") or 1) * c_scale, 1)
+
+            tot_cals = f1_cals + f2_cals
+            tot_prot = round(f1_prot + f2_prot, 1)
+            tot_carbs = round(f1_carbs + f2_carbs, 1)
+            tot_fats = round(f1_fats + f2_fats, 1)
+
+            recs.append({
+                "id": "rec_custom_combo",
+                "title": f"קומבו מועדף: {top_p['food_name']} + {top_c['food_name']}",
+                "badge": "🍽️ קומבו מנצח מההרגלים שלך",
+                "badge_type": "combo",
+                "why": f"שילוב שני המאכלים המובילים בהיסטוריה שלך ביחס מדויק שמספק {tot_prot}g חלבון ב-{tot_cals} קלוריות, ומשתלב מושלם ביתרת היעדים.",
+                "total_calories": tot_cals,
+                "total_protein": tot_prot,
+                "total_carbs": tot_carbs,
+                "total_fats": tot_fats,
+                "foods": [
+                    {
+                        "food_name": top_p["food_name"],
+                        "serving_count": p_scale,
+                        "serving_size_g": float(top_p.get("avg_size") or 100),
+                        "calories": f1_cals,
+                        "protein": f1_prot,
+                        "carbs": f1_carbs,
+                        "fats": f1_fats,
+                        "meal_type": "dinner"
+                    },
+                    {
+                        "food_name": top_c["food_name"],
+                        "serving_count": c_scale,
+                        "serving_size_g": float(top_c.get("avg_size") or 100),
+                        "calories": f2_cals,
+                        "protein": f2_prot,
+                        "carbs": f2_carbs,
+                        "fats": f2_fats,
+                        "meal_type": "dinner"
+                    }
+                ]
+            })
+
+        # Card 3: Light Snack from Favorites or Secondary Protein
+        snack_candidate = None
+        if snacks:
+            snack_candidate = snacks[0]
+        elif len(protein_sources) > 1:
+            snack_candidate = protein_sources[1]
+        elif history_rows:
+            snack_candidate = history_rows[-1]
+
+        if snack_candidate:
+            s_cals = round(float(snack_candidate.get("avg_cals") or 120))
+            s_prot = round(float(snack_candidate.get("avg_prot") or 10), 1)
+            s_carbs = round(float(snack_candidate.get("avg_carbs") or 5), 1)
+            s_fats = round(float(snack_candidate.get("avg_fats") or 2), 1)
+            s_grams = round(float(snack_candidate.get("avg_size") or 100))
+
+            recs.append({
+                "id": "rec_custom_snack",
+                "title": f"סגירת פינה קלה: {snack_candidate['food_name']}",
+                "badge": "⚡ נשנוש מדויק מהמועדפים",
+                "badge_type": "snack",
+                "why": f"נשנוש קל של {s_grams} גרם שמשתלב בול בשארית השומנים והקלוריות שלך להיום ללא עומס על מערכת העיכול.",
+                "total_calories": s_cals,
+                "total_protein": s_prot,
+                "total_carbs": s_carbs,
+                "total_fats": s_fats,
+                "foods": [
+                    {
+                        "food_name": snack_candidate["food_name"],
+                        "serving_count": 1.0,
+                        "serving_size_g": float(snack_candidate.get("avg_size") or 100),
+                        "calories": s_cals,
+                        "protein": s_prot,
+                        "carbs": s_carbs,
+                        "fats": s_fats,
+                        "meal_type": "snack"
+                    }
+                ]
+            })
+
+        # Fallback if fewer than 3 personalized
+        if len(recs) < 3:
+            baseline_extras = MealRecommendationEngine._get_baseline_recommendations(rem_cals, rem_prot, rem_carbs, rem_fats, goal)
+            for b in baseline_extras:
+                if len(recs) >= 3:
+                    break
+                if not any(r["title"] == b["title"] for r in recs):
+                    recs.append(b)
+
+        return recs
+
+
+# -------------------------------------------------------------
 # HTTP Request Handler & REST API
 # -------------------------------------------------------------
 class SystemApiHandler(SimpleHTTPRequestHandler):
@@ -3701,6 +4309,10 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.handle_get_ai_history()
         elif path == "/api/ai/recommendations":
             self.handle_get_ai_recommendations()
+        elif path == "/api/nutrition/recommend-meals":
+            self.handle_get_meal_recommendations()
+        elif path == "/api/penalty/status":
+            self.handle_get_penalty_status()
         elif path.startswith("/api/barcode/"):
             barcode = path.split("/")[-1]
             self.handle_get_barcode(barcode)
@@ -3735,6 +4347,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.handle_post_water(body)
         elif path == "/api/nutrition/quick-potion":
             self.handle_post_quick_potion(body)
+        elif path == "/api/penalty/redeem":
+            self.handle_post_penalty_redeem(body)
         elif path == "/api/foods":
             self.handle_create_custom_food(body)
         elif path == "/api/restore":
@@ -4442,6 +5056,11 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             c.execute("SELECT * FROM water_logs WHERE date = ? ORDER BY id DESC", (today,))
             water_today_logs = [dict(r) for r in c.fetchall()]
 
+            # Evaluate or fetch active penalty
+            active_penalty = HunterPenaltyEngine.evaluate_and_apply(conn, today)
+            if not active_penalty:
+                active_penalty = HunterPenaltyEngine.get_active_penalty(conn, today)
+
             self._set_headers()
             self.wfile.write(json.dumps({
                 "date": today,
@@ -4452,6 +5071,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 "quests": quests,
                 "supplements": supps,
                 "water_logs": water_today_logs,
+                "active_penalty": active_penalty,
                 "total_workouts": total_workouts,
                 "achievements_summary": {
                     "unlocked": ach_unlocked,
@@ -4468,6 +5088,41 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                     "per": profile["stats_per"]
                 }
             }, ensure_ascii=False).encode("utf-8"))
+
+    def handle_get_meal_recommendations(self):
+        try:
+            with Database.get_connection() as conn:
+                today = get_hunter_shift_date(conn)
+                data = MealRecommendationEngine.get_recommendations(conn, today)
+            self._set_headers(200)
+            self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(500)
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_get_penalty_status(self):
+        try:
+            with Database.get_connection() as conn:
+                today = get_hunter_shift_date(conn)
+                penalty = HunterPenaltyEngine.evaluate_and_apply(conn, today)
+                if not penalty:
+                    penalty = HunterPenaltyEngine.get_active_penalty(conn, today)
+            self._set_headers(200)
+            self.wfile.write(json.dumps({"active_penalty": penalty}, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(500)
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_post_penalty_redeem(self, body):
+        try:
+            penalty_id = int(body.get("penalty_id") or 0)
+            with Database.get_connection() as conn:
+                res = HunterPenaltyEngine.redeem_penalty(conn, penalty_id)
+            self._set_headers(200)
+            self.wfile.write(json.dumps(res, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
 
     def handle_post_log(self, body):
         try:
@@ -4529,6 +5184,9 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                         """, (today, added_water_ml, now_time, "food_fluid", f"{food_name} (נוזלים)", icon))
                         conn.commit()
 
+                # Evaluate if penalty is triggered by this meal (e.g. fat overrun on cut)
+                penalty_applied = HunterPenaltyEngine.evaluate_and_apply(conn, today)
+
             self._set_headers(201)
             self.wfile.write(json.dumps({
                 "status": "success",
@@ -4536,7 +5194,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 "exp_awarded": exp_awarded,
                 "leveling": lvl_res,
                 "skill_leveling": skill_res,
-                "added_water_ml": added_water_ml
+                "added_water_ml": added_water_ml,
+                "penalty_applied": penalty_applied
             }, ensure_ascii=False).encode("utf-8"))
         except Exception as e:
             self._set_headers(400)

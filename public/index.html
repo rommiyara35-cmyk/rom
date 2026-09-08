@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <title>Solo Leveling | The System</title>
-  <link rel="stylesheet" href="/styles.css?v=23">
+  <link rel="stylesheet" href="/styles.css?v=24">
   <!-- ZXing Industry-Standard Multi-Format Barcode Scanner (EAN-13, EAN-8, UPC, Code 128) -->
   <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 </head>
@@ -38,6 +38,12 @@
         <span class="top-avatar-dot">👤</span>
         <span id="top-hunter-name-display" class="top-hunter-name">צייד רום</span>
         <span id="top-hunter-lvl-chip" class="top-lvl-chip">Lv. 1</span>
+      </div>
+
+      <!-- ACTIVE PENALTY ZONE ALERT CHIP -->
+      <div id="top-penalty-chip" class="top-penalty-chip" style="display:none;" onclick="AppState.openPenaltyModal()" title="אזהרת מערכת: מרחב עונש פעיל! לחץ למשימת כפרה">
+        <span class="penalty-pulse-dot"></span>
+        <span>🚨 עונש פעיל</span>
       </div>
 
       <div class="top-bar-actions">
@@ -296,6 +302,9 @@
             <span id="penalty-warning-text">אזהרת מערכת: אי השלמת המשימות עד סיום המשמרת תפעיל את ה-Penalty Zone!</span>
           </div>
 
+          <!-- ACTIVE PENALTY ZONE ALERT CARD -->
+          <div id="active-penalty-card" class="active-penalty-card" style="display:none;"></div>
+
           <div id="quest-list" class="quest-list">
             <!-- Injected via JavaScript AppState.renderQuests() -->
           </div>
@@ -483,10 +492,20 @@
           </div>
         </section>
 
-        <!-- NUTRITION AI RECOMMENDATIONS CONTAINER -->
-        <div id="nutrition-ai-recs-container"></div>
-
-
+        <!-- ADAPTIVE HABIT-BASED MEAL RECOMMENDATIONS (מנוע המלצות ארוחות שנלמד מהרגלי עבר) -->
+        <section class="adaptive-meals-section" id="adaptive-meals-section">
+          <div class="section-title-wrap">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="section-title" style="color:var(--hud-cyan);">🎯 הצעות ארוחה מותאמות אישית (Adaptive Meals)</span>
+              <span id="meal-learning-badge" class="quest-tag" style="background:rgba(124,58,237,0.15); border-color:#8b5cf6; color:#c084fc; font-size:10px;">טוען...</span>
+            </div>
+            <button type="button" class="water-undo-btn" onclick="AppState.loadMealRecommendations(true)" title="רענן הצעות">🔄 רענן</button>
+          </div>
+          <div id="adaptive-meals-hint" class="adaptive-meals-hint"></div>
+          <div id="adaptive-meals-grid" class="adaptive-meals-grid">
+            <!-- Injected dynamically by AppState.renderMealRecommendations() -->
+          </div>
+        </section>
 
         <!-- MEAL LOGGER & SEARCH -->
         <section class="log-section">
@@ -1984,6 +2003,49 @@
     </div>
   </div>
 
+  <!-- SOLO LEVELING PENALTY ZONE MODAL -->
+  <div id="penalty-modal" class="solo-modal-backdrop" style="display:none;" onclick="if(event.target===this) AppState.closePenaltyModal()">
+    <div class="penalty-modal-content">
+      <div class="penalty-modal-header">
+        <div class="penalty-skull-icon">⚠️</div>
+        <div class="penalty-modal-titles">
+          <span class="penalty-system-alert">[ אזהרת מערכת • SYSTEM WARNING ]</span>
+          <span class="penalty-system-main" id="penalty-modal-title">הופעלה משימת עונש!</span>
+        </div>
+        <button type="button" class="close-modal-btn" onclick="AppState.closePenaltyModal()" title="סגור חלון">✕</button>
+      </div>
+      
+      <div class="penalty-modal-body">
+        <div class="penalty-infraction-box">
+          <div class="penalty-box-label">🚨 עבירת משטר ציידים זוהתה:</div>
+          <div id="penalty-infraction-text" class="penalty-infraction-desc"></div>
+        </div>
+
+        <div class="penalty-punishment-row">
+          <div class="penalty-stat-pill red">
+            <span class="p-pill-icon">❌</span>
+            <span id="penalty-exp-deducted">-75 EXP</span>
+          </div>
+          <div class="penalty-stat-pill red">
+            <span class="p-pill-icon">⚡</span>
+            <span>+25% עייפות (Debuff)</span>
+          </div>
+        </div>
+
+        <div class="penalty-quest-box">
+          <div class="penalty-quest-label">⚔️ משימת כפרה פיזית (REDEMPTION QUEST):</div>
+          <div id="penalty-quest-title" class="penalty-quest-name"></div>
+          <div id="penalty-quest-req" class="penalty-quest-details"></div>
+          <div class="penalty-reward-hint">✨ השלמת משימת העונש תטהר את ה-Debuff, תוריד עייפות ותשיב <strong>+50 EXP</strong> לצייד.</div>
+        </div>
+
+        <button type="button" id="redeem-penalty-btn" class="penalty-redeem-btn" onclick="AppState.redeemCurrentPenalty()">
+          <span>⚔️ ביצעתי את משימת העונש! טהר עונש והשב 50 EXP</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- FIXED BOTTOM NAVIGATION BAR (6 Clean Tab Panels) -->
   <nav class="bottom-nav-bar" id="bottom-nav-bar">
     <button type="button" class="bottom-nav-item active" id="nav-item-profile" onclick="AppState.navTo('profile')" title="פרופיל ראשי">
@@ -2320,6 +2382,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=23"></script>
+  <script src="/app.js?v=24"></script>
 </body>
 </html>

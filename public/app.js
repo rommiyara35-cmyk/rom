@@ -239,6 +239,7 @@ const AppState = {
         this.healthAdvisor = data.health_advisor;
         localStorage.setItem('hunter_health_advisor', JSON.stringify(this.healthAdvisor));
       }
+      this.activePenalty = data.active_penalty || null;
 
       // Save to localStorage
       localStorage.setItem('hunter_profile', JSON.stringify(this.profile));
@@ -284,6 +285,8 @@ const AppState = {
     this.renderMealsList();
     if (this.longTermData) this.renderLongTermInsights(this.longTermData);
     this.renderAIRecommendations();
+    this.renderPenaltyStatus();
+    this.loadMealRecommendations();
   },
 
   renderProfile() {
@@ -2332,6 +2335,263 @@ const AppState = {
           ${buildHtml(4)}
         </div>
       `;
+    }
+  },
+
+  // ============================================================
+  // ADAPTIVE HABIT-BASED MEAL RECOMMENDATIONS
+  // ============================================================
+  async loadMealRecommendations(force = false) {
+    const gridEl = document.getElementById('adaptive-meals-grid');
+    const badgeEl = document.getElementById('meal-learning-badge');
+    const hintEl = document.getElementById('adaptive-meals-hint');
+    if (!gridEl) return;
+
+    if (!force && this.mealRecommendationsData && Date.now() - (this._lastMealRecsTime || 0) < 60000) {
+      this.renderMealRecommendations(this.mealRecommendationsData);
+      return;
+    }
+
+    try {
+      if (badgeEl) badgeEl.innerText = 'מחשב...';
+      const res = await fetch('/api/nutrition/recommend-meals');
+      if (!res.ok) throw new Error('API error');
+      const data = await res.json();
+      this.mealRecommendationsData = data;
+      this._lastMealRecsTime = Date.now();
+      this.renderMealRecommendations(data);
+    } catch (err) {
+      console.warn('Could not load meal recommendations:', err);
+      if (gridEl) {
+        gridEl.innerHTML = '<div style="color:var(--text-secondary); font-size:12px; padding:12px; text-align:center;">לא ניתן לטעון הצעות ארוחה במצב אופליין.</div>';
+      }
+    }
+  },
+
+  renderMealRecommendations(data) {
+    const gridEl = document.getElementById('adaptive-meals-grid');
+    const badgeEl = document.getElementById('meal-learning-badge');
+    const hintEl = document.getElementById('adaptive-meals-hint');
+    if (!gridEl || !data) return;
+
+    if (badgeEl) {
+      if (data.is_personalized) {
+        badgeEl.innerText = `🎯 נלמד מ-${data.unique_foods_learned} מאכלים`;
+        badgeEl.style.borderColor = '#10b981';
+        badgeEl.style.color = '#34d399';
+        badgeEl.style.background = 'rgba(16,185,129,0.12)';
+      } else {
+        badgeEl.innerText = '🌱 מצב למידה ראשוני';
+        badgeEl.style.borderColor = '#8b5cf6';
+        badgeEl.style.color = '#c084fc';
+        badgeEl.style.background = 'rgba(139,92,246,0.12)';
+      }
+    }
+
+    if (hintEl) {
+      hintEl.innerText = data.system_message || '';
+    }
+
+    const recs = data.recommendations || [];
+    if (recs.length === 0) {
+      gridEl.innerHTML = '<div style="color:var(--text-secondary); font-size:12px; padding:12px; text-align:center;">כל יעדי המאקרו להיום הושלמו בהצלחה! כל הכבוד, צייד.</div>';
+      return;
+    }
+
+    gridEl.innerHTML = recs.map(rec => {
+      const foodsListHtml = (rec.foods || []).map(f => {
+        const grams = Math.round((f.serving_size_g || 100) * (f.serving_count || 1));
+        return `
+          <div class="rec-food-row">
+            <span class="rec-food-name">▪️ ${f.food_name}</span>
+            <span class="rec-food-detail">${grams}g • ${Math.round(f.calories)} kcal • ${f.protein}g חלבון</span>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="adaptive-meal-card" id="meal-card-${rec.id}">
+          <div class="adaptive-meal-header">
+            <span class="adaptive-meal-tag ${rec.badge_type || 'protein'}">${rec.badge}</span>
+            <span class="adaptive-meal-cals">${Math.round(rec.total_calories)} kcal</span>
+          </div>
+          <div class="adaptive-meal-title">${rec.title}</div>
+          <div class="adaptive-meal-macros-strip">
+            <span class="rec-macro prot">🥩 ${rec.total_protein}g חלבון</span>
+            <span class="rec-macro carb">🍚 ${rec.total_carbs}g פחמימה</span>
+            <span class="rec-macro fat">🥑 ${rec.total_fats}g שומן</span>
+          </div>
+          <div class="adaptive-meal-why">${rec.why}</div>
+          <div class="rec-foods-box">
+            ${foodsListHtml}
+          </div>
+          <button type="button" class="log-recommended-meal-btn" onclick="AppState.logRecommendedMeal('${rec.id}')">
+            <span>➕ רשום ארוחה זו ליומן עכשיו</span>
+          </button>
+        </div>
+      `;
+    }).join('');
+  },
+
+  async logRecommendedMeal(recId) {
+    if (!this.mealRecommendationsData) return;
+    const rec = (this.mealRecommendationsData.recommendations || []).find(r => r.id === recId);
+    if (!rec || !rec.foods || rec.foods.length === 0) return;
+
+    sfx.playClick();
+    const btn = event?.currentTarget;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳ רושם ארוחה...</span>';
+    }
+
+    try {
+      for (const food of rec.foods) {
+        await this.apiCall('/api/nutrition/log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            food_name: food.food_name,
+            serving_count: food.serving_count || 1.0,
+            serving_size_g: food.serving_size_g || 100,
+            calories: food.calories,
+            protein: food.protein,
+            carbs: food.carbs,
+            fats: food.fats,
+            meal_type: food.meal_type || 'snack'
+          })
+        }, `רישום ${food.food_name}`);
+      }
+
+      sfx.playLevelUp();
+      this.showToast(`✨ ${rec.title} נרשמה בהצלחה ביומן!`, 'success');
+
+      // Refresh dashboard and recommendations
+      await this.fetchTodayData();
+      await this.loadMealRecommendations(true);
+    } catch (err) {
+      console.error('Error logging recommended meal:', err);
+      this.showToast('שגיאה ברישום הארוחה. בדוק את החיבור לרשת.', 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>➕ רשום ארוחה זו ליומן עכשיו</span>';
+      }
+    }
+  },
+
+  // ============================================================
+  // SOLO LEVELING PENALTY ZONE & REDEMPTION
+  // ============================================================
+  renderPenaltyStatus() {
+    const chipEl = document.getElementById('top-penalty-chip');
+    const questCardEl = document.getElementById('active-penalty-card');
+    const penalty = this.activePenalty;
+
+    if (!penalty || penalty.status !== 'active') {
+      if (chipEl) chipEl.style.display = 'none';
+      if (questCardEl) {
+        questCardEl.style.display = 'none';
+        questCardEl.innerHTML = '';
+      }
+      return;
+    }
+
+    // Active penalty exists!
+    if (chipEl) {
+      chipEl.style.display = 'inline-flex';
+    }
+
+    if (questCardEl) {
+      questCardEl.style.display = 'block';
+      questCardEl.innerHTML = `
+        <div class="penalty-quest-banner">
+          <div class="penalty-banner-header">
+            <span class="penalty-skull-dot">⚠️</span>
+            <div style="flex:1;">
+              <div class="penalty-banner-title">[ מרחב עונש פעיל • PENALTY ZONE ]</div>
+              <div class="penalty-banner-sub">${penalty.title}</div>
+            </div>
+            <button type="button" class="penalty-banner-view-btn" onclick="AppState.openPenaltyModal()">פרטים וטיהור</button>
+          </div>
+          <div class="penalty-banner-infraction">${penalty.infraction_details}</div>
+          <div class="penalty-banner-quest-box">
+            <strong>⚔️ משימת כפרה פיזית:</strong> ${penalty.quest_title} - ${penalty.quest_requirement}
+          </div>
+          <button type="button" class="penalty-banner-redeem-btn" onclick="AppState.redeemCurrentPenalty()">
+            <span>⚔️ ביצעתי את משימת העונש! טהר עונש והשב 50 EXP</span>
+          </button>
+        </div>
+      `;
+    }
+
+    // Auto open modal once per penalty session if not viewed yet
+    if (!this._hasAutoShownPenaltyModal && !localStorage.getItem(`penalty_seen_${penalty.id}`)) {
+      this._hasAutoShownPenaltyModal = true;
+      localStorage.setItem(`penalty_seen_${penalty.id}`, 'true');
+      this.openPenaltyModal();
+    }
+  },
+
+  openPenaltyModal() {
+    const modal = document.getElementById('penalty-modal');
+    const penalty = this.activePenalty;
+    if (!modal) return;
+
+    if (penalty && penalty.status === 'active') {
+      const titleEl = document.getElementById('penalty-modal-title');
+      const infEl = document.getElementById('penalty-infraction-text');
+      const qTitleEl = document.getElementById('penalty-quest-title');
+      const qReqEl = document.getElementById('penalty-quest-req');
+      const expDeductEl = document.getElementById('penalty-exp-deducted');
+
+      if (titleEl) titleEl.innerText = penalty.title;
+      if (infEl) infEl.innerText = penalty.infraction_details;
+      if (qTitleEl) qTitleEl.innerText = penalty.quest_title;
+      if (qReqEl) qReqEl.innerText = penalty.quest_requirement;
+      if (expDeductEl) expDeductEl.innerText = `-${penalty.exp_deducted || 75} EXP`;
+    }
+
+    sfx.playAlert?.() || sfx.playClick();
+    modal.style.display = 'flex';
+  },
+
+  closePenaltyModal() {
+    const modal = document.getElementById('penalty-modal');
+    if (modal) modal.style.display = 'none';
+  },
+
+  async redeemCurrentPenalty() {
+    const penalty = this.activePenalty;
+    if (!penalty || !penalty.id) return;
+
+    sfx.playClick();
+    const btn = event?.currentTarget;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳ מטהר מרחב עונש...</span>';
+    }
+
+    try {
+      const res = await this.apiCall('/api/penalty/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ penalty_id: penalty.id })
+      }, 'טיהור משימת עונש');
+
+      sfx.playLevelUp();
+      this.closePenaltyModal();
+      this.showToast('⚔️ מרחב העונש טוהר בהצלחה! +50 EXP הושבו לצייד וה-Debuff בוטל!', 'success');
+
+      // Reload today's data to clear penalty state
+      this.activePenalty = null;
+      await this.fetchTodayData();
+    } catch (err) {
+      console.error('Error redeeming penalty:', err);
+      this.showToast('שגיאה בטיהור העונש. נסה שוב.', 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>⚔️ ביצעתי את משימת העונש! טהר עונש והשב 50 EXP</span>';
+      }
     }
   },
 
@@ -5461,6 +5721,7 @@ const AppState = {
       this.renderRankModal();
     } else if (section === 'quests') {
       this.renderQuests();
+      this.renderPenaltyStatus();
     } else if (section === 'workouts') {
       this.renderSkills();
     } else if (section === 'nutrition') {
@@ -5468,6 +5729,7 @@ const AppState = {
       this.renderMacroBars();
       this.renderMicronutrients();
       this.renderMealsList();
+      this.loadMealRecommendations();
     } else if (section === 'health') {
       this.renderGarminBiometrics();
       this.renderAttentBanner();
