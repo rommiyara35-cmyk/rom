@@ -518,28 +518,11 @@ class Database:
                 )
                 """)
             else:
-                # If profile exists but is unawakened (is_awakened=0), auto-awaken with bulk targets
-                c.execute("SELECT is_awakened, goal, target_weight, weight FROM hunter_profile WHERE id=1")
+                # Ensure is_awakened is not null
+                c.execute("SELECT is_awakened FROM hunter_profile WHERE id=1")
                 p_row = c.fetchone()
-                if p_row and (p_row[0] == 0 or (p_row[1] == 'bulk' and (p_row[2] is None or p_row[2] <= (p_row[3] or 83.0)))):
-                    c.execute("""
-                    UPDATE hunter_profile SET
-                        weight = 83.0,
-                        target_weight = 87.0,
-                        goal = 'bulk',
-                        is_awakened = 1,
-                        target_calories = 2550,
-                        target_protein = 175,
-                        target_carbs = 290,
-                        target_fats = 75,
-                        target_water = 3300,
-                        target_fiber = 32,
-                        ai_analysis_headline = 'עלייה מבוקרת במסת שריר נקייה',
-                        ai_explanation = 'המערכת חישבה עודף קלורי מבוקר מעל ה-TDEE לעידוד היפרטרופיה מרבית ושמירה על אחוזי שומן נמוכים.',
-                        ai_hunter_tip = 'הקפד על 3,300 מ\"ל מים, 175g חלבון, 5g קריאטין יומי ואימוני כוח עצימים.',
-                        goal_custom_text = 'עלייה במסת שריר נקייה'
-                    WHERE id = 1
-                    """)
+                if p_row and p_row[0] is None:
+                    c.execute("UPDATE hunter_profile SET is_awakened = 0 WHERE id = 1")
 
             # Seed initial AI directive if recommendations table is empty
             c.execute("SELECT COUNT(*) FROM ai_recommendations")

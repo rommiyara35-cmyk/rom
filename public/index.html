@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <title>Solo Leveling | The System</title>
-  <link rel="stylesheet" href="/styles.css?v=26">
+  <link rel="stylesheet" href="/styles.css?v=27">
   <!-- ZXing Industry-Standard Multi-Format Barcode Scanner (EAN-13, EAN-8, UPC, Code 128) -->
   <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 </head>
@@ -1719,7 +1719,26 @@
         </button>
       </div>
 
-      <!-- Option B: Full Rebirth -->
+      <!-- Option B: Direct AI Re-Awakening (No data wipe) -->
+      <div class="reset-option-card" style="border: 1px solid rgba(0, 240, 255, 0.35); background: rgba(6, 20, 36, 0.75);">
+        <div class="reset-card-header">
+          <span class="reset-card-icon" style="font-size: 22px;">⚡</span>
+          <div>
+            <div class="reset-card-title" style="color:#00f0ff;">טקס התעוררות ועריכת יעדים עם ה-AI</div>
+            <div class="reset-card-sub">פתיחת צ'אט ה-AI והגדרת יעדים מדעיים מבלי למחוק נתונים</div>
+          </div>
+        </div>
+        <ul class="reset-card-list">
+          <li>✓ פותח מיד את מסך טקס ההתעוררות המלא וצ'אט המערכת של Gemini Flash</li>
+          <li>✓ מאפשר לחשב מחדש קלוריות, חלבון, מים ושעות משמרת לפי המצב הנוכחי</li>
+          <li style="color:#38bdf8;">🛡️ <strong>בטוח לחלוטין:</strong> שומר על כל ההיסטוריה, הרמות, האימונים והארוחות!</li>
+        </ul>
+        <button class="action-btn-primary" onclick="AppState.closeModal('reset-modal'); AppState.openFirstTimeAwakening(true);" style="background:linear-gradient(90deg, #0284c7, #00f0ff); color:#000000; font-weight:900; font-size:12px; padding:10px;">
+          ⚡ פתח את טקס ההתעוררות וצ'אט ה-AI עכשיו
+        </button>
+      </div>
+
+      <!-- Option C: Full Rebirth -->
       <div class="reset-option-card rebirth">
         <div class="reset-card-header">
           <span class="reset-card-icon">💀</span>
@@ -2383,6 +2402,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=26"></script>
+  <script src="/app.js?v=27"></script>
 </body>
 </html>

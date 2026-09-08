@@ -138,13 +138,15 @@ const AppState = {
     if (!anyOpen) {
       document.body.classList.remove('modal-open');
       document.body.style.top = '';
+      document.body.style.overflow = '';
     }
   },
 
   forceUnlockBody() {
     document.body.classList.remove('modal-open');
     document.body.style.top = '';
-    document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop').forEach(m => {
+    document.body.style.overflow = '';
+    document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop, .first-time-awakening-overlay').forEach(m => {
       m.classList.remove('active');
       m.style.display = 'none';
       m.style.pointerEvents = 'none';
@@ -212,7 +214,7 @@ const AppState = {
 
     // Setup Service Worker with force update
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js?v=26').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=27').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -1148,11 +1150,6 @@ const AppState = {
       if (el) el.addEventListener('input', () => this.updateAwakeningPreview());
     });
 
-    // iOS Safari native gesture zoom prevention on fast double-taps
-    document.addEventListener('gesturestart', (e) => {
-      e.preventDefault();
-    }, { passive: false });
-
     // Close any modal on backdrop click
     document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop, .first-time-awakening-overlay').forEach(modal => {
       modal.addEventListener('click', (e) => {
@@ -1450,26 +1447,24 @@ const AppState = {
 
   // First-Time Awakening Onboarding Logic
   checkFirstTimeAwakening() {
-    const isLocalAwakened = localStorage.getItem('hunter_awakened') === 'true';
+    const isLocalAwakened = localStorage.getItem('hunter_awakened');
     const isAwakenedInDB = this.profile && (this.profile.is_awakened === 1 || this.profile.is_awakened === true);
 
-    // If either localStorage or DB says awakened, the hunter is ALREADY awakened!
-    if (isLocalAwakened || isAwakenedInDB) {
-      if (!isLocalAwakened) {
-        localStorage.setItem('hunter_awakened', 'true');
-      }
-      if (!isAwakenedInDB) {
-        // Asynchronously synchronize DB state so it doesn't stay 0
-        fetch('/api/profile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ is_awakened: 1 })
-        }).catch(err => console.warn('Sync is_awakened error:', err));
-      }
+    // If explicitly unawakened in DB or local storage, trigger awakening!
+    if (isLocalAwakened === 'false' || (this.profile && this.profile.is_awakened === 0)) {
+      setTimeout(() => {
+        this.openFirstTimeAwakening(false);
+      }, 400);
       return;
     }
 
-    // Only if NEVER awakened locally and NEVER in DB:
+    // If already awakened, do nothing
+    if (isLocalAwakened === 'true' || isAwakenedInDB) {
+      localStorage.setItem('hunter_awakened', 'true');
+      return;
+    }
+
+    // First time visitor (both unset)
     setTimeout(() => {
       this.openFirstTimeAwakening(false);
     }, 400);
@@ -3065,6 +3060,10 @@ const AppState = {
   // --- Reset & Rebirth Controls ---
   openResetModal(mode = 'all') {
     sfx.playClick();
+    const settings = document.getElementById('settings-modal');
+    if (settings && (settings.classList.contains('active') || settings.style.display === 'flex')) {
+      this.closeModal('settings-modal');
+    }
     this.openModal('reset-modal');
     const input = document.getElementById('rebirth-confirm-input');
     if (input) input.value = '';
@@ -3160,12 +3159,43 @@ const AppState = {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Rebirth failed');
 
+      // Wipe local storage and mark unawakened
       localStorage.clear();
       localStorage.setItem('hunter_awakened', 'false');
 
+      // Reset in-memory state
+      this.meals = [];
+      this.waterLogs = [];
+      this.supplements = [];
+      if (this.consumed) {
+        this.consumed.calories = 0;
+        this.consumed.protein = 0;
+        this.consumed.carbs = 0;
+        this.consumed.fats = 0;
+        this.consumed.fiber = 0;
+        this.consumed.water_ml = 0;
+        this.consumed.sodium_mg = 0;
+        this.consumed.potassium_mg = 0;
+        this.consumed.magnesium_mg = 0;
+        this.consumed.zinc_mg = 0;
+        this.consumed.vit_c_mg = 0;
+        this.consumed.vit_d_iu = 0;
+        this.consumed.iron_mg = 0;
+      }
+
       sfx.playLevelUp();
-      alert('[SYSTEM: לידה מחדש הושלמה!]\nהצייד חזר לרמה 1 (E-Rank) וכל הסקילים אופסו לרמה 1.\nהינך מועבר למסך ההתעוררות מחדש.');
-      window.location.reload();
+      this.showToast('✨ לידה מחדש הושלמה! מעביר לטקס ההתעוררות...', 'success');
+
+      // Refresh data from server (profile now at level 1 with is_awakened = 0)
+      await this.fetchTodayData();
+      await this.fetchSkills();
+      await this.fetchSupplements();
+      await this.fetchDailyDebrief();
+
+      // Open First-Time Awakening screen directly and smoothly!
+      setTimeout(() => {
+        this.openFirstTimeAwakening(true);
+      }, 350);
     } catch (err) {
       this.forceUnlockBody();
       alert('שגיאה בתהליך הלידה מחדש: ' + err.message);

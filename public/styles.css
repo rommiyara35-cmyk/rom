@@ -24,11 +24,7 @@
 html {
   background-color: #000000;
   color-scheme: dark;
-  overscroll-behavior: none;
-  overscroll-behavior-y: none;
   -webkit-text-size-adjust: 100%;
-  touch-action: manipulation;
-  height: 100%;
 }
 
 * {
@@ -36,16 +32,25 @@ html {
   padding: 0;
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Touch manipulation only on interactive elements to prevent 300ms delay without blocking page scroll */
+button, input, select, textarea, a, .clickable, .hud-btn-icon, .nav-tab-item, .chip-item, .preset-water-btn, .macro-pill, .dose-pill-btn, .action-btn-primary, .action-btn-secondary {
+  touch-action: manipulation;
+}
+
+/* Prevent accidental text selection on UI controls */
+button, .hud-btn-icon, .nav-tab-item, .bottom-nav-bar, .system-header {
   -webkit-touch-callout: none;
-  user-select: none;
   -webkit-user-select: none;
+  user-select: none;
 }
 
 input, textarea, [contenteditable="true"] {
   -webkit-user-select: text !important;
   user-select: text !important;
   -webkit-touch-callout: default !important;
-  font-size: 16px !important; /* Critical: Stops iOS Safari from zooming in on focus */
+  font-size: 16px !important; /* Stops iOS Safari from zooming in on focus */
 }
 
 select {
@@ -60,13 +65,11 @@ body {
   color: var(--text-primary);
   font-family: var(--font-system);
   min-height: 100dvh;
-  min-height: -webkit-fill-available;
   padding: max(env(safe-area-inset-top, 0px), 8px) max(env(safe-area-inset-right, 0px), 12px) calc(90px + env(safe-area-inset-bottom, 20px)) max(env(safe-area-inset-left, 0px), 12px);
-  overflow-x: hidden;
   direction: rtl; /* Hebrew first, clean English terms */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Prevents background page scrolling when modal is open */
@@ -82,6 +85,7 @@ body.modal-open {
   flex-direction: column;
   gap: 16px;
   padding-bottom: calc(90px + env(safe-area-inset-bottom, 20px));
+  overflow-x: hidden;
 }
 
 /* Scanline Overlay (Disabled for clean minimalist look) */
@@ -5168,21 +5172,22 @@ button:active,
   right: 0;
   bottom: 0;
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
   background: #000000;
   z-index: 999999;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  display: flex;
-  justify-content: center;
-  padding: 24px 16px 80px 16px;
+  overscroll-behavior: contain;
+  padding: max(env(safe-area-inset-top, 0px), 20px) 16px calc(90px + env(safe-area-inset-bottom, 24px)) 16px;
   direction: rtl;
 }
 
 .awakening-screen-container {
   max-width: 580px;
   width: 100%;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
