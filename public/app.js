@@ -110,10 +110,46 @@ const AppState = {
   aiRecommendations: [],
   currentQuickBioField: 'height',
 
+  // --- iOS Native Haptic Feedback & Feel ---
+  triggerHaptic(type = 'light') {
+    try {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        if (type === 'light') navigator.vibrate(10);
+        else if (type === 'medium') navigator.vibrate(22);
+        else if (type === 'heavy') navigator.vibrate([28, 35, 28]);
+        else if (type === 'success') navigator.vibrate([14, 45, 22]);
+        else if (type === 'error') navigator.vibrate([35, 45, 35, 45]);
+      }
+    } catch (e) {}
+  },
+
+  // --- iOS Background Scroll Locking for Bottom Sheets & Modals ---
+  _modalScrollY: 0,
+  lockBodyScroll() {
+    this._modalScrollY = window.scrollY || window.pageYOffset || 0;
+    document.body.classList.add('modal-open');
+    document.body.style.top = `-${this._modalScrollY}px`;
+  },
+
+  unlockBodyScroll() {
+    const anyActive = document.querySelector('.modal-overlay.active, .modal-overlay[style*="display: flex"], .ai-consult-modal-overlay[style*="display: flex"], .solo-modal-backdrop[style*="display: flex"], .first-time-awakening-overlay[style*="display: flex"]');
+    if (!anyActive) {
+      document.body.classList.remove('modal-open');
+      const y = this._modalScrollY || 0;
+      document.body.style.top = '';
+      window.scrollTo(0, y);
+    }
+  },
+
   async init() {
+    // Disable browser automatic scroll restoration to avoid viewport jumps
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+
     // Setup Service Worker with force update
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js?v=23').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=25').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -765,6 +801,7 @@ const AppState = {
   },
 
   async addWater(amount, bevType = 'water', bevName = 'מים', bevIcon = '💧', caffeineMg = 0) {
+    this.triggerHaptic('light');
     sfx.playPotion();
     try {
       const res = await fetch('/api/nutrition/water', {
@@ -832,6 +869,7 @@ const AppState = {
   },
 
   async undoWater() {
+    this.triggerHaptic('medium');
     sfx.playClick();
     try {
       const res = await fetch('/api/nutrition/water', { method: 'DELETE' });
@@ -847,6 +885,7 @@ const AppState = {
 
   async deleteWaterLog(id) {
     if (!confirm('האם למחוק רישום מים זה?')) return;
+    this.triggerHaptic('medium');
     sfx.playClick();
     try {
       const res = await fetch(`/api/nutrition/water/${id}`, { method: 'DELETE' });
@@ -927,6 +966,7 @@ const AppState = {
       this.selectedFood = null;
       document.getElementById('staging-card').style.display = 'none';
       document.getElementById('food-search-input').value = '';
+      this.triggerHaptic('success');
 
       if (data.skill_leveling && data.skill_leveling.leveled_up) {
         this.showSkillLevelUpModal(data.skill_leveling);
@@ -1064,11 +1104,26 @@ const AppState = {
       if (el) el.addEventListener('input', () => this.updateAwakeningPreview());
     });
 
+    // iOS Safari native gesture zoom prevention on fast double-taps
+    document.addEventListener('gesturestart', (e) => {
+      e.preventDefault();
+    }, { passive: false });
+
     // Close any modal on backdrop click
-    document.querySelectorAll('.modal-overlay').forEach(modal => {
+    document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop, .first-time-awakening-overlay').forEach(modal => {
       modal.addEventListener('click', (e) => {
         if (e.target === modal) {
-          AppState.closeModal(modal.id);
+          if (modal.id === 'ai-consultation-modal') {
+            AppState.closeAIConsultationModal();
+          } else if (modal.id === 'quick-biometrics-modal') {
+            AppState.closeQuickEditBiometrics();
+          } else if (modal.id === 'penalty-modal') {
+            AppState.closePenaltyModal();
+          } else if (modal.id === 'first-time-awakening-overlay') {
+            AppState.closeFirstTimeAwakening();
+          } else {
+            AppState.closeModal(modal.id);
+          }
         }
       });
     });
@@ -1076,8 +1131,18 @@ const AppState = {
     // Close active modal on Escape key
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        document.querySelectorAll('.modal-overlay.active').forEach(modal => {
-          AppState.closeModal(modal.id);
+        document.querySelectorAll('.modal-overlay.active, .ai-consult-modal-overlay[style*="flex"], .solo-modal-backdrop[style*="flex"], .first-time-awakening-overlay[style*="flex"]').forEach(modal => {
+          if (modal.id === 'ai-consultation-modal') {
+            AppState.closeAIConsultationModal();
+          } else if (modal.id === 'quick-biometrics-modal') {
+            AppState.closeQuickEditBiometrics();
+          } else if (modal.id === 'penalty-modal') {
+            AppState.closePenaltyModal();
+          } else if (modal.id === 'first-time-awakening-overlay') {
+            AppState.closeFirstTimeAwakening();
+          } else {
+            AppState.closeModal(modal.id);
+          }
         });
       }
     });
@@ -1406,7 +1471,8 @@ const AppState = {
     this.updateOnboardingPreview(true);
 
     overlay.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
+    this.lockBodyScroll();
+    this.triggerHaptic('light');
 
     // Auto-scroll chat stream to bottom and focus input
     setTimeout(() => {
@@ -1418,10 +1484,11 @@ const AppState = {
   },
 
   closeFirstTimeAwakening() {
+    this.triggerHaptic('light');
     localStorage.setItem('hunter_awakened', 'true');
     const overlay = document.getElementById('first-time-awakening-overlay');
     if (overlay) overlay.style.display = 'none';
-    document.body.style.overflow = '';
+    this.unlockBodyScroll();
   },
 
   skipFirstTimeAwakening() {
@@ -1854,7 +1921,8 @@ const AppState = {
     if (watEl) watEl.innerText = p.target_water ? p.target_water.toLocaleString() : '3,300';
 
     modal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
+    this.lockBodyScroll();
+    this.triggerHaptic('light');
 
     // Load consultation history
     await this.loadAIConsultationHistory();
@@ -1872,9 +1940,10 @@ const AppState = {
   },
 
   closeAIConsultationModal() {
+    this.triggerHaptic('light');
     const modal = document.getElementById('ai-consultation-modal');
     if (modal) modal.style.display = 'none';
-    document.body.style.overflow = '';
+    this.unlockBodyScroll();
   },
 
   setAIConsultPrompt(text) {
@@ -2155,7 +2224,8 @@ const AppState = {
     if (helpEl) helpEl.innerText = cfg.help;
 
     modal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
+    this.lockBodyScroll();
+    this.triggerHaptic('light');
     setTimeout(() => {
       if (valInput) {
         valInput.focus();
@@ -2165,9 +2235,10 @@ const AppState = {
   },
 
   closeQuickEditBiometrics() {
+    this.triggerHaptic('light');
     const modal = document.getElementById('quick-biometrics-modal');
     if (modal) modal.style.display = 'none';
-    document.body.style.overflow = '';
+    this.unlockBodyScroll();
   },
 
   stepBioInput(delta) {
@@ -2551,19 +2622,24 @@ const AppState = {
       if (expDeductEl) expDeductEl.innerText = `-${penalty.exp_deducted || 75} EXP`;
     }
 
+    this.triggerHaptic('heavy');
     sfx.playAlert?.() || sfx.playClick();
     modal.style.display = 'flex';
+    this.lockBodyScroll();
   },
 
   closePenaltyModal() {
+    this.triggerHaptic('light');
     const modal = document.getElementById('penalty-modal');
     if (modal) modal.style.display = 'none';
+    this.unlockBodyScroll();
   },
 
   async redeemCurrentPenalty() {
     const penalty = this.activePenalty;
     if (!penalty || !penalty.id) return;
 
+    this.triggerHaptic('heavy');
     sfx.playClick();
     const btn = event?.currentTarget;
     if (btn) {
@@ -2632,22 +2708,26 @@ const AppState = {
       this.openFirstTimeAwakening(true);
       return;
     }
+    this.triggerHaptic('light');
     sfx.playClick();
     const m = document.getElementById(id);
     if (m) {
       m.classList.add('active');
       m.style.display = 'flex';
       m.style.pointerEvents = 'auto';
+      this.lockBodyScroll();
     }
   },
 
   closeModal(id) {
+    this.triggerHaptic('light');
     sfx.playClick();
     const m = document.getElementById(id);
     if (m) {
       m.classList.remove('active');
       m.style.display = 'none';
       m.style.pointerEvents = 'none';
+      this.unlockBodyScroll();
     }
   },
 
@@ -2657,7 +2737,7 @@ const AppState = {
     if (!container) {
       container = document.createElement('div');
       container.id = 'system-toast-container';
-      container.style.cssText = 'position:fixed; bottom:76px; left:50%; transform:translateX(-50%); z-index:99999; display:flex; flex-direction:column; gap:8px; pointer-events:none; width:90%; max-width:380px; align-items:center;';
+      container.style.cssText = 'position:fixed; bottom:calc(76px + env(safe-area-inset-bottom, 16px)); left:50%; transform:translateX(-50%); z-index:99999; display:flex; flex-direction:column; gap:8px; pointer-events:none; width:90%; max-width:380px; align-items:center;';
       document.body.appendChild(container);
     }
 
@@ -5713,6 +5793,7 @@ const AppState = {
 
     // 3. Scroll to top of the panel smoothly
     window.scrollTo({ top: 0, behavior: 'instant' });
+    this.triggerHaptic('light');
     sfx.playClick();
 
     // 4. Panel specific refreshes

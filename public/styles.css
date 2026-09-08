@@ -21,12 +21,37 @@
   --font-mono: "SF Mono", Menlo, Monaco, Consolas, monospace;
 }
 
+html {
+  background-color: #000000;
+  color-scheme: dark;
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+  height: 100%;
+}
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: transparent !important;
+  -webkit-touch-callout: none;
   user-select: none;
+  -webkit-user-select: none;
+}
+
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default !important;
+  font-size: 16px !important; /* Critical: Stops iOS Safari from zooming in on focus */
+}
+
+select {
+  font-size: 16px !important;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 body {
@@ -34,13 +59,22 @@ body {
   background-image: none;
   color: var(--text-primary);
   font-family: var(--font-system);
-  min-height: 100vh;
+  min-height: 100dvh;
   min-height: -webkit-fill-available;
-  padding: max(env(safe-area-inset-top, 12px), 12px) 14px calc(80px + env(safe-area-inset-bottom, 16px)) 14px;
+  padding: max(env(safe-area-inset-top, 0px), 8px) max(env(safe-area-inset-right, 0px), 12px) calc(90px + env(safe-area-inset-bottom, 20px)) max(env(safe-area-inset-left, 0px), 12px);
   overflow-x: hidden;
   direction: rtl; /* Hebrew first, clean English terms */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none;
+}
+
+/* Prevents background page scrolling when modal is open */
+body.modal-open {
+  overflow: hidden !important;
+  position: fixed;
+  width: 100%;
+  height: 100%;
 }
 
 /* System Container */
@@ -50,7 +84,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding-bottom: 40px;
+  padding-bottom: calc(90px + env(safe-area-inset-bottom, 20px));
 }
 
 /* Scanline Overlay (Disabled for clean minimalist look) */
@@ -4966,9 +5000,9 @@ textarea {
 /* Minimal Top HUD Action Bar on iPhone */
 .system-top-minimal-bar {
   position: sticky;
-  top: 0;
+  top: max(env(safe-area-inset-top, 0px), 6px);
   z-index: 500;
-  margin-top: -4px;
+  margin-top: 0;
   padding: 8px 12px;
   background: #080a0f;
   border: 1px solid #1a202c;
@@ -4999,21 +5033,42 @@ textarea {
 
 /* Mobile Friendly Modals (Bottom Sheet on iPhone) */
 @media (max-width: 600px) {
-  .modal-overlay {
-    padding: 0;
-    align-items: flex-end; /* Bottom sheet on mobile */
+  .modal-overlay,
+  .ai-consult-modal-overlay,
+  .solo-modal-backdrop {
+    padding: 0 !important;
+    align-items: flex-end !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
   }
 
-  .modal-content {
+  .modal-content,
+  .ai-consult-container,
+  .penalty-modal-content {
     max-width: 100% !important;
-    max-height: 88vh !important;
+    width: 100% !important;
+    max-height: 90dvh !important;
     border-bottom-left-radius: 0 !important;
     border-bottom-right-radius: 0 !important;
     border-top-left-radius: 24px !important;
     border-top-right-radius: 24px !important;
-    padding: 20px 18px calc(24px + env(safe-area-inset-bottom, 16px)) 18px !important;
-    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(0, 240, 255, 0.25) !important;
-    animation: slideUpModal 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    padding: 16px 16px calc(24px + env(safe-area-inset-bottom, 16px)) 16px !important;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.9) !important;
+    animation: slideUpModal 0.26s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .modal-content::before,
+  .ai-consult-container::before,
+  .penalty-modal-content::before {
+    content: "";
+    display: block;
+    width: 38px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 2px;
+    margin: 4px auto 12px auto;
   }
 
   @keyframes slideUpModal {
@@ -5026,6 +5081,30 @@ textarea {
       opacity: 1;
     }
   }
+
+  .bottom-nav-bar {
+    height: auto !important;
+    min-height: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-top: 4px !important;
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px) !important;
+  }
+}
+
+/* iOS Native Tap Feedback */
+button:active,
+.bottom-nav-item:active,
+.top-bar-chip:active,
+.hud-btn-icon:active,
+.water-quick-btn:active,
+.dose-pill-btn:active,
+.floating-ai-consult-btn:active,
+.log-recommended-meal-btn:active,
+.weekly-action-btn:active,
+.penalty-redeem-btn:active {
+  transform: scale(0.96) !important;
+  opacity: 0.82 !important;
+  transition: transform 0.08s ease, opacity 0.08s ease !important;
+}
 
   /* Handle bar indicator for bottom sheet */
   .modal-header::before {
@@ -6089,8 +6168,8 @@ textarea {
 /* Floating AI Consultation Button */
 .floating-ai-consult-btn {
   position: fixed;
-  bottom: 80px;
-  left: 18px;
+  bottom: calc(72px + env(safe-area-inset-bottom, 16px));
+  left: max(env(safe-area-inset-left, 0px), 16px);
   z-index: 998;
   display: flex;
   align-items: center;
@@ -7397,5 +7476,33 @@ input:focus, select:focus, textarea:focus {
 .penalty-redeem-btn:hover {
   filter: brightness(1.15);
 }
+
+/* ==========================================================================
+   iOS Safari Native App Hardening (Zero Browser Quirks)
+   ========================================================================== */
+
+/* 1. Prevent iOS Auto-Zoom on Any Form Input */
+input, select, textarea, [contenteditable="true"] {
+  font-size: 16px !important;
+}
+
+/* 2. Lock body scroll cleanly when modal or bottom sheet is open */
+body.modal-open {
+  overflow: hidden !important;
+  position: fixed !important;
+  width: 100% !important;
+  height: 100% !important;
+  touch-action: none;
+}
+
+/* 3. Ensure modals allow internal momentum scrolling on iOS */
+.modal-overlay.active > .modal-content,
+.ai-consult-modal-overlay > .ai-consult-container,
+.solo-modal-backdrop > .penalty-modal-content,
+.first-time-awakening-overlay > .awakening-modal-card {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
 
 
