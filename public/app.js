@@ -200,7 +200,7 @@ const AppState = {
           window.location.reload();
         }
       });
-      navigator.serviceWorker.register('/service-worker.js?v=33').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=34').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -251,24 +251,35 @@ const AppState = {
 
   startGarminHeartbeat() {
     if (this._garminHeartbeatInterval) return;
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        this.refreshGarminHealthQuietly();
+      }
+    });
+
     this._garminHeartbeatInterval = setInterval(async () => {
       if (document.hidden) return;
-      try {
-        const res = await fetch('/api/garmin/health');
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.biometrics) {
-            const oldSync = this.healthAdvisor?.biometrics?.sync_timestamp;
-            const newSync = data.biometrics.sync_timestamp;
-            this.healthAdvisor = data;
-            this.renderGarminBiometrics();
-            if (oldSync && newSync && oldSync !== newSync) {
-              sfx.playTone(880, 0.1, 'sine', 0.08);
-            }
+      this.refreshGarminHealthQuietly();
+    }, 30000);
+  },
+
+  async refreshGarminHealthQuietly() {
+    try {
+      const res = await fetch('/api/garmin/health');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.biometrics) {
+          const oldSync = this.healthAdvisor?.biometrics?.sync_timestamp;
+          const newSync = data.biometrics.sync_timestamp;
+          this.healthAdvisor = data;
+          this.renderGarminBiometrics();
+          if (oldSync && newSync && oldSync !== newSync) {
+            sfx.playTone(880, 0.1, 'sine', 0.08);
           }
         }
-      } catch (e) {}
-    }, 45000);
+      }
+    } catch (e) {}
   },
 
   async fetchNetworkInfo() {
@@ -286,8 +297,7 @@ const AppState = {
 
   async fetchTodayData() {
     try {
-      const clientDate = this.getClientDateStr();
-      const res = await fetch(`/api/nutrition/today?client_date=${clientDate}`);
+      const res = await fetch('/api/nutrition/today');
       if (!res.ok) throw new Error('API error');
       const data = await res.json();
       this.profile = data.profile;
@@ -295,6 +305,7 @@ const AppState = {
       this.meals = data.meals || [];
       this.quests = data.quests || [];
       this.shiftInfo = data.shift_info;
+      this.shiftDate = data.date;
       this.waterLogs = data.water_logs || [];
       if (data.supplements) this.supplements = data.supplements;
       if (data.total_workouts !== undefined) {
@@ -663,7 +674,7 @@ const AppState = {
             <span class="water-log-bev">${l.beverage_icon || '💧'} ${l.beverage_name || 'מים'}</span>
             <span class="water-log-time">🕒 ${l.timestamp || '--:--'}</span>
             <span class="water-log-vol">+${l.amount_ml} מ״ל</span>
-            <button class="water-log-del-btn" onclick="AppState.deleteWaterLog(${l.id})" title="מחק רישום זה">✕</button>
+            <button class="water-log-del-btn" onclick="AppState.deleteWaterLog('${l.id}')" title="מחק רישום זה">✕</button>
           </div>
         `).join('');
       }
@@ -833,6 +844,46 @@ const AppState = {
   async addWater(amount, bevType = 'water', bevName = 'מים', bevIcon = '💧', caffeineMg = 0) {
     this.triggerHaptic('light');
     sfx.playPotion();
+
+    const hydrationFactors = {
+      water: 1.0,
+      tea: 1.0,
+      coffee: 0.98,
+      juice: 0.90,
+      electrolyte: 1.0,
+      milk: 0.88,
+      soda: 0.95
+    };
+    const factor = hydrationFactors[bevType] || 1.0;
+    const effectiveMl = Math.max(10, Math.round(amount * factor));
+
+    // 1. Instant Optimistic UI update
+    if (!this.consumed) this.consumed = { water_ml: 0 };
+    this.consumed.water_ml = (this.consumed.water_ml || 0) + effectiveMl;
+
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const tempId = 'temp-' + Date.now();
+    const tempLog = {
+      id: tempId,
+      amount_ml: effectiveMl,
+      timestamp: timeStr,
+      beverage_type: bevType,
+      beverage_name: bevName,
+      beverage_icon: bevIcon,
+      caffeine_mg: caffeineMg
+    };
+    if (!this.waterLogs) this.waterLogs = [];
+    this.waterLogs.unshift(tempLog);
+
+    this.renderWaterCockpit();
+    this.updateGauges();
+    this.saveLocalCache();
+
+    const caffText = caffeineMg > 0 ? ` (+${caffeineMg}mg קפאין)` : '';
+    this.showToast(`${bevIcon} נוספו ${effectiveMl} מ״ל ${bevName}${caffText}!`);
+
+    // 2. Persist to server
     try {
       const res = await fetch('/api/nutrition/water', {
         method: 'POST',
@@ -849,9 +900,6 @@ const AppState = {
       if (data.leveling && data.leveling.leveled_up) {
         this.showLevelUpModal(data.leveling);
       }
-      const addedMl = data.added_ml || amount;
-      const caffText = caffeineMg > 0 ? ` (+${caffeineMg}mg קפאין)` : '';
-      this.showToast(`${bevIcon} נוספו ${addedMl} מ״ל הידרציה מ${bevName}${caffText}!`);
       await this.fetchTodayData();
       if (typeof this.fetchDailyDebrief === 'function') this.fetchDailyDebrief();
     } catch (e) {
@@ -863,12 +911,6 @@ const AppState = {
         beverage_icon: bevIcon,
         caffeine_mg: caffeineMg
       }, `${amount}ml ${bevName}`);
-      if (this.consumed) {
-        this.consumed.water_ml = (this.consumed.water_ml || 0) + amount;
-      }
-      this.updateGauges();
-      this.saveLocalCache();
-      this.showToast(`${bevIcon} נוספו ${amount} מ״ל ${bevName} (נשמר מקומית)!`);
     }
   },
 
@@ -902,10 +944,22 @@ const AppState = {
   async undoWater() {
     this.triggerHaptic('medium');
     sfx.playClick();
+
+    // Optimistic undo
+    if (this.waterLogs && this.waterLogs.length > 0) {
+      const removed = this.waterLogs.shift();
+      if (this.consumed && removed.amount_ml) {
+        this.consumed.water_ml = Math.max(0, (this.consumed.water_ml || 0) - removed.amount_ml);
+      }
+      this.renderWaterCockpit();
+      this.updateGauges();
+      this.saveLocalCache();
+      this.showToast('↩️ הרישום האחרון בוטל בהצלחה');
+    }
+
     try {
       const res = await fetch('/api/nutrition/water', { method: 'DELETE' });
       if (res.ok) {
-        this.showToast('↩️ הרישום האחרון בוטל בהצלחה');
         await this.fetchTodayData();
         if (typeof this.fetchDailyDebrief === 'function') this.fetchDailyDebrief();
       }
@@ -918,6 +972,26 @@ const AppState = {
     if (!confirm('האם למחוק רישום מים זה?')) return;
     this.triggerHaptic('medium');
     sfx.playClick();
+
+    // Optimistic delete
+    if (this.waterLogs) {
+      const idx = this.waterLogs.findIndex(l => String(l.id) === String(id));
+      if (idx !== -1) {
+        const removed = this.waterLogs.splice(idx, 1)[0];
+        if (this.consumed && removed.amount_ml) {
+          this.consumed.water_ml = Math.max(0, (this.consumed.water_ml || 0) - removed.amount_ml);
+        }
+        this.renderWaterCockpit();
+        this.updateGauges();
+        this.saveLocalCache();
+      }
+    }
+
+    if (String(id).startsWith('temp-')) {
+      this.showToast('✕ רישום מים נמחק');
+      return;
+    }
+
     try {
       const res = await fetch(`/api/nutrition/water/${id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -4085,7 +4159,7 @@ const AppState = {
   },
 
   switchGarminTab(tab) {
-    ['quick', 'file', 'webhook'].forEach(t => {
+    ['quick', 'bluetooth', 'file', 'webhook'].forEach(t => {
       const btn = document.getElementById(`btn-tab-garmin-${t}`);
       const pane = document.getElementById(`garmin-pane-${t}`);
       if (btn) btn.classList.toggle('active', t === tab);
@@ -4251,7 +4325,15 @@ const AppState = {
   },
 
   async triggerSmartGarminSync() {
+    this.triggerHaptic('medium');
     sfx.playClick();
+
+    const topBtn = document.getElementById('garmin-top-sync-btn-text');
+    const stripBtn = document.getElementById('garmin-strip-sync-btn');
+    const oldTopText = topBtn ? topBtn.innerText : '⚡ סנכרן עכשיו';
+    if (topBtn) topBtn.innerHTML = '⏳ מסנכרן...';
+    if (stripBtn) stripBtn.innerHTML = '<span class="spin-icon" style="animation: spin 0.8s linear infinite; display:inline-block;">🔄</span> מסנכרן...';
+
     try {
       const res = await fetch('/api/garmin/smart-sync', {
         method: 'POST',
@@ -4261,7 +4343,8 @@ const AppState = {
       const data = await res.json();
       if (data.data) {
         this.healthAdvisor = data.data;
-        this.renderAll();
+        this.renderGarminBiometrics();
+        if (typeof this.renderDailyDebrief === 'function') this.renderDailyDebrief();
         sfx.playSystemNotification();
         this.closeModal('garmin-modal');
 
@@ -4272,9 +4355,131 @@ const AppState = {
             hud.style.boxShadow = '0 0 20px rgba(0, 240, 255, 0.15)';
           }, 1200);
         }
+
+        const syncTime = data.data.biometrics?.sync_timestamp || '';
+        this.showToast(`⚡ שעון סונכרן בהצלחה לפי שעה ${syncTime} בישראל!`);
+        if (topBtn) topBtn.innerText = `✅ סונכרן (${syncTime})`;
+        if (stripBtn) stripBtn.innerHTML = `✅ סונכרן (${syncTime})`;
+        setTimeout(() => {
+          if (topBtn) topBtn.innerText = '⚡ סנכרן עכשיו';
+          if (stripBtn) stripBtn.innerHTML = '<span class="spin-icon">🔄</span> סנכרן עכשיו';
+        }, 4000);
       }
     } catch (e) {
+      if (topBtn) topBtn.innerText = oldTopText;
+      if (stripBtn) stripBtn.innerHTML = '<span class="spin-icon">🔄</span> סנכרן עכשיו';
       alert('שגיאה בסנכרון חכם: ' + e.message);
+    }
+  },
+
+  async toggleBluetoothGarmin() {
+    if (this._btDevice && this._btDevice.gatt && this._btDevice.gatt.connected) {
+      this.disconnectBluetoothGarmin();
+      return;
+    }
+    await this.connectBluetoothGarmin();
+  },
+
+  async connectBluetoothGarmin() {
+    if (!navigator.bluetooth) {
+      alert('דפדפן זה אינו תומך ישירות ב-Web Bluetooth.\nבאייפון/iOS מומלץ להשתמש בדפדפן Bluefy (התומך ב-Web Bluetooth) או באוטומציית קיצורי דרך (Shortcuts) בלשונית Webhook.');
+      return;
+    }
+    this.triggerHaptic('medium');
+    try {
+      this.showToast('📡 מחפש שעון Garmin בסביבה (וודא ששידור דופק פעיל)...');
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: ['heart_rate'] }],
+        optionalServices: ['battery_service']
+      });
+
+      this._btDevice = device;
+      device.addEventListener('gattserverdisconnected', () => {
+        this.onBluetoothGarminDisconnected();
+      });
+
+      this.showToast(`מתחבר אל ${device.name || 'שעון Garmin'}...`);
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService('heart_rate');
+      const characteristic = await service.getCharacteristic('heart_rate_measurement');
+
+      await characteristic.startNotifications();
+      characteristic.addEventListener('characteristicvaluechanged', (event) => {
+        const value = event.target.value;
+        const flags = value.getUint8(0);
+        const rate16Bits = flags & 0x1;
+        let heartRate = 0;
+        if (rate16Bits) {
+          heartRate = value.getUint16(1, true);
+        } else {
+          heartRate = value.getUint8(1);
+        }
+        this.onBluetoothHeartRateReceived(heartRate, device.name);
+      });
+
+      this.onBluetoothGarminConnected(device.name);
+      sfx.playLevelUp();
+      this.showToast(`✅ מחובר ב-Bluetooth לשעון ${device.name || 'Garmin'}!`);
+    } catch (err) {
+      if (err.name !== 'NotFoundError') {
+        console.warn('Bluetooth connection error:', err);
+        alert('שגיאת חיבור בלוטות\': ' + (err.message || err));
+      }
+    }
+  },
+
+  disconnectBluetoothGarmin() {
+    if (this._btDevice && this._btDevice.gatt && this._btDevice.gatt.connected) {
+      this._btDevice.gatt.disconnect();
+    }
+    this.onBluetoothGarminDisconnected();
+  },
+
+  onBluetoothGarminConnected(name) {
+    const ind = document.getElementById('garmin-status-indicator');
+    const txt = document.getElementById('garmin-status-text');
+    const src = document.getElementById('garmin-source-badge');
+    const btBtn = document.getElementById('garmin-bt-btn');
+    const btStatus = document.getElementById('garmin-bt-live-status');
+    if (ind) { ind.className = 'garmin-status-indicator online'; ind.style.color = '#10b981'; }
+    if (txt) txt.innerText = `${name || 'Garmin'}: שידור חי`;
+    if (src) { src.innerText = 'BLUETOOTH LIVE'; src.style.background = 'rgba(16,185,129,0.2)'; src.style.color = '#34d399'; }
+    if (btBtn) { btBtn.innerText = '🟢 בלוטות\' מחובר'; btBtn.style.color = '#34d399'; }
+    if (btStatus) btStatus.innerHTML = `<span style="color:#34d399;">🟢 מחובר בהצלחה אל ${name || 'שעון Garmin'}! דופק מוזרם בשידור חי.</span>`;
+  },
+
+  onBluetoothGarminDisconnected() {
+    const src = document.getElementById('garmin-source-badge');
+    const btBtn = document.getElementById('garmin-bt-btn');
+    const btStatus = document.getElementById('garmin-bt-live-status');
+    if (src) { src.innerText = 'CONNECT IQ'; src.style.background = ''; src.style.color = ''; }
+    if (btBtn) { btBtn.innerText = '📡 בלוטות\''; btBtn.style.color = ''; }
+    if (btStatus) btStatus.innerHTML = '<span style="color:var(--text-muted);">השעון אינו מחובר ב-Bluetooth כעת</span>';
+    this.showToast('📡 חיבור הבלוטות\' נותק');
+  },
+
+  _lastBtSyncTime: 0,
+  onBluetoothHeartRateReceived(hr, deviceName) {
+    const hrEl = document.getElementById('garmin-hr-val');
+    if (hrEl) {
+      hrEl.innerText = hr;
+      hrEl.style.transform = 'scale(1.15)';
+      setTimeout(() => { if (hrEl) hrEl.style.transform = 'scale(1)'; }, 200);
+    }
+    const btHrEl = document.getElementById('garmin-bt-live-hr');
+    if (btHrEl) btHrEl.innerText = `${hr} bpm`;
+
+    const now = Date.now();
+    if (now - this._lastBtSyncTime > 30000) {
+      this._lastBtSyncTime = now;
+      fetch('/api/garmin/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          heart_rate: hr,
+          sync_source: 'bluetooth_live'
+        })
+      }).catch(e => console.warn('BT sync push err:', e));
     }
   },
 

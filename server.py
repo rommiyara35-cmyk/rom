@@ -167,20 +167,27 @@ def get_israel_now():
         tz = datetime.timezone(datetime.timedelta(hours=3))
         return datetime.datetime.now(tz)
 
-def get_hunter_shift_date(conn, client_date=None):
-    if client_date and isinstance(client_date, str) and len(client_date) == 10:
+def get_hunter_shift_date(conn, client_date=None, force_date=False):
+    if force_date and client_date and isinstance(client_date, str) and len(client_date) == 10:
         return client_date
     try:
         c = conn.cursor()
-        c.execute("SELECT day_reset_hour FROM hunter_profile WHERE id=1")
+        c.execute("SELECT day_reset_hour, shift_mode FROM hunter_profile WHERE id=1")
         row = c.fetchone()
-        reset_hour = row["day_reset_hour"] if row and row["day_reset_hour"] is not None else 0
+        shift_mode = row["shift_mode"] if row else "standard"
+        reset_hour = row["day_reset_hour"] if row and row["day_reset_hour"] is not None else (8 if shift_mode == "night" else 0)
     except Exception:
         reset_hour = 0
     now = get_israel_now()
+    base_date = now.date()
+    if client_date and isinstance(client_date, str) and len(client_date) == 10:
+        try:
+            base_date = datetime.date.fromisoformat(client_date)
+        except Exception:
+            base_date = now.date()
     if now.hour < reset_hour:
-        return (now.date() - datetime.timedelta(days=1)).isoformat()
-    return now.date().isoformat()
+        return (base_date - datetime.timedelta(days=1)).isoformat()
+    return base_date.isoformat()
 
 # -------------------------------------------------------------
 # Database Manager
@@ -1303,7 +1310,7 @@ class GarminDataEngine:
     @staticmethod
     def generate_smart_diurnal_biometrics(now=None, attent_info=None):
         if now is None:
-            now = datetime.datetime.now()
+            now = get_israel_now()
         h = now.hour
 
         if 0 <= h < 6:
@@ -1373,6 +1380,8 @@ class GarminDataEngine:
                 "hrv_status": "balanced",
                 "sync_source": "smart_diurnal"
             }
+
+        base["timestamp"] = now.strftime("%H:%M")
 
         if attent_info and attent_info.get("is_active"):
             potency = attent_info.get("potency", 1.0)
@@ -1646,7 +1655,7 @@ class HunterHealthAIAdvisor:
         c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
         g_row = c.fetchone()
         if not g_row:
-            now_time = datetime.datetime.now().strftime("%H:%M")
+            now_time = get_israel_now().strftime("%H:%M")
             c.execute("""
             INSERT OR IGNORE INTO garmin_health_logs 
             (date, timestamp, heart_rate, resting_hr, sleep_score, sleep_hours, stress_level, body_battery, steps, active_calories)
@@ -1668,7 +1677,7 @@ class HunterHealthAIAdvisor:
 
         # 3. Check for active Attent (supporting multiple doses & boosters)
         attent_info = None
-        now = datetime.datetime.now()
+        now = get_israel_now()
         attent_doses = []
         for m in meds:
             if m["med_name"].lower() == "attent":
@@ -5778,11 +5787,11 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             c.execute("SELECT * FROM hunter_achievements ORDER BY id ASC")
             achievements = [dict(r) for r in c.fetchall()]
 
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
+        now_str = get_israel_now().strftime("%Y-%m-%d_%H%M")
         backup_payload = {
             "system_name": "Solo Leveling Fitness System",
             "version": "2.5",
-            "exported_at": datetime.datetime.now().isoformat(),
+            "exported_at": get_israel_now().isoformat(),
             "hunter_profile": profile,
             "profile": profile,
             "hunter_skills": skills,
@@ -6232,7 +6241,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             with Database.get_connection() as conn:
                 today = get_hunter_shift_date(conn)
                 c = conn.cursor()
-                now_time = datetime.datetime.now().strftime("%H:%M")
+                now_time = get_israel_now().strftime("%H:%M")
 
                 c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
                 row = c.fetchone()
@@ -6347,7 +6356,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             with Database.get_connection() as conn:
                 today = get_hunter_shift_date(conn)
                 _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, today)
-                smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(datetime.datetime.now(), attent_info)
+                smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(get_israel_now(), attent_info)
 
             return self.handle_post_garmin_sync(smart_bio)
         except Exception as e:
@@ -6358,7 +6367,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         try:
             dose_id = body.get("id") or body.get("dose_id")
             dose_mg = int(body.get("dose_mg") or 20)
-            dose_time = body.get("timestamp") or datetime.datetime.now().strftime("%H:%M")
+            dose_time = body.get("timestamp") or get_israel_now().strftime("%H:%M")
             duration = float(body.get("duration_hours") or 7.0)
             notes = body.get("notes") or "שיקוי ריכוז והיפר-פוקוס"
             target_date = body.get("date")
@@ -6421,7 +6430,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
 
     def handle_garmin_water(self, body):
         amount = int(body.get("amount_ml", 250))
-        now_time = datetime.datetime.now().strftime("%H:%M")
+        now_time = get_israel_now().strftime("%H:%M")
         with Database.get_connection() as conn:
             today = get_hunter_shift_date(conn)
             c = conn.cursor()
