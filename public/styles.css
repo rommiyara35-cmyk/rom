@@ -3326,10 +3326,6 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
    ARISE THEME & HUD GAUGES (Matching Images 1, 2, 3, 4)
    ======================================================== */
 
-body {
-  padding-bottom: 76px; /* Space for fixed bottom nav bar */
-}
-
 /* Hunter Hero Card */
 .hunter-hero-card {
   display: flex;
@@ -5021,6 +5017,7 @@ textarea {
 }
 
 /* Minimal Top HUD Action Bar on iPhone */
+/* Minimal Top HUD Action Bar on iPhone */
 .system-top-minimal-bar {
   position: sticky;
   top: max(env(safe-area-inset-top, 0px), 6px);
@@ -5034,23 +5031,48 @@ textarea {
   justify-content: space-between;
   align-items: center;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
+  width: 100%;
+  overflow: visible;
+}
+
+.top-bar-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  cursor: pointer;
 }
 
 .top-bar-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .hud-btn-icon {
   width: 38px;
   height: 38px;
   min-width: 38px;
+  min-height: 38px;
   border-radius: 10px;
   font-size: 17px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f1f5f9;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.hud-btn-icon:active {
+  background: rgba(56, 189, 248, 0.2);
+  opacity: 0.85;
 }
 
 /* Mobile Friendly Modals (Clean Floating Card with Instant Backdrop Dismissal) */
@@ -5085,7 +5107,6 @@ textarea {
     padding-top: 4px !important;
     padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px) !important;
   }
-}
 
   /* Food chat input on iPhone */
   #food-chat-input {
@@ -5122,20 +5143,26 @@ textarea {
    FIRST-TIME HUNTER AWAKENING OVERLAY & ONBOARDING
    ============================================================ */
 .first-time-awakening-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100vw;
-  height: 100dvh;
-  min-height: 100dvh;
-  background: #000000;
-  z-index: 999999;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  padding: max(env(safe-area-inset-top, 0px), 16px) 16px calc(90px + env(safe-area-inset-bottom, 24px)) 16px;
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  background: #000000 !important;
+  background-color: #000000 !important;
+  z-index: 999999 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: contain !important;
+  box-sizing: border-box !important;
+  padding: max(env(safe-area-inset-top, 0px), 12px) 14px calc(70px + env(safe-area-inset-bottom, 20px)) 14px !important;
   direction: rtl;
   display: none;
 }
@@ -5150,8 +5177,8 @@ textarea {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  animation: fadeInAwakening 0.3s ease-out;
+  gap: 16px;
+  animation: fadeInAwakening 0.2s ease-out;
   cursor: default;
   pointer-events: auto !important;
 }
@@ -5455,6 +5482,7 @@ textarea {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain !important;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -6718,7 +6746,6 @@ textarea {
 
 /* Modals backdrop */
 .modal,
-.first-time-awakening-overlay,
 #barcode-scanner-modal,
 #vision-modal,
 #debrief-modal,

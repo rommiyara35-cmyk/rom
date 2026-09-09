@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <title>Solo Leveling | The System</title>
-  <link rel="stylesheet" href="/styles.css?v=32">
+  <link rel="stylesheet" href="/styles.css?v=33">
   <!-- ZXing Industry-Standard Multi-Format Barcode Scanner (EAN-13, EAN-8, UPC, Code 128) -->
   <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 </head>
@@ -46,18 +46,14 @@
       </div>
 
       <div class="top-bar-actions">
-        <button type="button" class="hud-btn-icon" onclick="AppState.forceClearCacheAndReload()" title="גרסה v32 - לחץ לטעינה נקייה ומחיקת מטמון" style="font-size:10px; font-family:var(--font-mono); color:#38bdf8; border-color:rgba(56,189,248,0.4); width:auto; padding:0 8px; font-weight:800;">v32 🔄</button>
         <div id="offline-status-badge" class="offline-status-badge" style="display:none;" onclick="AppState.flushOfflineQueue()" title="מצב אופליין - לחץ לסנכרון מיידי">
           <span class="offline-dot"></span>
           <span id="offline-badge-text">אופליין (<span id="offline-queue-count">0</span>)</span>
         </div>
-        <button id="weekly-report-btn" class="hud-btn-icon" onclick="AppState.openWeeklyReport()" title="דוח ביצועים שבועי ושיתוף WhatsApp" style="border-color:rgba(56,189,248,0.3); color:#38bdf8;">📊</button>
         <button id="shift-toggle-btn" class="hud-btn-icon" onclick="AppState.toggleShiftMode()" title="החלף בין משמרת יום למשמרת לילה">☀️</button>
-        <button id="sound-toggle-btn" class="hud-btn-icon" title="השתק/הפעל סאונד">🔊</button>
         <button id="calendar-toggle-btn" class="hud-btn-icon" onclick="AppState.openCalendarModal()" title="לוח שנה ומעקב היסטורי כרוני" style="border-color:rgba(56,189,248,0.4); color:#38bdf8;">📅</button>
-        <button class="hud-btn-icon" onclick="AppState.openFirstTimeAwakening(true)" title="מבדק התעוררות וצאט יעדים עם AI">⚡</button>
-        <button class="hud-btn-icon" onclick="AppState.openResetModal()" title="איפוס יומי / התחלה מחדש (Rebirth)" style="border-color:rgba(239,68,68,0.4); color:#fca5a5;">🔄</button>
-        <button class="hud-btn-icon" onclick="AppState.openModal('settings-modal')" title="הגדרות, סנכרון וגיבוי">⚙️</button>
+        <button id="awakening-hud-btn" class="hud-btn-icon" onclick="AppState.openFirstTimeAwakening(true)" title="מבדק התעוררות וצ'אט יעדים עם AI" style="border-color:rgba(0,240,255,0.5); color:#00f0ff;">⚡</button>
+        <button id="settings-hud-btn" class="hud-btn-icon" onclick="AppState.openModal('settings-modal')" title="הגדרות, סנכרון וגיבוי">⚙️</button>
       </div>
     </header>
 
@@ -1112,6 +1108,21 @@
         </span>
       </div>
 
+      <!-- Quick System Controls (Audio, Weekly Report) -->
+      <div class="form-group" style="margin-top:6px; border-bottom:1px solid rgba(0,240,255,0.15); padding-bottom:12px;">
+        <label class="form-label">🎛️ כלים מהירים ומערכת</label>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+          <button type="button" class="action-btn-primary" onclick="AppState.closeModal('settings-modal'); AppState.openWeeklyReport();" style="background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:#38bdf8; font-size:11.5px; padding:10px 6px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:5px;">
+            <span>📊</span>
+            <span>דוח שבועי ו-WhatsApp</span>
+          </button>
+          <button id="sound-toggle-btn" type="button" class="action-btn-primary" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.18); color:#f1f5f9; font-size:11.5px; padding:10px 6px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:5px;">
+            <span id="sound-btn-icon">🔊</span>
+            <span id="sound-btn-text">צלילים: מופעלים</span>
+          </button>
+        </div>
+      </div>
+
       <!-- System Backup, Persistence & Restore -->
       <div class="form-group" style="margin-top:8px; border-top:1px solid rgba(0,240,255,0.15); padding-top:12px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
@@ -1135,8 +1146,8 @@
           <button type="button" class="action-btn-primary" onclick="AppState.restoreFromLocalSnapshot()" style="background:rgba(168,85,247,0.2); border:1px solid #a855f7; color:#e9d5ff; font-size:11px; padding:8px;">
             ⚡ שחזר מגיבוי אוטומטי של הדפדפן (LocalStorage Snapshot)
           </button>
-          <button type="button" class="action-btn-primary" onclick="AppState.forceClearCacheAndReload()" style="background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8; font-size:11px; padding:8px; margin-top:4px;">
-            🔄 נקה מטמון ורענן גרסה חדשה (Force Refresh)
+          <button type="button" class="action-btn-primary" onclick="AppState.forceClearCacheAndReload()" style="background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8; font-size:11.5px; padding:9px; margin-top:4px; font-weight:700;">
+            🔄 גרסה v33 — נקה מטמון ורענן גרסה (Force Reload)
           </button>
         </div>
         <div id="backup-last-time-text" style="font-size:11px; color:var(--text-dim); margin-top:6px;">
@@ -2409,6 +2420,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=32"></script>
+  <script src="/app.js?v=33"></script>
 </body>
 </html>

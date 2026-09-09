@@ -113,14 +113,13 @@ const AppState = {
   // --- Native Haptic Feedback (no-op for clean touch) ---
   triggerHaptic(type = 'light') {},
 
-  // --- Modal Scroll Locking ---
+  // --- Modal Scroll Locking (Safe for iOS WebKit - no body overflow tampering) ---
   lockBodyScroll() {
-    document.body.style.overflow = 'hidden';
+    // Intentionally no-op on iOS to prevent WebKit compositor touch detach
   },
 
   unlockBodyScroll() {
-    document.body.style.overflow = '';
-    document.documentElement.style.overflow = '';
+    // Intentionally no-op on iOS to prevent WebKit compositor touch detach
   },
 
   forceUnlockBody() {
@@ -201,7 +200,7 @@ const AppState = {
           window.location.reload();
         }
       });
-      navigator.serviceWorker.register('/service-worker.js?v=32').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=33').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -1068,7 +1067,12 @@ const AppState = {
 
   updateSoundBtnUI() {
     const btn = document.getElementById('sound-toggle-btn');
-    if (btn) {
+    const icon = document.getElementById('sound-btn-icon');
+    const text = document.getElementById('sound-btn-text');
+    if (icon && text) {
+      icon.innerText = sfx.muted ? '🔇' : '🔊';
+      text.innerText = sfx.muted ? 'צלילים: מושתקים' : 'צלילים: מופעלים';
+    } else if (btn) {
       btn.innerText = sfx.muted ? '🔇' : '🔊';
     }
   },
@@ -1475,7 +1479,14 @@ const AppState = {
     overlay.style.visibility = 'visible';
     overlay.style.opacity = '1';
     overlay.style.pointerEvents = 'auto';
+
+    // Strictly ensure awakening starts at the top of the viewport
     overlay.scrollTop = 0;
+    window.scrollTo(0, 0);
+    requestAnimationFrame(() => {
+      overlay.scrollTop = 0;
+      window.scrollTo(0, 0);
+    });
     this.lockBodyScroll();
 
     // 2. Pre-fill data in a safe try-catch
@@ -1518,10 +1529,13 @@ const AppState = {
 
     sfx.playClick();
 
-    // Auto-scroll chat stream to bottom safely
+    // Auto-scroll chat stream safely without pulling the parent overlay down
     setTimeout(() => {
       const stream = document.getElementById('awakening-chat-stream');
-      if (stream) stream.scrollTop = stream.scrollHeight;
+      if (stream) {
+        stream.scrollTop = stream.scrollHeight;
+      }
+      overlay.scrollTop = 0;
     }, 150);
   },
 
@@ -1534,6 +1548,19 @@ const AppState = {
       overlay.style.visibility = 'hidden';
       overlay.style.pointerEvents = 'none';
     }
+
+    // Release any keyboard or touch focus traps
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
+
+    // Ensure all backdrops and overlays are completely neutralized
+    document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop, .first-time-awakening-overlay').forEach(m => {
+      m.classList.remove('active');
+      m.style.display = 'none';
+      m.style.pointerEvents = 'none';
+    });
+
     this.unlockBodyScroll();
   },
 
@@ -2791,8 +2818,11 @@ const AppState = {
       m.classList.remove('active');
       m.style.display = 'none';
       m.style.pointerEvents = 'none';
-      this.unlockBodyScroll();
     }
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
+    this.unlockBodyScroll();
   },
 
   // Toast notifications
