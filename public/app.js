@@ -4143,14 +4143,14 @@ const AppState = {
         const el = document.getElementById(id);
         if (el) el.value = val;
       };
-      setVal('garmin-input-hr', b.heart_rate || 68);
-      setVal('garmin-input-rhr', b.resting_hr || 58);
-      setVal('garmin-input-sleep-score', b.sleep_score || 82);
-      setVal('garmin-input-sleep-hours', b.sleep_hours || 7.2);
-      setVal('garmin-input-stress', b.stress_level || 28);
-      setVal('garmin-input-bb', b.body_battery || 75);
-      setVal('garmin-input-steps', b.steps || 8500);
-      setVal('garmin-input-active-cals', b.active_calories || 450);
+      setVal('garmin-input-hr', b.heart_rate ?? 68);
+      setVal('garmin-input-rhr', b.resting_hr ?? 58);
+      setVal('garmin-input-sleep-score', b.sleep_score ?? 82);
+      setVal('garmin-input-sleep-hours', b.sleep_hours ?? 7.2);
+      setVal('garmin-input-stress', b.stress_level ?? 28);
+      setVal('garmin-input-bb', b.body_battery ?? 75);
+      setVal('garmin-input-steps', b.steps ?? 0);
+      setVal('garmin-input-active-cals', b.active_calories ?? 0);
     }
     this.switchGarminTab(tab);
     this.setupGarminDropzone();
@@ -4531,15 +4531,23 @@ const AppState = {
 
   async saveGarminHealth() {
     sfx.playClick();
+    const getNum = (id, fallback) => {
+      const el = document.getElementById(id);
+      if (!el) return fallback;
+      const v = el.value.trim();
+      if (v === '') return fallback;
+      const parsed = parseFloat(v);
+      return isNaN(parsed) ? fallback : parsed;
+    };
     const payload = {
-      heart_rate: parseInt(document.getElementById('garmin-input-hr').value) || 68,
-      resting_hr: parseInt(document.getElementById('garmin-input-rhr').value) || 58,
-      sleep_score: parseInt(document.getElementById('garmin-input-sleep-score').value) || 80,
-      sleep_hours: parseFloat(document.getElementById('garmin-input-sleep-hours').value) || 7.0,
-      stress_level: parseInt(document.getElementById('garmin-input-stress').value) || 28,
-      body_battery: parseInt(document.getElementById('garmin-input-bb').value) || 75,
-      steps: parseInt(document.getElementById('garmin-input-steps').value) || 8500,
-      active_calories: parseInt(document.getElementById('garmin-input-active-cals').value) || 450,
+      heart_rate: Math.round(getNum('garmin-input-hr', 68)),
+      resting_hr: Math.round(getNum('garmin-input-rhr', 58)),
+      sleep_score: Math.round(getNum('garmin-input-sleep-score', 80)),
+      sleep_hours: getNum('garmin-input-sleep-hours', 7.0),
+      stress_level: Math.round(getNum('garmin-input-stress', 28)),
+      body_battery: Math.round(getNum('garmin-input-bb', 75)),
+      steps: Math.round(getNum('garmin-input-steps', 0)),
+      active_calories: Math.round(getNum('garmin-input-active-cals', 0)),
       source: "manual"
     };
 

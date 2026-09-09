@@ -6285,14 +6285,6 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                             extracted[field] = int(clean) if field not in ["sleep_hours"] else round(float(clean), 1)
                             break
 
-            with Database.get_connection() as conn:
-                today = get_hunter_shift_date(conn)
-                _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, today)
-                smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(get_israel_now(), attent_info)
-                for k, v in smart_bio.items():
-                    if k not in extracted:
-                        extracted[k] = v
-
             extracted["sync_source"] = "ios_shortcuts"
             return self.handle_post_garmin_sync(extracted)
         except Exception as e:
@@ -6303,16 +6295,6 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         try:
             if not isinstance(body, dict):
                 body = {}
-            has_metrics = any(f in body for f in ["heart_rate", "steps", "sleep_score", "body_battery", "stress_level"])
-            if not has_metrics:
-                with Database.get_connection() as conn:
-                    today = get_hunter_shift_date(conn)
-                    _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, today)
-                    smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(get_israel_now(), attent_info)
-                    for k, v in smart_bio.items():
-                        if k not in body:
-                            body[k] = v
-
             if not body.get("sync_source"):
                 body["sync_source"] = "ios_shortcuts"
             return self.handle_post_garmin_sync(body)
@@ -6339,39 +6321,57 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
 
             with Database.get_connection() as conn:
                 today = get_hunter_shift_date(conn)
-                _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, today)
-                smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(get_israel_now(), attent_info)
-                for k, v in smart_bio.items():
-                    if k not in merged or merged[k] is None or merged[k] == "":
-                        merged[k] = v
-
                 c = conn.cursor()
                 now_time = get_israel_now().strftime("%H:%M")
 
                 c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
                 row = c.fetchone()
                 if not row:
+                    _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, today)
+                    smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(get_israel_now(), attent_info)
+                    init_data = dict(smart_bio)
+                    init_data.update(merged)
                     c.execute("""
-                    INSERT INTO garmin_health_logs (date, timestamp, sync_source) VALUES (?, ?, ?)
-                    """, (today, now_time, merged["sync_source"]))
-
-                fields = ["heart_rate", "resting_hr", "sleep_score", "sleep_hours",
-                          "stress_level", "body_battery", "steps", "active_calories",
-                          "spo2_pct", "respiration_rpm", "vo2_max", "hrv_status", "sync_source"]
-                updates = []
-                vals = []
-                for f in fields:
-                    if f in merged and merged[f] is not None and merged[f] != "":
-                        updates.append(f"{f} = ?")
-                        vals.append(merged[f])
-
-                if updates:
-                    updates.append("timestamp = ?")
-                    vals.append(now_time)
-                    updates.append("updated_at = CURRENT_TIMESTAMP")
-                    vals.append(today)
-                    c.execute(f"UPDATE garmin_health_logs SET {', '.join(updates)} WHERE date = ?", vals)
+                    INSERT INTO garmin_health_logs (
+                        date, timestamp, heart_rate, resting_hr, sleep_score, sleep_hours,
+                        stress_level, body_battery, steps, active_calories, spo2_pct,
+                        respiration_rpm, vo2_max, hrv_status, sync_source
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        today, now_time,
+                        init_data.get("heart_rate", 68),
+                        init_data.get("resting_hr", 58),
+                        init_data.get("sleep_score", 80),
+                        init_data.get("sleep_hours", 7.0),
+                        init_data.get("stress_level", 25),
+                        init_data.get("body_battery", 75),
+                        init_data.get("steps", 0),
+                        init_data.get("active_calories", 0),
+                        init_data.get("spo2_pct", 98),
+                        init_data.get("respiration_rpm", 14),
+                        init_data.get("vo2_max", 48),
+                        init_data.get("hrv_status", "balanced"),
+                        init_data.get("sync_source", merged.get("sync_source", "manual"))
+                    ))
                     conn.commit()
+                else:
+                    fields = ["heart_rate", "resting_hr", "sleep_score", "sleep_hours",
+                              "stress_level", "body_battery", "steps", "active_calories",
+                              "spo2_pct", "respiration_rpm", "vo2_max", "hrv_status", "sync_source"]
+                    updates = []
+                    vals = []
+                    for f in fields:
+                        if f in merged and merged[f] is not None and merged[f] != "":
+                            updates.append(f"{f} = ?")
+                            vals.append(merged[f])
+
+                    if updates:
+                        updates.append("timestamp = ?")
+                        vals.append(now_time)
+                        updates.append("updated_at = CURRENT_TIMESTAMP")
+                        vals.append(today)
+                        c.execute(f"UPDATE garmin_health_logs SET {', '.join(updates)} WHERE date = ?", vals)
+                        conn.commit()
 
                 # Activity / Workout Auto-Logging
                 workout_logged = None
@@ -6460,8 +6460,30 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         try:
             with Database.get_connection() as conn:
                 today = get_hunter_shift_date(conn)
+                c = conn.cursor()
+                c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
+                row = c.fetchone()
+
+                now_time = get_israel_now().strftime("%H:%M")
+
+                # If the user already has data for today, PRESERVE IT 100%!
+                if row:
+                    c.execute("UPDATE garmin_health_logs SET timestamp = ?, updated_at = CURRENT_TIMESTAMP WHERE date = ?", (now_time, today))
+                    conn.commit()
+                    health_data = HunterHealthAIAdvisor.analyze_and_generate_insights(conn, today)
+                    self._set_headers()
+                    self.wfile.write(json.dumps({
+                        "status": "synced",
+                        "message": "[SYSTEM: מדדי השעון שלך שמורים ומעודכנים!]",
+                        "sync_source": row["sync_source"] or "saved",
+                        "data": health_data
+                    }, ensure_ascii=False).encode("utf-8"))
+                    return
+
+                # Only if NO record exists at all for today:
                 _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, today)
                 smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(get_israel_now(), attent_info)
+                smart_bio["sync_source"] = "smart_sync"
 
             return self.handle_post_garmin_sync(smart_bio)
         except Exception as e:
