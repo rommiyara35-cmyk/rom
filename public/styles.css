@@ -44,10 +44,8 @@ body {
   color: var(--text-primary);
   font-family: var(--font-system);
   min-height: 100vh;
-  min-height: -webkit-fill-available;
   margin: 0;
   padding: max(env(safe-area-inset-top, 12px), 12px) 14px calc(90px + env(safe-area-inset-bottom, 20px)) 14px;
-  overflow-x: hidden;
   direction: rtl; /* Hebrew first, clean English terms */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -62,7 +60,7 @@ body {
   flex-direction: column;
   gap: 16px;
   padding-bottom: calc(90px + env(safe-area-inset-bottom, 20px));
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* Scanline Overlay (Disabled for clean minimalist look) */
@@ -170,8 +168,8 @@ body {
 }
 
 .hud-btn-icon:active {
-  transform: scale(0.95);
   background: #181d28;
+  opacity: 0.82;
   box-shadow: none;
 }
 
@@ -814,7 +812,7 @@ body {
 }
 
 .water-quick-btn:active {
-  transform: scale(0.95);
+  opacity: 0.82;
 }
 
 .water-btn-icon {
@@ -1226,7 +1224,7 @@ body {
 }
 
 .action-btn-primary:active {
-  transform: scale(0.98);
+  opacity: 0.85;
   box-shadow: none;
 }
 
@@ -1281,14 +1279,13 @@ body {
 /* Global Button & Interactive Element Optimizations */
 button, .btn, .potion-btn, .dose-pill-btn, .biometric-tile, .bottom-nav-item, .preset-pill, .badge-button, .garmin-strip-btn, .copy-url-btn, .close-modal-btn {
   cursor: pointer;
-  touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
-  transition: transform 0.15s ease, filter 0.15s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: filter 0.15s ease, opacity 0.15s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:active, .preset-pill:active, .garmin-strip-btn:active {
-  transform: scale(0.96) !important;
+button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:active, .preset-pill:active, .garmin-strip-btn:active {
+  opacity: 0.82 !important;
   filter: brightness(1.2) !important;
 }
 
@@ -1343,9 +1340,9 @@ button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:activ
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid rgba(0, 240, 255, 0.2);
-  padding-bottom: 10px;
-  background: inherit;
-  z-index: 20;
+  padding-bottom: 12px;
+  background: #091326;
+  z-index: 30;
 }
 
 .modal-title {
@@ -1358,30 +1355,30 @@ button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:activ
 }
 
 .close-modal-btn {
-  background: rgba(255, 255, 255, 0.14);
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
-  color: #ffffff;
-  font-size: 22px;
-  font-weight: 800;
-  cursor: pointer;
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  touch-action: manipulation;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
-  z-index: 25;
+  background: #1e293b !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.3) !important;
+  color: #ffffff !important;
+  font-size: 20px !important;
+  font-weight: 900 !important;
+  cursor: pointer !important;
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 50% !important;
+  transition: background 0.15s ease, border-color 0.15s ease !important;
+  flex-shrink: 0 !important;
+  z-index: 50 !important;
+  -webkit-tap-highlight-color: transparent !important;
 }
 
 .close-modal-btn:active {
-  background: rgba(239, 68, 68, 0.6);
-  color: #ffffff;
-  transform: scale(0.92);
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+  opacity: 0.9 !important;
 }
 
 /* Form Styles */
@@ -1398,25 +1395,63 @@ button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:activ
 }
 
 .form-input, .form-select {
-  background: rgba(6, 14, 28, 0.9);
+  background: #060d1a;
   border: 1px solid var(--hud-border);
   border-radius: 8px;
-  padding: 10px 12px;
-  color: #ffffff;
-  font-size: 14px;
-  outline: none;
+  color: var(--text-primary);
   font-family: var(--font-system);
+  font-size: 16px !important;
+  padding: 10px 14px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
 }
 
 .form-input:focus, .form-select:focus {
   border-color: var(--hud-cyan);
-  box-shadow: 0 0 10px var(--hud-glow);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
 }
 
-.form-row {
+.form-grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
   gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 12px;
+}
+
+.action-btn-secondary {
+  background: transparent;
+  border: 1px solid var(--hud-border);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 14px;
+  border-radius: 8px;
+  padding: 12px 20px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.stats-preview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  background: #060d1a;
+  border: 1px solid var(--hud-border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
 }
 
 /* Scientific Preview Box */
@@ -1447,7 +1482,7 @@ button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:activ
   height: 100vh;
   pointer-events: none;
   z-index: 10001;
-  display: flex;
+  display: none !important;
   align-items: center;
   justify-content: center;
   opacity: 0;
@@ -1455,7 +1490,9 @@ button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:activ
 }
 
 .levelup-overlay.active {
+  display: flex !important;
   opacity: 1;
+  pointer-events: auto;
 }
 
 .levelup-card {
@@ -1584,9 +1621,9 @@ button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:activ
 }
 
 .barcode-pill:active {
-  transform: scale(0.95);
   border-color: var(--hud-cyan);
   background: rgba(0, 240, 255, 0.2);
+  opacity: 0.85;
 }
 
 
@@ -1610,7 +1647,7 @@ button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:activ
 }
 
 .shift-control-banner:active {
-  transform: scale(0.98);
+  opacity: 0.85;
 }
 
 .shift-control-banner.night-active {
@@ -1692,7 +1729,7 @@ button:active, .potion-btn:active, .dose-pill-btn:active, .bottom-nav-item:activ
 }
 
 .barcode-big-hero-btn:active {
-  transform: scale(0.98);
+  opacity: 0.85;
   box-shadow: none;
 }
 
@@ -4955,12 +4992,11 @@ textarea {
   cursor: pointer;
   padding: 4px 0;
   position: relative;
-  transition: transform 0.15s ease, color 0.2s ease;
-  touch-action: manipulation;
+  transition: color 0.2s ease, opacity 0.15s ease;
 }
 
 .bottom-nav-item:active {
-  transform: scale(0.95);
+  opacity: 0.75;
 }
 
 .bottom-nav-item.active {
@@ -5015,16 +5051,16 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  touch-action: manipulation;
 }
 
-/* Mobile Friendly Modals (Bottom Sheet on iPhone) */
+/* Mobile Friendly Modals (Clean Floating Card with Instant Backdrop Dismissal) */
 @media (max-width: 600px) {
   .modal-overlay,
   .ai-consult-modal-overlay,
   .solo-modal-backdrop {
-    padding: 0 !important;
-    align-items: flex-end !important;
+    padding: 14px !important;
+    align-items: center !important;
+    justify-content: center !important;
     backdrop-filter: blur(12px) !important;
     -webkit-backdrop-filter: blur(12px) !important;
   }
@@ -5034,39 +5070,13 @@ textarea {
   .penalty-modal-content {
     max-width: 100% !important;
     width: 100% !important;
-    max-height: 90dvh !important;
-    border-bottom-left-radius: 0 !important;
-    border-bottom-right-radius: 0 !important;
-    border-top-left-radius: 24px !important;
-    border-top-right-radius: 24px !important;
-    padding: 16px 16px calc(24px + env(safe-area-inset-bottom, 16px)) 16px !important;
-    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.9) !important;
-    animation: slideUpModal 0.26s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    max-height: 85vh !important;
+    max-height: 85dvh !important;
+    border-radius: 18px !important;
+    padding: 16px !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.95) !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
-  }
-
-  .modal-content::before,
-  .ai-consult-container::before,
-  .penalty-modal-content::before {
-    content: "";
-    display: block;
-    width: 38px;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.25);
-    border-radius: 2px;
-    margin: 4px auto 12px auto;
-  }
-
-  @keyframes slideUpModal {
-    from {
-      transform: translateY(100%);
-      opacity: 0.6;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
   }
 
   .bottom-nav-bar {
@@ -5076,20 +5086,6 @@ textarea {
     padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px) !important;
   }
 }
-
-  /* Handle bar indicator for bottom sheet */
-  .modal-header::before {
-    content: "";
-    position: absolute;
-    top: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 44px;
-    height: 4.5px;
-    background: rgba(255, 255, 255, 0.25);
-    border-radius: 4px;
-    pointer-events: none !important;
-  }
 
   /* Food chat input on iPhone */
   #food-chat-input {
@@ -5354,13 +5350,12 @@ textarea {
   justify-content: center;
   gap: 10px;
   box-shadow: 0 0 35px rgba(0, 240, 255, 0.5), 0 4px 15px rgba(0, 0, 0, 0.5);
-  transition: transform 0.2s, box-shadow 0.2s;
-  touch-action: manipulation;
+  transition: opacity 0.15s, box-shadow 0.2s;
   -webkit-tap-highlight-color: transparent;
 }
 
 .awakening-cta-btn:active {
-  transform: scale(0.98);
+  opacity: 0.85;
 }
 
 .cta-rune {
@@ -5375,7 +5370,6 @@ textarea {
   text-decoration: underline;
   cursor: pointer;
   padding: 6px;
-  touch-action: manipulation;
 }
 
 .awakening-skip-btn:hover {
@@ -5392,12 +5386,11 @@ textarea {
   font-weight: 700;
   cursor: pointer;
   transition: 0.2s;
-  touch-action: manipulation;
 }
 
 .re-awaken-bio-btn:active {
   background: rgba(0, 240, 255, 0.25);
-  transform: scale(0.96);
+  opacity: 0.85;
 }
 
 /* ============================================================
@@ -5421,29 +5414,28 @@ textarea {
 
 /* Awakening Close Top Button */
 .awakening-close-top-btn {
-  background: rgba(255, 255, 255, 0.15);
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
-  color: #ffffff;
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  touch-action: manipulation;
-  z-index: 50;
+  background: #1e293b !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.3) !important;
+  color: #ffffff !important;
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 20px !important;
+  font-weight: 900 !important;
+  cursor: pointer !important;
+  transition: background 0.15s ease, border-color 0.15s ease !important;
+  z-index: 50 !important;
+  -webkit-tap-highlight-color: transparent !important;
 }
 .awakening-close-top-btn:active {
-  transform: scale(0.92);
-  background: rgba(239, 68, 68, 0.6);
-  color: #ffffff;
-  border-color: #ef4444;
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+  opacity: 0.9 !important;
 }
 
 /* AI Chat Main Card */
@@ -5659,7 +5651,6 @@ textarea {
   font-size: 11.5px;
   cursor: pointer;
   transition: all 0.18s ease;
-  touch-action: manipulation;
   white-space: nowrap;
 }
 
@@ -5670,9 +5661,9 @@ textarea {
 }
 
 .ai-prompt-chip:active {
-  transform: scale(0.96);
   background: rgba(0, 240, 255, 0.3);
   border-color: #00f0ff;
+  opacity: 0.85;
 }
 
 /* Chat Input Row */
@@ -5731,14 +5722,13 @@ textarea {
   display: flex;
   align-items: center;
   gap: 4px;
-  transition: all 0.2s;
-  touch-action: manipulation;
+  transition: opacity 0.15s;
   flex-shrink: 0;
   box-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
 }
 
 .awakening-chat-send-btn:active {
-  transform: scale(0.94);
+  opacity: 0.85;
 }
 
 .awakening-chat-send-btn:disabled {
@@ -6184,10 +6174,14 @@ textarea {
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   padding: 14px;
+}
+
+.ai-consult-modal-overlay.active {
+  display: flex !important;
 }
 
 .ai-consult-container {
@@ -6274,7 +6268,6 @@ textarea {
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
-  touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -7287,11 +7280,15 @@ input:focus, select:focus, textarea:focus {
   inset: 0;
   background: rgba(0, 0, 0, 0.88);
   backdrop-filter: blur(8px);
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   z-index: 10000;
   padding: 16px;
+}
+
+.solo-modal-backdrop.active {
+  display: flex !important;
 }
 
 .penalty-modal-content {

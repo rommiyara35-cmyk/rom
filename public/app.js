@@ -120,11 +120,13 @@ const AppState = {
 
   unlockBodyScroll() {
     document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
   },
 
   forceUnlockBody() {
     document.body.style.overflow = '';
-    document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop').forEach(m => {
+    document.documentElement.style.overflow = '';
+    document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop, .first-time-awakening-overlay').forEach(m => {
       m.classList.remove('active');
       m.style.display = 'none';
       m.style.pointerEvents = 'none';
@@ -199,7 +201,7 @@ const AppState = {
           window.location.reload();
         }
       });
-      navigator.serviceWorker.register('/service-worker.js?v=31').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=32').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -1454,49 +1456,67 @@ const AppState = {
   },
 
   openFirstTimeAwakening(force = false) {
-    sfx.playClick();
     const overlay = document.getElementById('first-time-awakening-overlay');
-    if (!overlay) return;
-
-    const p = this.profile || {};
-    const nameEl = document.getElementById('init-name');
-    if (nameEl) nameEl.value = p.name || 'צייד רום';
-
-    const ageEl = document.getElementById('init-age');
-    if (ageEl) ageEl.value = p.age || 26;
-
-    const sexEl = document.getElementById('init-sex');
-    if (sexEl) sexEl.value = p.sex || 'male';
-
-    const heightEl = document.getElementById('init-height');
-    if (heightEl) heightEl.value = p.height || 180;
-
-    const weightEl = document.getElementById('init-weight');
-    if (weightEl) weightEl.value = p.weight || 80;
-
-    const targetWeightEl = document.getElementById('init-target-weight');
-    if (targetWeightEl) targetWeightEl.value = p.target_weight || 75;
-
-    const shiftModeEl = document.getElementById('init-shift-mode');
-    if (shiftModeEl) shiftModeEl.value = p.shift_mode || 'standard';
-
-    const actEl = document.getElementById('init-activity');
-    if (actEl) actEl.value = p.activity_level || 'moderate';
-
-    const goalPathEl = document.getElementById('init-goal-path');
-    if (goalPathEl) goalPathEl.value = p.goal || 'cut';
-
-    if (p.goal_custom_text) {
-      this.lastAwakeningGoalText = p.goal_custom_text;
+    if (!overlay) {
+      console.warn('first-time-awakening-overlay element not found');
+      return;
     }
 
-    overlay.classList.add('active');
+    // Close any other open modals first
+    document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop').forEach(m => {
+      m.classList.remove('active');
+      m.style.display = 'none';
+      m.style.pointerEvents = 'none';
+    });
+
+    // 1. Immediately display the overlay FIRST!
     overlay.style.display = 'block';
+    overlay.classList.add('active');
     overlay.style.visibility = 'visible';
     overlay.style.opacity = '1';
+    overlay.style.pointerEvents = 'auto';
     overlay.scrollTop = 0;
-
     this.lockBodyScroll();
+
+    // 2. Pre-fill data in a safe try-catch
+    try {
+      const p = this.profile || {};
+      const nameEl = document.getElementById('init-name');
+      if (nameEl) nameEl.value = p.name || 'צייד רום';
+
+      const ageEl = document.getElementById('init-age');
+      if (ageEl) ageEl.value = p.age || 26;
+
+      const sexEl = document.getElementById('init-sex');
+      if (sexEl) sexEl.value = p.sex || 'male';
+
+      const heightEl = document.getElementById('init-height');
+      if (heightEl) heightEl.value = p.height || 180;
+
+      const weightEl = document.getElementById('init-weight');
+      if (weightEl) weightEl.value = p.weight || 80;
+
+      const targetWeightEl = document.getElementById('init-target-weight');
+      if (targetWeightEl) targetWeightEl.value = p.target_weight || 75;
+
+      const shiftModeEl = document.getElementById('init-shift-mode');
+      if (shiftModeEl) shiftModeEl.value = p.shift_mode || 'standard';
+
+      const actEl = document.getElementById('init-activity');
+      if (actEl) actEl.value = p.activity_level || 'moderate';
+
+      const goalPathEl = document.getElementById('init-goal-path');
+      if (goalPathEl) goalPathEl.value = p.goal || 'cut';
+
+      if (p.goal_custom_text) {
+        this.lastAwakeningGoalText = p.goal_custom_text;
+      }
+      this.updateOnboardingPreview(true);
+    } catch (err) {
+      console.warn('Pre-fill awakening inputs error:', err);
+    }
+
+    sfx.playClick();
 
     // Auto-scroll chat stream to bottom safely
     setTimeout(() => {
@@ -1511,6 +1531,8 @@ const AppState = {
     if (overlay) {
       overlay.classList.remove('active');
       overlay.style.display = 'none';
+      overlay.style.visibility = 'hidden';
+      overlay.style.pointerEvents = 'none';
     }
     this.unlockBodyScroll();
   },

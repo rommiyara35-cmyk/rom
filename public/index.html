@@ -13,13 +13,11 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <title>Solo Leveling | The System</title>
-  <link rel="stylesheet" href="/styles.css?v=31">
+  <link rel="stylesheet" href="/styles.css?v=32">
   <!-- ZXing Industry-Standard Multi-Format Barcode Scanner (EAN-13, EAN-8, UPC, Code 128) -->
   <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 </head>
 <body>
-  <!-- Scanlines Effect -->
-  <div class="scanlines"></div>
 
   <!-- SVG Gradients Definition -->
   <svg width="0" height="0" style="position: absolute;">
@@ -48,6 +46,7 @@
       </div>
 
       <div class="top-bar-actions">
+        <button type="button" class="hud-btn-icon" onclick="AppState.forceClearCacheAndReload()" title="גרסה v32 - לחץ לטעינה נקייה ומחיקת מטמון" style="font-size:10px; font-family:var(--font-mono); color:#38bdf8; border-color:rgba(56,189,248,0.4); width:auto; padding:0 8px; font-weight:800;">v32 🔄</button>
         <div id="offline-status-badge" class="offline-status-badge" style="display:none;" onclick="AppState.flushOfflineQueue()" title="מצב אופליין - לחץ לסנכרון מיידי">
           <span class="offline-dot"></span>
           <span id="offline-badge-text">אופליין (<span id="offline-queue-count">0</span>)</span>
@@ -947,7 +946,7 @@
   </div>
 
   <!-- AWAKENING EVALUATION MODAL -->
-  <div id="awakening-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('awakening-modal')">
+  <div id="awakening-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('awakening-modal')" style="display:none;">
     <div class="modal-content">
       <div class="modal-header">
         <span class="modal-title">⚡ מבדק התעוררות צייד מדעי (Awakening)</span>
@@ -1068,7 +1067,7 @@
   </div>
 
   <!-- SETTINGS & GARMIN MODAL -->
-  <div id="settings-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('settings-modal')">
+  <div id="settings-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('settings-modal')" style="display:none;">
     <div class="modal-content">
       <div class="modal-header">
         <span class="modal-title">⚙️ הגדרות, סנכרון ו-Garmin</span>
@@ -1168,7 +1167,7 @@
   </div>
 
   <!-- BARCODE SCANNER MODAL -->
-  <div id="barcode-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeBarcodeScanner()">
+  <div id="barcode-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeBarcodeScanner()" style="display:none;">
     <div class="modal-content" style="max-width: 440px;">
       <div class="modal-header">
         <span class="modal-title">📷 סורק ברקודים (Hunter Artifact Scan)</span>
@@ -1233,7 +1232,7 @@
   </div>
 
   <!-- NEW PRODUCT / BARCODE QUICK-LEARN MODAL -->
-  <div id="new-product-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('new-product-modal')">
+  <div id="new-product-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('new-product-modal')" style="display:none;">
     <div class="modal-content" style="max-width: 440px;">
       <div class="modal-header">
         <span class="modal-title">💾 לימוד מוצר חדש (Hunter Food Registry)</span>
@@ -1282,7 +1281,7 @@
   </div>
 
   <!-- GARMIN BIOMETRICS MODAL (MULTI-CHANNEL) -->
-  <div id="garmin-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('garmin-modal')">
+  <div id="garmin-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('garmin-modal')" style="display:none;">
     <div class="modal-content" style="max-width: 520px;">
       <div class="modal-header">
         <span class="modal-title">⌚ סנכרון מדדי בריאות Garmin Venu 4</span>
@@ -1475,7 +1474,7 @@
   </div>
 
   <!-- ATTENT / CONCENTRATION POTION MODAL -->
-  <div id="attent-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('attent-modal')">
+  <div id="attent-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('attent-modal')" style="display:none;">
     <div class="modal-content" style="max-width: 440px; max-height: 90vh; overflow-y: auto;">
       <div class="modal-header">
         <span class="modal-title">💊 ניהול מנות פוקוס (אטנט / Attent)</span>
@@ -1561,7 +1560,7 @@
   </div>
 
   <!-- WORKOUT LOGGER MODAL -->
-  <div id="workout-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('workout-modal')">
+  <div id="workout-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('workout-modal')" style="display:none;">
     <div class="modal-content" style="max-width: 440px;">
       <div class="modal-header">
         <span class="modal-title">⚔️ רישום אימון ועליית סקילים (Workout Log)</span>
@@ -1609,7 +1608,7 @@
   </div>
 
   <!-- SUPPLEMENT CUSTOM MODAL -->
-  <div id="supplement-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('supplement-modal')">
+  <div id="supplement-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('supplement-modal')" style="display:none;">
     <div class="modal-content" style="max-width: 440px;">
       <div class="modal-header">
         <span class="modal-title">🧪 הוספת תוסף מותאם (Custom Elixir)</span>
@@ -1641,7 +1640,7 @@
   </div>
 
   <!-- ATTENT BIOMETRIC NORMALIZATION EXPLANATION MODAL -->
-  <div id="attent-norm-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('attent-norm-modal')">
+  <div id="attent-norm-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('attent-norm-modal')" style="display:none;">
     <div class="modal-content" style="max-width: 480px;">
       <div class="modal-header">
         <span class="modal-title">💊 מנוע ניטרול הטיית אטנט במדדי Garmin</span>
@@ -1697,7 +1696,7 @@
   </div>
 
   <!-- RESET & REBIRTH MODAL -->
-  <div id="reset-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('reset-modal')">
+  <div id="reset-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('reset-modal')" style="display:none;">
     <div class="modal-content" style="max-width: 470px;">
       <div class="modal-header">
         <span class="modal-title" style="color:#f87171;">⚠️ איפוס מערכת והתחלה מחדש</span>
@@ -1775,7 +1774,7 @@
   </div>
 
   <!-- SKILL LEVEL UP POPUP OVERLAY -->
-  <div id="skill-levelup-overlay" class="levelup-overlay">
+  <div id="skill-levelup-overlay" class="levelup-overlay" style="display:none;">
     <div class="levelup-card" style="border-color:var(--neon-green); box-shadow:0 0 35px rgba(16,185,129,0.5);">
       <div class="levelup-banner" style="color:var(--neon-green); text-shadow:0 0 15px rgba(16,185,129,0.8);">[ SKILL LEVEL UP! ]</div>
       <div class="levelup-sub" style="font-size:18px; margin-top:8px;">
@@ -1792,7 +1791,7 @@
   </div>
 
   <!-- LEVEL UP POPUP OVERLAY -->
-  <div id="levelup-overlay" class="levelup-overlay">
+  <div id="levelup-overlay" class="levelup-overlay" style="display:none;">
     <div class="levelup-card">
       <div class="levelup-banner">[ LEVEL UP ]</div>
       <div class="levelup-sub">הצייד עלה לרמה <span id="levelup-level-val" style="color:var(--hud-cyan); font-weight:900;">2</span>!</div>
@@ -1802,7 +1801,7 @@
   </div>
 
   <!-- RANK CONSTELLATION MODAL (Matching Image 4) -->
-  <div id="rank-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('rank-modal')">
+  <div id="rank-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('rank-modal')" style="display:none;">
     <div class="modal-content rank-modal-content">
       <div class="modal-header rank-header">
         <div class="rank-header-titles">
@@ -1856,7 +1855,7 @@
   </div>
 
   <!-- ACHIEVEMENTS & TROPHIES MODAL (Matching Image 2) -->
-  <div id="achievements-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('achievements-modal')">
+  <div id="achievements-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('achievements-modal')" style="display:none;">
     <div class="modal-content achievements-modal-content">
       <div class="modal-header">
         <div class="ach-header-titles">
@@ -1882,7 +1881,7 @@
   </div>
 
   <!-- ACTIVITY & PROGRESSION CALENDAR MODAL (לוח שנה היסטורי) -->
-  <div id="calendar-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('calendar-modal')">
+  <div id="calendar-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('calendar-modal')" style="display:none;">
     <div class="modal-content calendar-modal-content" style="max-width: 540px;">
       <div class="modal-header">
         <span class="modal-title">📅 יומן פעילות והתקדמות צייד כרונית</span>
@@ -1931,7 +1930,7 @@
   </div>
 
   <!-- ACHIEVEMENT UNLOCKED OVERLAY -->
-  <div id="achievement-unlocked-overlay" class="levelup-overlay">
+  <div id="achievement-unlocked-overlay" class="levelup-overlay" style="display:none;">
     <div class="levelup-card achievement-unlock-card">
       <div class="levelup-banner achievement-banner">[ ACHIEVEMENT UNLOCKED! ]</div>
       <div class="ach-unlocked-hex-box">
@@ -2410,6 +2409,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=31"></script>
+  <script src="/app.js?v=32"></script>
 </body>
 </html>
