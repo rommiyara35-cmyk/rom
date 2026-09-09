@@ -189,6 +189,32 @@ def get_hunter_shift_date(conn, client_date=None, force_date=False):
         return (base_date - datetime.timedelta(days=1)).isoformat()
     return base_date.isoformat()
 
+def safe_int(val, default=0):
+    if val is None or val == "":
+        return default
+    try:
+        if isinstance(val, (int, float)):
+            return int(val)
+        val_str = str(val).replace(",", "").strip()
+        import re
+        m = re.search(r"[-+]?\d+", val_str)
+        return int(m.group(0)) if m else default
+    except Exception:
+        return default
+
+def safe_float(val, default=0.0):
+    if val is None or val == "":
+        return default
+    try:
+        if isinstance(val, (int, float)):
+            return float(val)
+        val_str = str(val).replace(",", "").strip()
+        import re
+        m = re.search(r"[-+]?\d*\.?\d+", val_str)
+        return float(m.group(0)) if m else default
+    except Exception:
+        return default
+
 # -------------------------------------------------------------
 # Database Manager
 # -------------------------------------------------------------
@@ -1431,11 +1457,11 @@ class AttentBiometricNormalizer:
             normalized_biometrics (dict)
             normalization_meta (dict)
         """
-        raw_hr = int(garmin_raw.get("heart_rate", 68))
-        raw_rhr = int(garmin_raw.get("resting_hr", 58))
-        raw_stress = int(garmin_raw.get("stress_level", 28))
-        raw_bb = int(garmin_raw.get("body_battery", 75))
-        raw_sleep = int(garmin_raw.get("sleep_score", 82))
+        raw_hr = safe_int(garmin_raw.get("heart_rate"), 68)
+        raw_rhr = safe_int(garmin_raw.get("resting_hr"), 58)
+        raw_stress = safe_int(garmin_raw.get("stress_level"), 28)
+        raw_bb = safe_int(garmin_raw.get("body_battery"), 75)
+        raw_sleep = safe_int(garmin_raw.get("sleep_score"), 82)
 
         if not attent_info or not attent_info.get("is_active"):
             stress_state = "מנוחה (נמוך)" if raw_stress < 25 else ("נמוך-בינוני" if raw_stress < 50 else ("בינוני" if raw_stress < 75 else "גבוה"))
@@ -1445,15 +1471,15 @@ class AttentBiometricNormalizer:
                 "stress_level": raw_stress,
                 "body_battery": raw_bb,
                 "sleep_score": raw_sleep,
-                "sleep_hours": garmin_raw.get("sleep_hours", 7.2),
-                "steps": garmin_raw.get("steps", 8500),
-                "active_calories": garmin_raw.get("active_calories", 450),
-                "spo2_pct": garmin_raw.get("spo2_pct", 98),
-                "respiration_rpm": garmin_raw.get("respiration_rpm", 14),
-                "vo2_max": garmin_raw.get("vo2_max", 48),
-                "hrv_status": garmin_raw.get("hrv_status", "balanced"),
-                "sync_source": garmin_raw.get("sync_source", "manual"),
-                "sync_timestamp": garmin_raw.get("timestamp", "--:--"),
+                "sleep_hours": safe_float(garmin_raw.get("sleep_hours"), 7.2),
+                "steps": safe_int(garmin_raw.get("steps"), 8500),
+                "active_calories": safe_int(garmin_raw.get("active_calories"), 450),
+                "spo2_pct": safe_int(garmin_raw.get("spo2_pct"), 98),
+                "respiration_rpm": safe_int(garmin_raw.get("respiration_rpm"), 14),
+                "vo2_max": safe_int(garmin_raw.get("vo2_max"), 48),
+                "hrv_status": str(garmin_raw.get("hrv_status") or "balanced"),
+                "sync_source": str(garmin_raw.get("sync_source") or "manual"),
+                "sync_timestamp": str(garmin_raw.get("timestamp") or "--:--"),
                 "is_normalized": False,
                 "raw_stress": raw_stress,
                 "raw_rhr": raw_rhr,
@@ -1524,15 +1550,15 @@ class AttentBiometricNormalizer:
             "stress_level": norm_stress,
             "body_battery": norm_bb,
             "sleep_score": raw_sleep,
-            "sleep_hours": garmin_raw.get("sleep_hours", 7.2),
-            "steps": garmin_raw.get("steps", 8500),
-            "active_calories": garmin_raw.get("active_calories", 450),
-            "spo2_pct": garmin_raw.get("spo2_pct", 98),
-            "respiration_rpm": garmin_raw.get("respiration_rpm", 14),
-            "vo2_max": garmin_raw.get("vo2_max", 48),
-            "hrv_status": garmin_raw.get("hrv_status", "balanced"),
-            "sync_source": garmin_raw.get("sync_source", "manual"),
-            "sync_timestamp": garmin_raw.get("timestamp", "--:--"),
+            "sleep_hours": safe_float(garmin_raw.get("sleep_hours"), 7.2),
+            "steps": safe_int(garmin_raw.get("steps"), 8500),
+            "active_calories": safe_int(garmin_raw.get("active_calories"), 450),
+            "spo2_pct": safe_int(garmin_raw.get("spo2_pct"), 98),
+            "respiration_rpm": safe_int(garmin_raw.get("respiration_rpm"), 14),
+            "vo2_max": safe_int(garmin_raw.get("vo2_max"), 48),
+            "hrv_status": str(garmin_raw.get("hrv_status") or "balanced"),
+            "sync_source": str(garmin_raw.get("sync_source") or "manual"),
+            "sync_timestamp": str(garmin_raw.get("timestamp") or "--:--"),
             "is_normalized": True,
             "raw_stress": raw_stress,
             "raw_rhr": raw_rhr,
@@ -6301,16 +6327,24 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             for k in ["heart_rate", "resting_hr", "sleep_score", "sleep_hours",
                       "stress_level", "body_battery", "steps", "active_calories",
                       "spo2_pct", "respiration_rpm", "vo2_max", "hrv_status", "sync_source"]:
-                if k in bio:
+                if k in bio and bio[k] is not None and bio[k] != "":
                     merged[k] = bio[k]
-                elif k in body:
-                    merged[k] = body[k]
+                elif k in body and body[k] is not None and body[k] != "":
+                    clean = GarminDataEngine.clean_biometric_number(body[k])
+                    if clean is not None:
+                        merged[k] = clean
 
             if not merged.get("sync_source"):
                 merged["sync_source"] = body.get("source", "webhook" if "/webhook" in self.path else "manual")
 
             with Database.get_connection() as conn:
                 today = get_hunter_shift_date(conn)
+                _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, today)
+                smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(get_israel_now(), attent_info)
+                for k, v in smart_bio.items():
+                    if k not in merged or merged[k] is None or merged[k] == "":
+                        merged[k] = v
+
                 c = conn.cursor()
                 now_time = get_israel_now().strftime("%H:%M")
 
@@ -6327,7 +6361,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 updates = []
                 vals = []
                 for f in fields:
-                    if f in merged:
+                    if f in merged and merged[f] is not None and merged[f] != "":
                         updates.append(f"{f} = ?")
                         vals.append(merged[f])
 
@@ -6343,8 +6377,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 workout_logged = None
                 if activity and activity.get("name"):
                     act_name = activity["name"]
-                    act_cals = activity.get("calories", 300)
-                    act_dur = activity.get("duration_minutes", 35)
+                    act_cals = safe_int(activity.get("calories"), 300)
+                    act_dur = safe_int(activity.get("duration_minutes"), 35)
                     w_type = "cardio" if ("ריצה" in act_name or "run" in act_name.lower() or "אירובי" in act_name) else "strength"
 
                     c.execute("SELECT id FROM workout_logs WHERE date = ? AND title = ? ORDER BY id DESC LIMIT 1", (today, act_name))
@@ -6367,9 +6401,9 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                         }
 
                 # Award skill XP based on sleep quality and steps
-                sl_score = float(merged.get("sleep_score", 0))
-                sl_hours = float(merged.get("sleep_hours", 0))
-                steps = int(merged.get("steps", 0))
+                sl_score = safe_float(merged.get("sleep_score"), 0)
+                sl_hours = safe_float(merged.get("sleep_hours"), 0)
+                steps = safe_int(merged.get("steps"), 0)
                 if sl_score >= 75 or sl_hours >= 7.0:
                     HunterLevelingEngine.add_skill_exp(conn, "regeneration", 25)
                 if steps >= 8000:
