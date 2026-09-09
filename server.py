@@ -4286,6 +4286,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.handle_get_garmin_health()
         elif path == "/api/garmin/webhook-info":
             self.handle_get_garmin_webhook_info()
+        elif path in ["/api/garmin/webhook", "/api/garmin/sync", "/api/garmin/health-sync", "/api/garmin/smart-sync"]:
+            self.handle_garmin_webhook_get(query)
         elif path == "/api/skills":
             self.handle_get_skills()
         elif path == "/api/achievements":
@@ -4357,8 +4359,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.handle_restore_backup(body)
         elif path == "/api/garmin/quick-water":
             self.handle_garmin_water(body)
-        elif path in ["/api/garmin/health-sync", "/api/garmin/webhook"]:
-            self.handle_post_garmin_sync(body)
+        elif path in ["/api/garmin/health-sync", "/api/garmin/webhook", "/api/garmin/sync"]:
+            self.handle_garmin_webhook_post(body)
         elif path == "/api/garmin/upload-file":
             self.handle_garmin_upload_file(body)
         elif path == "/api/garmin/smart-sync":
@@ -6222,6 +6224,65 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         }
         self._set_headers()
         self.wfile.write(json.dumps(info, ensure_ascii=False).encode("utf-8"))
+
+    def handle_garmin_webhook_get(self, query):
+        try:
+            extracted = {}
+            mapping = {
+                "heart_rate": ["heart_rate", "hr"],
+                "resting_hr": ["resting_hr", "rhr"],
+                "sleep_score": ["sleep_score", "sleep"],
+                "sleep_hours": ["sleep_hours", "hours"],
+                "stress_level": ["stress_level", "stress"],
+                "body_battery": ["body_battery", "bb"],
+                "steps": ["steps", "step_count"],
+                "active_calories": ["active_calories", "calories", "cals"],
+                "spo2_pct": ["spo2_pct", "spo2"]
+            }
+            for field, aliases in mapping.items():
+                for a in aliases:
+                    if a in query:
+                        try:
+                            val = float(query[a][0])
+                            extracted[field] = int(val) if field not in ["sleep_hours"] else val
+                            break
+                        except Exception:
+                            pass
+
+            with Database.get_connection() as conn:
+                today = get_hunter_shift_date(conn)
+                _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, today)
+                smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(get_israel_now(), attent_info)
+                for k, v in smart_bio.items():
+                    if k not in extracted:
+                        extracted[k] = v
+
+            extracted["sync_source"] = "ios_shortcuts"
+            return self.handle_post_garmin_sync(extracted)
+        except Exception as e:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_garmin_webhook_post(self, body):
+        try:
+            if not isinstance(body, dict):
+                body = {}
+            has_metrics = any(f in body for f in ["heart_rate", "steps", "sleep_score", "body_battery", "stress_level"])
+            if not has_metrics:
+                with Database.get_connection() as conn:
+                    today = get_hunter_shift_date(conn)
+                    _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, today)
+                    smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(get_israel_now(), attent_info)
+                    for k, v in smart_bio.items():
+                        if k not in body:
+                            body[k] = v
+
+            if not body.get("sync_source"):
+                body["sync_source"] = "ios_shortcuts"
+            return self.handle_post_garmin_sync(body)
+        except Exception as e:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
 
     def handle_post_garmin_sync(self, body):
         try:
