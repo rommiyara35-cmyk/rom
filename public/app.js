@@ -192,7 +192,14 @@ const AppState = {
 
     // Setup Service Worker with force update
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js?v=30').then((reg) => {
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
+      navigator.serviceWorker.register('/service-worker.js?v=31').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
