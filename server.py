@@ -215,6 +215,37 @@ def safe_float(val, default=0.0):
     except Exception:
         return default
 
+def detect_food_fluid(food_name, serving_size_g, serving_count=1.0):
+    if not food_name or not serving_size_g:
+        return 0, None, None
+    fn = str(food_name).lower().strip()
+    total_g = float(serving_size_g) * float(serving_count)
+    if total_g <= 0:
+        return 0, None, None
+
+    if "קוקוס" in fn:
+        return int(round(total_g * 0.95)), "🥥", "מי קוקוס"
+    if any(k in fn for k in ["קפה", "אספרסו", "אמריקנו", "הפוך", "קפוצ'ינו", "נס קפה", "לאטה", "אייס קפה"]):
+        return int(round(total_g * 0.98)), "☕", "קפה"
+    if any(k in fn for k in ["תה", "חליטה", "קמומיל", "צ'אי", "מאצ'ה"]):
+        return int(round(total_g * 1.00)), "🍵", "תה/חליטה"
+    if any(k in fn for k in ["מיץ", "נקטר", "שייק פירות", "סמודי"]):
+        return int(round(total_g * 0.90)), "🧃", "מיץ/סמודי"
+    if any(k in fn for k in ["מרק", "ראמן", "בוליו", "ציר"]):
+        return int(round(total_g * 0.92)), "🥣", "מרק"
+    if any(k in fn for k in ["חלב", "שייק", "אקטימל", "רוויון", "קפיר", "שוקו"]):
+        return int(round(total_g * 0.88)), "🥛", "חלב/שייק"
+    if any(k in fn for k in ["אלקטרוליט", "איזוטוני"]):
+        return int(round(total_g * 1.00)), "⚡", "אלקטרוליטים"
+    if any(k in fn for k in ["קולה", "סודה", "זירו", "ספרייט", "פאנטה", "מוגז", "משקה אנרגיה"]):
+        return int(round(total_g * 0.95)), "🥤", "משקה מוגז"
+    if any(k in fn for k in ["מים", "מי "]):
+        return int(round(total_g * 1.00)), "💧", "מים"
+    if any(k in fn for k in ["משקה", "בירה", "סיידר", "קומבוצ'ה"]):
+        return int(round(total_g * 0.90)), "🍺", "משקה"
+        
+    return 0, None, None
+
 # -------------------------------------------------------------
 # Database Manager
 # -------------------------------------------------------------
@@ -4989,6 +5020,25 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             c.execute("SELECT * FROM daily_logs WHERE date = ? ORDER BY id DESC", (today,))
             meals = [dict(r) for r in c.fetchall()]
 
+            # Auto-reconcile fluids from daily_logs into water_logs if missing (e.g. coconut water, soups, shakes)
+            reconciled = False
+            for m in meals:
+                m_fn = m.get("food_name", "")
+                m_serv_g = safe_float(m.get("serving_size_g"), 0)
+                m_serv_cnt = safe_float(m.get("serving_count"), 1.0)
+                if m_serv_g > 0:
+                    fl_ml, fl_icon, _ = detect_food_fluid(m_fn, m_serv_g, m_serv_cnt)
+                    if fl_ml >= 40:
+                        c.execute("SELECT id FROM water_logs WHERE date = ? AND beverage_name = ?", (today, f"{m_fn} (נוזלים)"))
+                        if not c.fetchone():
+                            c.execute("""
+                            INSERT INTO water_logs (date, amount_ml, timestamp, beverage_type, beverage_name, beverage_icon)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                            """, (today, fl_ml, m.get("timestamp", "00:00"), "food_fluid", f"{m_fn} (נוזלים)", fl_icon or "💧"))
+                            reconciled = True
+            if reconciled:
+                conn.commit()
+
             c.execute("SELECT COALESCE(SUM(amount_ml), 0) as total_water FROM water_logs WHERE date = ?", (today,))
             total_water = c.fetchone()["total_water"]
 
@@ -5230,20 +5280,17 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 # Award XP to Nutrition Mastery skill
                 skill_res = HunterLevelingEngine.add_skill_exp(conn, "nutrition_mastery", 15 + int(protein * 0.3))
 
-                # Scientific Auto-Hydration: Check if logged food is a fluid/beverage (e.g. juice, coffee, tea, soup, shake)
-                fluid_keywords = ["מיץ", "קפה", "תה", "חלב", "שייק", "משקה", "מרק", "קולה", "סודה", "שוקו"]
-                is_fluid = any(kw in food_name for kw in fluid_keywords) or body.get("is_fluid", False)
+                # Scientific Auto-Hydration: Check if logged food is a fluid/beverage (coconut water, tea, juice, coffee, etc.)
+                fl_ml, fl_icon, fl_cat = detect_food_fluid(food_name, serving_size_g, serving_count)
                 added_water_ml = 0
-                if is_fluid and serving_size_g > 0:
-                    fluid_factor = 0.90 if "מיץ" in food_name else (0.98 if "קפה" in food_name else 0.88)
-                    added_water_ml = int(round(serving_size_g * serving_count * fluid_factor))
-                    if added_water_ml >= 40:
-                        icon = "🧃" if "מיץ" in food_name else ("☕" if "קפה" in food_name else ("🥛" if ("חלב" in food_name or "שייק" in food_name) else "💧"))
-                        c.execute("""
-                        INSERT INTO water_logs (date, amount_ml, timestamp, beverage_type, beverage_name, beverage_icon)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                        """, (today, added_water_ml, now_time, "food_fluid", f"{food_name} (נוזלים)", icon))
-                        conn.commit()
+                if fl_ml >= 40 or body.get("is_fluid", False):
+                    added_water_ml = fl_ml if fl_ml >= 40 else int(round(serving_size_g * serving_count * 0.90))
+                    icon = fl_icon or "💧"
+                    c.execute("""
+                    INSERT INTO water_logs (date, amount_ml, timestamp, beverage_type, beverage_name, beverage_icon)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """, (today, added_water_ml, now_time, "food_fluid", f"{food_name} (נוזלים)", icon))
+                    conn.commit()
 
                 # Evaluate if penalty is triggered by this meal (e.g. fat overrun on cut)
                 penalty_applied = HunterPenaltyEngine.evaluate_and_apply(conn, today)
@@ -5265,6 +5312,10 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
     def handle_delete_log(self, log_id):
         with Database.get_connection() as conn:
             c = conn.cursor()
+            c.execute("SELECT food_name, date FROM daily_logs WHERE id=?", (log_id,))
+            row = c.fetchone()
+            if row:
+                c.execute("DELETE FROM water_logs WHERE date = ? AND beverage_name = ?", (row["date"], f"{row['food_name']} (נוזלים)"))
             c.execute("DELETE FROM daily_logs WHERE id=?", (log_id,))
             conn.commit()
         self._set_headers(200)

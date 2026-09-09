@@ -893,7 +893,8 @@ const AppState = {
           beverage_type: bevType,
           beverage_name: bevName,
           beverage_icon: bevIcon,
-          caffeine_mg: caffeineMg
+          caffeine_mg: caffeineMg,
+          client_date: this.shiftDate || null
         })
       });
       const data = await res.json();
@@ -1085,7 +1086,11 @@ const AppState = {
         this.checkNewlyUnlocked(data.newly_unlocked_achievements);
       }
 
-      this.showToast(`[SYSTEM: ארוחה נרשמה בהצלחה! (+${data.exp_awarded || 25} EXP)]`);
+      if (data.added_water_ml && data.added_water_ml > 0) {
+        this.showToast(`💧 זוהו ${data.added_water_ml} מ״ל נוזלים מ-${payload.food_name} ונוספו אוטומטית להידרציה!`);
+      } else {
+        this.showToast(`[SYSTEM: ארוחה נרשמה בהצלחה! (+${data.exp_awarded || 25} EXP)]`);
+      }
 
       await this.fetchTodayData();
       await this.fetchSkills();
