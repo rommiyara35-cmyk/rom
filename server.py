@@ -1047,16 +1047,32 @@ class GarminDataEngine:
     universal webhooks (iOS Shortcuts / Apple Health), and intelligent diurnal simulation.
     """
     @staticmethod
-    def clean_biometric_number(val):
+    def clean_biometric_number(val, mode="latest"):
         if val is None:
             return None
         if isinstance(val, (int, float)):
             return val
+        if isinstance(val, dict):
+            for k in ["value", "qty", "val", "count", "amount", "number", "Value", "Quantity", "sample"]:
+                if k in val and val[k] is not None:
+                    return GarminDataEngine.clean_biometric_number(val[k], mode=mode)
+            for v in val.values():
+                c = GarminDataEngine.clean_biometric_number(v, mode=mode)
+                if c is not None:
+                    return c
+            return None
         if isinstance(val, list):
             if not val:
                 return None
-            cleaned = [GarminDataEngine.clean_biometric_number(x) for x in val if GarminDataEngine.clean_biometric_number(x) is not None]
-            return sum(cleaned) if cleaned else None
+            cleaned = [GarminDataEngine.clean_biometric_number(x, mode=mode) for x in val if GarminDataEngine.clean_biometric_number(x, mode=mode) is not None]
+            if not cleaned:
+                return None
+            if mode == "sum":
+                return sum(cleaned)
+            elif mode == "max":
+                return max(cleaned)
+            else:
+                return cleaned[-1]
         if isinstance(val, str):
             val = val.replace(",", "").strip()
             import re
@@ -1078,7 +1094,7 @@ class GarminDataEngine:
         # Steps
         for k in ["steps", "step_count", "stepCount", "dailySteps", "totalSteps"]:
             if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="sum")
                 if clean is not None:
                     bio["steps"] = int(clean)
                     break
@@ -1086,7 +1102,7 @@ class GarminDataEngine:
         # Heart Rate
         for k in ["heart_rate", "heartRate", "hr", "currentHeartRate", "bpm"]:
             if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
                 if clean is not None:
                     bio["heart_rate"] = int(clean)
                     break
@@ -1094,7 +1110,7 @@ class GarminDataEngine:
         # Resting HR
         for k in ["resting_hr", "restingHeartRate", "rhr", "resting_heart_rate"]:
             if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
                 if clean is not None:
                     bio["resting_hr"] = int(clean)
                     break
@@ -1102,7 +1118,7 @@ class GarminDataEngine:
         # Sleep Score & Hours
         for k in ["sleep_score", "sleepScore", "sleep_quality", "sleep"]:
             if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
                 if clean is not None:
                     val = float(clean)
                     if val <= 14.0 and "sleep_hours" not in bio:
@@ -1113,7 +1129,7 @@ class GarminDataEngine:
 
         for k in ["sleep_hours", "sleepDurationHours", "sleepHours", "sleep_duration", "asleep_hours"]:
             if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
                 if clean is not None:
                     bio["sleep_hours"] = round(float(clean), 1)
                     break
@@ -1121,7 +1137,7 @@ class GarminDataEngine:
         # Stress
         for k in ["stress_level", "stressScore", "stress", "stress_score"]:
             if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
                 if clean is not None:
                     bio["stress_level"] = int(clean)
                     break
@@ -1129,7 +1145,7 @@ class GarminDataEngine:
         # Body Battery
         for k in ["body_battery", "bodyBattery", "bb", "body_battery_pct"]:
             if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
                 if clean is not None:
                     bio["body_battery"] = int(clean)
                     break
@@ -1137,7 +1153,7 @@ class GarminDataEngine:
         # Active Calories
         for k in ["active_calories", "activeEnergyBurned", "activeCalories", "active_cals", "active_burn"]:
             if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="sum")
                 if clean is not None:
                     bio["active_calories"] = int(clean)
                     break
@@ -1145,7 +1161,7 @@ class GarminDataEngine:
         # SpO2
         for k in ["spo2_pct", "oxygenSaturation", "spo2", "blood_oxygen"]:
             if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
                 if clean is not None:
                     val = float(clean)
                     if val <= 1.0:
@@ -1156,7 +1172,7 @@ class GarminDataEngine:
         # Respiration
         for k in ["respiration_rpm", "respirationRate", "respiration"]:
             if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
                 if clean is not None:
                     bio["respiration_rpm"] = int(clean)
                     break
@@ -6324,54 +6340,38 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 c = conn.cursor()
                 now_time = get_israel_now().strftime("%H:%M")
 
-                c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
-                row = c.fetchone()
-                if not row:
-                    _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, today)
-                    smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(get_israel_now(), attent_info)
-                    init_data = dict(smart_bio)
-                    init_data.update(merged)
-                    c.execute("""
-                    INSERT INTO garmin_health_logs (
-                        date, timestamp, heart_rate, resting_hr, sleep_score, sleep_hours,
-                        stress_level, body_battery, steps, active_calories, spo2_pct,
-                        respiration_rpm, vo2_max, hrv_status, sync_source
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        today, now_time,
-                        init_data.get("heart_rate", 68),
-                        init_data.get("resting_hr", 58),
-                        init_data.get("sleep_score", 80),
-                        init_data.get("sleep_hours", 7.0),
-                        init_data.get("stress_level", 25),
-                        init_data.get("body_battery", 75),
-                        init_data.get("steps", 0),
-                        init_data.get("active_calories", 0),
-                        init_data.get("spo2_pct", 98),
-                        init_data.get("respiration_rpm", 14),
-                        init_data.get("vo2_max", 48),
-                        init_data.get("hrv_status", "balanced"),
-                        init_data.get("sync_source", merged.get("sync_source", "manual"))
-                    ))
-                    conn.commit()
-                else:
-                    fields = ["heart_rate", "resting_hr", "sleep_score", "sleep_hours",
-                              "stress_level", "body_battery", "steps", "active_calories",
-                              "spo2_pct", "respiration_rpm", "vo2_max", "hrv_status", "sync_source"]
-                    updates = []
-                    vals = []
-                    for f in fields:
-                        if f in merged and merged[f] is not None and merged[f] != "":
-                            updates.append(f"{f} = ?")
-                            vals.append(merged[f])
+                # Atomically ensure today's record exists without ANY UNIQUE constraint race conditions
+                c.execute("""
+                INSERT OR IGNORE INTO garmin_health_logs (
+                    date, timestamp, heart_rate, resting_hr, sleep_score, sleep_hours,
+                    stress_level, body_battery, steps, active_calories, spo2_pct,
+                    respiration_rpm, vo2_max, hrv_status, sync_source
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    today, now_time,
+                    68, 58, 80, 7.0, 25, 75, 0, 0, 98, 14, 48, "balanced",
+                    merged.get("sync_source", "manual")
+                ))
 
-                    if updates:
-                        updates.append("timestamp = ?")
-                        vals.append(now_time)
-                        updates.append("updated_at = CURRENT_TIMESTAMP")
-                        vals.append(today)
-                        c.execute(f"UPDATE garmin_health_logs SET {', '.join(updates)} WHERE date = ?", vals)
-                        conn.commit()
+                fields = ["heart_rate", "resting_hr", "sleep_score", "sleep_hours",
+                          "stress_level", "body_battery", "steps", "active_calories",
+                          "spo2_pct", "respiration_rpm", "vo2_max", "hrv_status", "sync_source"]
+                updates = []
+                vals = []
+                for f in fields:
+                    if f in merged and merged[f] is not None and merged[f] != "":
+                        updates.append(f"{f} = ?")
+                        vals.append(merged[f])
+
+                if updates:
+                    updates.append("timestamp = ?")
+                    vals.append(now_time)
+                    updates.append("updated_at = CURRENT_TIMESTAMP")
+                    vals.append(today)
+                    c.execute(f"UPDATE garmin_health_logs SET {', '.join(updates)} WHERE date = ?", vals)
+                else:
+                    c.execute("UPDATE garmin_health_logs SET timestamp = ?, updated_at = CURRENT_TIMESTAMP WHERE date = ?", (now_time, today))
+                conn.commit()
 
                 # Activity / Workout Auto-Logging
                 workout_logged = None
