@@ -110,41 +110,19 @@ const AppState = {
   aiRecommendations: [],
   currentQuickBioField: 'height',
 
-  // --- iOS Native Haptic Feedback & Feel ---
-  triggerHaptic(type = 'light') {
-    try {
-      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-        if (type === 'light') navigator.vibrate(10);
-        else if (type === 'medium') navigator.vibrate(22);
-        else if (type === 'heavy') navigator.vibrate([28, 35, 28]);
-        else if (type === 'success') navigator.vibrate([14, 45, 22]);
-        else if (type === 'error') navigator.vibrate([35, 45, 35, 45]);
-      }
-    } catch (e) {}
-  },
+  // --- Native Haptic Feedback (no-op for clean touch) ---
+  triggerHaptic(type = 'light') {},
 
-  // --- Modal Scroll Locking (Clean, zero touch freeze on iOS) ---
+  // --- Modal Scroll Locking ---
   lockBodyScroll() {
-    document.body.classList.add('modal-open');
+    document.body.style.overflow = 'hidden';
   },
 
   unlockBodyScroll() {
-    document.body.classList.remove('modal-open');
-    document.body.style.position = '';
-    document.body.style.top = '';
-    document.body.style.left = '';
-    document.body.style.right = '';
-    document.body.style.width = '';
     document.body.style.overflow = '';
   },
 
   forceUnlockBody() {
-    document.body.classList.remove('modal-open');
-    document.body.style.position = '';
-    document.body.style.top = '';
-    document.body.style.left = '';
-    document.body.style.right = '';
-    document.body.style.width = '';
     document.body.style.overflow = '';
     document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop').forEach(m => {
       m.classList.remove('active');
@@ -214,7 +192,7 @@ const AppState = {
 
     // Setup Service Worker with force update
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js?v=29').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=30').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -1150,12 +1128,10 @@ const AppState = {
       if (el) el.addEventListener('input', () => this.updateAwakeningPreview());
     });
 
-    // Close any modal on backdrop click or touch (excluding fullscreen awakening overlay)
+    // Close any modal on backdrop click (excluding fullscreen awakening overlay)
     document.querySelectorAll('.modal-overlay, .ai-consult-modal-overlay, .solo-modal-backdrop').forEach(modal => {
-      const dismissBackdrop = (e) => {
+      modal.addEventListener('click', (e) => {
         if (e.target === modal) {
-          e.preventDefault();
-          e.stopPropagation();
           if (modal.id === 'ai-consultation-modal') {
             AppState.closeAIConsultationModal();
           } else if (modal.id === 'quick-biometrics-modal') {
@@ -1166,9 +1142,7 @@ const AppState = {
             AppState.closeModal(modal.id);
           }
         }
-      };
-      modal.addEventListener('click', dismissBackdrop);
-      modal.addEventListener('touchend', dismissBackdrop, { passive: false });
+      });
     });
 
     // Close active modal on Escape key
@@ -1511,13 +1485,11 @@ const AppState = {
 
     overlay.classList.add('active');
     overlay.style.display = 'block';
-    overlay.style.pointerEvents = 'auto';
     overlay.style.visibility = 'visible';
     overlay.style.opacity = '1';
     overlay.scrollTop = 0;
 
     this.lockBodyScroll();
-    this.triggerHaptic('light');
 
     // Auto-scroll chat stream to bottom safely
     setTimeout(() => {
@@ -1527,13 +1499,11 @@ const AppState = {
   },
 
   closeFirstTimeAwakening() {
-    this.triggerHaptic('light');
     localStorage.setItem('hunter_awakened', 'true');
     const overlay = document.getElementById('first-time-awakening-overlay');
     if (overlay) {
       overlay.classList.remove('active');
       overlay.style.display = 'none';
-      overlay.style.pointerEvents = 'none';
     }
     this.unlockBodyScroll();
   },

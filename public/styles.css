@@ -31,32 +31,11 @@ html {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent !important;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Touch manipulation only on interactive elements to prevent 300ms delay without blocking page scroll */
-button, input, select, textarea, a, .clickable, .hud-btn-icon, .nav-tab-item, .chip-item, .preset-water-btn, .macro-pill, .dose-pill-btn, .action-btn-primary, .action-btn-secondary {
-  touch-action: manipulation;
-}
-
-/* Prevent accidental text selection on UI controls */
-button, .hud-btn-icon, .nav-tab-item, .bottom-nav-bar, .system-header {
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-input, textarea, [contenteditable="true"] {
-  -webkit-user-select: text !important;
-  user-select: text !important;
-  -webkit-touch-callout: default !important;
-  font-size: 16px !important; /* Stops iOS Safari from zooming in on focus */
-}
-
-select {
+input, textarea, select {
   font-size: 16px !important;
-  -webkit-appearance: none;
-  appearance: none;
 }
 
 body {
@@ -65,18 +44,14 @@ body {
   color: var(--text-primary);
   font-family: var(--font-system);
   min-height: 100vh;
-  min-height: 100dvh;
+  min-height: -webkit-fill-available;
   margin: 0;
-  padding: max(env(safe-area-inset-top, 0px), 8px) max(env(safe-area-inset-right, 0px), 12px) calc(90px + env(safe-area-inset-bottom, 20px)) max(env(safe-area-inset-left, 0px), 12px);
+  padding: max(env(safe-area-inset-top, 12px), 12px) 14px calc(90px + env(safe-area-inset-bottom, 20px)) 14px;
+  overflow-x: hidden;
   direction: rtl; /* Hebrew first, clean English terms */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-overflow-scrolling: touch;
-}
-
-/* Prevents background page scrolling when modal is open */
-body.modal-open {
-  overflow: hidden !important;
 }
 
 /* System Container */
@@ -5102,22 +5077,6 @@ textarea {
   }
 }
 
-/* iOS Native Tap Feedback */
-button:active,
-.bottom-nav-item:active,
-.top-bar-chip:active,
-.hud-btn-icon:active,
-.water-quick-btn:active,
-.dose-pill-btn:active,
-.floating-ai-consult-btn:active,
-.log-recommended-meal-btn:active,
-.weekly-action-btn:active,
-.penalty-redeem-btn:active {
-  transform: scale(0.96) !important;
-  opacity: 0.82 !important;
-  transition: transform 0.08s ease, opacity 0.08s ease !important;
-}
-
   /* Handle bar indicator for bottom sheet */
   .modal-header::before {
     content: "";
@@ -5130,16 +5089,6 @@ button:active,
     background: rgba(255, 255, 255, 0.25);
     border-radius: 4px;
     pointer-events: none !important;
-  }
-
-  /* Touch-friendly buttons and inputs */
-  button, 
-  .action-btn-primary, 
-  .action-btn-secondary,
-  .quick-potion-btn,
-  .dose-pill-btn {
-    min-height: 44px; /* Apple Human Interface Guidelines 44x44 target */
-    touch-action: manipulation;
   }
 
   /* Food chat input on iPhone */
@@ -5190,17 +5139,13 @@ button:active,
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
   padding: max(env(safe-area-inset-top, 0px), 16px) 16px calc(90px + env(safe-area-inset-bottom, 24px)) 16px;
   direction: rtl;
   display: none;
-  pointer-events: none;
-  cursor: default;
 }
 
 .first-time-awakening-overlay.active {
   display: block !important;
-  pointer-events: auto !important;
 }
 
 .awakening-screen-container {
@@ -7507,20 +7452,6 @@ input:focus, select:focus, textarea:focus {
 
 .penalty-redeem-btn:hover {
   filter: brightness(1.15);
-}
-
-/* ==========================================================================
-   iOS Safari Native App Hardening (Zero Browser Quirks)
-   ========================================================================== */
-
-/* 1. Prevent iOS Auto-Zoom on Any Form Input */
-input, select, textarea, [contenteditable="true"] {
-  font-size: 16px !important;
-}
-
-/* 2. Lock background scroll cleanly without blocking touch */
-body.modal-open {
-  overflow: hidden !important;
 }
 
 
