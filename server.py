@@ -1021,6 +1021,29 @@ class GarminDataEngine:
     universal webhooks (iOS Shortcuts / Apple Health), and intelligent diurnal simulation.
     """
     @staticmethod
+    def clean_biometric_number(val):
+        if val is None:
+            return None
+        if isinstance(val, (int, float)):
+            return val
+        if isinstance(val, list):
+            if not val:
+                return None
+            cleaned = [GarminDataEngine.clean_biometric_number(x) for x in val if GarminDataEngine.clean_biometric_number(x) is not None]
+            return sum(cleaned) if cleaned else None
+        if isinstance(val, str):
+            val = val.replace(",", "").strip()
+            import re
+            m = re.search(r"[-+]?\d*\.?\d+", val)
+            if m:
+                try:
+                    num = float(m.group(0))
+                    return int(num) if num.is_integer() else num
+                except Exception:
+                    pass
+        return None
+
+    @staticmethod
     def parse_universal_payload(payload):
         if not isinstance(payload, dict):
             return {}, {}
@@ -1029,107 +1052,96 @@ class GarminDataEngine:
         # Steps
         for k in ["steps", "step_count", "stepCount", "dailySteps", "totalSteps"]:
             if k in payload and payload[k] is not None:
-                try:
-                    bio["steps"] = int(float(payload[k]))
+                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                if clean is not None:
+                    bio["steps"] = int(clean)
                     break
-                except (ValueError, TypeError):
-                    pass
 
         # Heart Rate
         for k in ["heart_rate", "heartRate", "hr", "currentHeartRate", "bpm"]:
             if k in payload and payload[k] is not None:
-                try:
-                    bio["heart_rate"] = int(float(payload[k]))
+                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                if clean is not None:
+                    bio["heart_rate"] = int(clean)
                     break
-                except (ValueError, TypeError):
-                    pass
 
         # Resting HR
         for k in ["resting_hr", "restingHeartRate", "rhr", "resting_heart_rate"]:
             if k in payload and payload[k] is not None:
-                try:
-                    bio["resting_hr"] = int(float(payload[k]))
+                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                if clean is not None:
+                    bio["resting_hr"] = int(clean)
                     break
-                except (ValueError, TypeError):
-                    pass
 
         # Sleep Score & Hours
         for k in ["sleep_score", "sleepScore", "sleep_quality", "sleep"]:
             if k in payload and payload[k] is not None:
-                try:
-                    val = float(payload[k])
-                    if val <= 10.0 and "sleep_hours" not in bio:
+                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                if clean is not None:
+                    val = float(clean)
+                    if val <= 14.0 and "sleep_hours" not in bio:
                         bio["sleep_hours"] = round(val, 1)
                     else:
                         bio["sleep_score"] = int(val)
                     break
-                except (ValueError, TypeError):
-                    pass
 
         for k in ["sleep_hours", "sleepDurationHours", "sleepHours", "sleep_duration", "asleep_hours"]:
             if k in payload and payload[k] is not None:
-                try:
-                    bio["sleep_hours"] = round(float(payload[k]), 1)
+                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                if clean is not None:
+                    bio["sleep_hours"] = round(float(clean), 1)
                     break
-                except (ValueError, TypeError):
-                    pass
 
         # Stress
         for k in ["stress_level", "stressScore", "stress", "stress_score"]:
             if k in payload and payload[k] is not None:
-                try:
-                    bio["stress_level"] = int(float(payload[k]))
+                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                if clean is not None:
+                    bio["stress_level"] = int(clean)
                     break
-                except (ValueError, TypeError):
-                    pass
 
         # Body Battery
         for k in ["body_battery", "bodyBattery", "bb", "body_battery_pct"]:
             if k in payload and payload[k] is not None:
-                try:
-                    bio["body_battery"] = int(float(payload[k]))
+                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                if clean is not None:
+                    bio["body_battery"] = int(clean)
                     break
-                except (ValueError, TypeError):
-                    pass
 
         # Active Calories
         for k in ["active_calories", "activeEnergyBurned", "activeCalories", "active_cals", "active_burn"]:
             if k in payload and payload[k] is not None:
-                try:
-                    bio["active_calories"] = int(float(payload[k]))
+                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                if clean is not None:
+                    bio["active_calories"] = int(clean)
                     break
-                except (ValueError, TypeError):
-                    pass
 
         # SpO2
         for k in ["spo2_pct", "oxygenSaturation", "spo2", "blood_oxygen"]:
             if k in payload and payload[k] is not None:
-                try:
-                    val = float(payload[k])
+                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                if clean is not None:
+                    val = float(clean)
                     if val <= 1.0:
                         val = val * 100.0
                     bio["spo2_pct"] = int(val)
                     break
-                except (ValueError, TypeError):
-                    pass
 
         # Respiration
         for k in ["respiration_rpm", "respirationRate", "respiration"]:
             if k in payload and payload[k] is not None:
-                try:
-                    bio["respiration_rpm"] = int(float(payload[k]))
+                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                if clean is not None:
+                    bio["respiration_rpm"] = int(clean)
                     break
-                except (ValueError, TypeError):
-                    pass
 
         # VO2 Max
         for k in ["vo2_max", "vo2Max", "vo2"]:
             if k in payload and payload[k] is not None:
-                try:
-                    bio["vo2_max"] = int(float(payload[k]))
+                clean = GarminDataEngine.clean_biometric_number(payload[k])
+                if clean is not None:
+                    bio["vo2_max"] = int(clean)
                     break
-                except (ValueError, TypeError):
-                    pass
 
         # HRV Status
         for k in ["hrv_status", "hrvStatus", "hrv"]:
@@ -6242,12 +6254,10 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             for field, aliases in mapping.items():
                 for a in aliases:
                     if a in query:
-                        try:
-                            val = float(query[a][0])
-                            extracted[field] = int(val) if field not in ["sleep_hours"] else val
+                        clean = GarminDataEngine.clean_biometric_number(query[a])
+                        if clean is not None:
+                            extracted[field] = int(clean) if field not in ["sleep_hours"] else round(float(clean), 1)
                             break
-                        except Exception:
-                            pass
 
             with Database.get_connection() as conn:
                 today = get_hunter_shift_date(conn)
