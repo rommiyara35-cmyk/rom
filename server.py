@@ -4548,7 +4548,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                         self._set_headers(200)
                         self.wfile.write(json.dumps({"status": "deleted", "id": param_id}, ensure_ascii=False).encode("utf-8"))
                         return
-                self.handle_delete_water(water_id)
+                date_param = parsed_query.get("date", [None])[0]
+                self.handle_delete_water(water_id, date_param)
             except Exception as e:
                 self._set_headers(400)
                 self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
@@ -5456,9 +5457,9 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             "leveling": lvl_res
         }, ensure_ascii=False).encode("utf-8"))
 
-    def handle_delete_water(self, water_id=None):
+    def handle_delete_water(self, water_id=None, date_param=None):
         with Database.get_connection() as conn:
-            today = get_hunter_shift_date(conn)
+            today = get_hunter_shift_date(conn, date_param)
             c = conn.cursor()
             if water_id is not None:
                 c.execute("DELETE FROM water_logs WHERE id = ?", (water_id,))
