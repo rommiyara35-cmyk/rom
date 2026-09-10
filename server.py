@@ -4481,30 +4481,56 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         path = parsed.path
         if path.startswith("/api/nutrition/log/") or path == "/api/nutrition/log":
             try:
+                parsed_query = parse_qs(parsed.query)
+                name_param = parsed_query.get("name", [None])[0] or parsed_query.get("food_name", [None])[0]
                 param_id = path.split("/")[-1] if path.startswith("/api/nutrition/log/") else None
                 if not param_id or param_id == "log":
-                    parsed_query = parse_qs(parsed.query)
                     param_id = parsed_query.get("id", [None])[0]
+
+                if name_param:
+                    with Database.get_connection() as conn:
+                        today = get_hunter_shift_date(conn, parsed_query.get("date", [None])[0])
+                        c = conn.cursor()
+                        c.execute("DELETE FROM daily_logs WHERE date = ? AND food_name = ?", (today, name_param))
+                        c.execute("DELETE FROM water_logs WHERE date = ? AND (beverage_name = ? OR beverage_name = ? OR beverage_name LIKE ?)",
+                                  (today, f"{name_param} (נוזלים)", name_param, f"%{name_param}%"))
+                        conn.commit()
+                    self._set_headers(200)
+                    self.wfile.write(json.dumps({"status": "deleted", "food_name": name_param}, ensure_ascii=False).encode("utf-8"))
+                    return
+
                 if param_id:
                     try:
                         log_id = int(param_id)
                         self.handle_delete_log(log_id)
                     except ValueError:
-                        # Offline ID (e.g. off_...) or string ID - already deleted locally, succeed gracefully
                         self._set_headers(200)
                         self.wfile.write(json.dumps({"status": "deleted", "id": param_id}, ensure_ascii=False).encode("utf-8"))
                 else:
                     self._set_headers(400)
-                    self.wfile.write(json.dumps({"error": "Missing log id"}, ensure_ascii=False).encode("utf-8"))
+                    self.wfile.write(json.dumps({"error": "Missing log id or name"}, ensure_ascii=False).encode("utf-8"))
             except Exception as e:
                 self._set_headers(400)
                 self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
         elif path == "/api/nutrition/water" or path.startswith("/api/nutrition/water/"):
             try:
+                parsed_query = parse_qs(parsed.query)
+                name_param = parsed_query.get("name", [None])[0] or parsed_query.get("beverage_name", [None])[0]
                 param_id = path.split("/")[-1] if path.startswith("/api/nutrition/water/") else None
                 if not param_id or param_id == "water":
-                    parsed_query = parse_qs(parsed.query)
                     param_id = parsed_query.get("id", [None])[0]
+
+                if name_param:
+                    with Database.get_connection() as conn:
+                        today = get_hunter_shift_date(conn, parsed_query.get("date", [None])[0])
+                        c = conn.cursor()
+                        c.execute("DELETE FROM water_logs WHERE date = ? AND (beverage_name = ? OR beverage_name LIKE ?)",
+                                  (today, name_param, f"%{name_param}%"))
+                        conn.commit()
+                    self._set_headers(200)
+                    self.wfile.write(json.dumps({"status": "deleted", "beverage_name": name_param}, ensure_ascii=False).encode("utf-8"))
+                    return
+
                 water_id = None
                 if param_id:
                     try:
@@ -5063,24 +5089,16 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             c.execute("SELECT * FROM daily_logs WHERE date = ? ORDER BY id DESC", (today,))
             meals = [dict(r) for r in c.fetchall()]
 
-            # Auto-reconcile fluids from daily_logs into water_logs if missing (e.g. coconut water, soups, shakes)
-            reconciled = False
-            for m in meals:
-                m_fn = m.get("food_name", "")
-                m_serv_g = safe_float(m.get("serving_size_g"), 0)
-                m_serv_cnt = safe_float(m.get("serving_count"), 1.0)
-                if m_serv_g > 0:
-                    fl_ml, fl_icon, _ = detect_food_fluid(m_fn, m_serv_g, m_serv_cnt)
-                    if fl_ml >= 40:
-                        c.execute("SELECT id FROM water_logs WHERE date = ? AND beverage_name = ?", (today, f"{m_fn} (נוזלים)"))
-                        if not c.fetchone():
-                            c.execute("""
-                            INSERT INTO water_logs (date, amount_ml, timestamp, beverage_type, beverage_name, beverage_icon)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                            """, (today, fl_ml, m.get("timestamp", "00:00"), "food_fluid", f"{m_fn} (נוזלים)", fl_icon or "💧"))
-                            reconciled = True
-            if reconciled:
-                conn.commit()
+            # Clean up orphaned food_fluid water logs if the corresponding food meal was deleted
+            active_foods = set(m.get("food_name", "").strip() for m in meals if m.get("food_name"))
+            c.execute("SELECT id, beverage_name FROM water_logs WHERE date = ? AND beverage_type = 'food_fluid'", (today,))
+            for fr in c.fetchall():
+                b_name = fr["beverage_name"] or ""
+                # Strip ' (נוזלים)' to check matching food name
+                base_name = b_name.replace(" (נוזלים)", "").strip()
+                if base_name not in active_foods:
+                    c.execute("DELETE FROM water_logs WHERE id = ?", (fr["id"],))
+            conn.commit()
 
             c.execute("SELECT COALESCE(SUM(amount_ml), 0) as total_water FROM water_logs WHERE date = ?", (today,))
             total_water = c.fetchone()["total_water"]
@@ -5361,6 +5379,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             if row:
                 food_name = row["food_name"]
                 fn = food_name.strip()
+                dt = row["date"]
                 # Delete any associated fluid/water logs created for this food entry
                 c.execute("""
                     DELETE FROM water_logs 
@@ -5370,7 +5389,9 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                           OR beverage_name = ? 
                           OR beverage_name LIKE ?
                       )
-                """, (row["date"], f"{fn} (נוזלים)", fn, f"%{fn}%"))
+                """, (dt, f"{fn} (נוזלים)", fn, f"%{fn}%"))
+                # Delete any duplicate entries for this food on this date
+                c.execute("DELETE FROM daily_logs WHERE date = ? AND food_name = ?", (dt, fn))
             c.execute("DELETE FROM daily_logs WHERE id=?", (log_id,))
             conn.commit()
         self._set_headers(200)
