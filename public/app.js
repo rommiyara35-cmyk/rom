@@ -4006,9 +4006,9 @@ const AppState = {
 
     if (normPill) {
       if (isNorm) {
-        normPill.style.display = 'flex';
+        normPill.style.display = 'inline-flex';
         const pillText = document.getElementById('attent-norm-pill-text');
-        if (pillText) pillText.innerText = normMeta.status_badge_he || '💊 פילטר אטנט פעיל (מנוקה מדעית)';
+        if (pillText) pillText.innerText = '💊 פילטר אטנט פעיל';
       } else {
         normPill.style.display = 'none';
       }
@@ -4024,7 +4024,7 @@ const AppState = {
     const rhrEl = document.getElementById('garmin-resting-hr');
     if (rhrEl) {
       if (isNorm && b.raw_rhr) {
-        rhrEl.innerHTML = `מנוחה מנורמלת: <strong>${b.resting_hr} bpm</strong> <span style="font-size:10px; color:#f87171; text-decoration:line-through;">(${b.raw_rhr} bpm)</span>`;
+        rhrEl.innerHTML = `<span class="norm-clean-line">מנוחה: <strong>${b.resting_hr} bpm</strong></span><span class="norm-raw-line">(שעון: ${b.raw_rhr} bpm)</span>`;
       } else {
         rhrEl.innerText = `מנוחה: ${b.resting_hr || 58} bpm`;
       }
@@ -4042,7 +4042,7 @@ const AppState = {
     const stressStatEl = document.getElementById('garmin-stress-status');
     if (stressStatEl) {
       if (isNorm && b.raw_stress !== undefined) {
-        stressStatEl.innerHTML = `${b.stress_state_he || 'מנוחה'} <span style="font-size:10px; color:#f87171; text-decoration:line-through;">(שעון: ${b.raw_stress})</span>`;
+        stressStatEl.innerHTML = `<span class="norm-clean-line">${b.stress_state_he || 'מנוחה (מנורמל)'}</span><span class="norm-raw-line">(שעון: ${b.raw_stress})</span>`;
       } else {
         const s = b.stress_level || 28;
         stressStatEl.innerText = s < 25 ? 'מנוחה (נמוך)' : (s < 50 ? 'נמוך-בינוני' : (s < 75 ? 'בינוני' : 'גבוה'));
@@ -4055,7 +4055,7 @@ const AppState = {
     const bbStatEl = document.getElementById('garmin-battery-status');
     if (bbStatEl) {
       if (isNorm && b.raw_bb !== undefined) {
-        bbStatEl.innerHTML = `מוגן משחיקת אטנט <span style="font-size:10px; color:#f87171; text-decoration:line-through;">(${b.raw_bb}%)</span>`;
+        bbStatEl.innerHTML = `<span class="norm-clean-line">מוגן מאטנט</span><span class="norm-raw-line">(שעון: ${b.raw_bb}%)</span>`;
       } else {
         const bb = b.body_battery || 75;
         bbStatEl.innerText = bb > 70 ? 'אנרגיה טעונה' : (bb > 40 ? 'רמה בינונית' : 'מאגר נמוך');

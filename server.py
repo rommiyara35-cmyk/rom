@@ -1617,7 +1617,7 @@ class AttentBiometricNormalizer:
             "stress_state_he": stress_state
         }
 
-        badge_text = f"💊 פילטר אטנט פעיל ({dose_count} מנות: {int(dose)}mg סה״כ)" if dose_count > 1 else f"💊 פילטר אטנט פעיל (כיול {int(dose)}mg)"
+        badge_text = "💊 פילטר אטנט פעיל"
 
         meta = {
             "is_active": True,
