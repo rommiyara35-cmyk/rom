@@ -5006,9 +5006,28 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         reset_h = int(body.get("day_reset_hour", 8 if mode == "night" else 0))
         with Database.get_connection() as conn:
             c = conn.cursor()
+            # Step 1: Calculate "today" using the CURRENT (old) shift mode BEFORE updating the profile
+            old_shift_date = get_hunter_shift_date(conn)
+
+            # Step 2: Update the profile to the new mode
             c.execute("UPDATE hunter_profile SET shift_mode = ?, day_reset_hour = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (mode, reset_h))
             conn.commit()
+
+            # Step 3: Calculate "today" using the NEW shift mode
+            new_shift_date = get_hunter_shift_date(conn)
+
+            # Step 4: If the shift date changed, migrate ALL records from old date → new date
+            # This preserves all data when switching shifts at night (e.g. 03:38 standard→night moves 2026-09-10 → 2026-09-09)
+            if old_shift_date != new_shift_date:
+                tables = ["daily_logs", "water_logs", "medication_logs", "supplements_log", "workout_logs", "garmin_health_logs"]
+                for tbl in tables:
+                    try:
+                        c.execute(f"UPDATE {tbl} SET date = ? WHERE date = ?", (new_shift_date, old_shift_date))
+                    except Exception:
+                        pass  # Table may not have that date, or garmin_health_logs has UNIQUE constraint
+                conn.commit()
         return self.handle_get_nutrition_today()
+
 
     def handle_get_nutrition_today(self):
         parsed = urlparse(self.path)
@@ -6551,7 +6570,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             target_date = body.get("date")
 
             with Database.get_connection() as conn:
-                shift_date = get_hunter_shift_date(conn)
+                shift_date = get_hunter_shift_date(conn, body.get("client_date"))
                 date_to_log = target_date if target_date else shift_date
                 c = conn.cursor()
                 if dose_id:

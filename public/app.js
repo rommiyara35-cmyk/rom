@@ -323,12 +323,15 @@ const AppState = {
       this.shiftDate = data.date;
 
       // Smart Reconciliation: Merge local water logs with server water logs
+      // Only reconcile water logs for today's shift date (data.date) — ignore logs from other dates
       const srvWaterList = data.water_logs || [];
       if (this.waterLogs && this.waterLogs.length > 0) {
         const srvIds = new Set(srvWaterList.map(l => String(l.id)));
         const srvSignatures = new Set(srvWaterList.map(l => `${l.amount_ml}_${l.timestamp}_${l.beverage_name}`));
         
         const missingOnServer = this.waterLogs.filter(l => {
+          // Skip logs from a different date
+          if (l.date && l.date !== data.date) return false;
           if (String(l.id).startsWith('temp-')) return true;
           const sig = `${l.amount_ml}_${l.timestamp}_${l.beverage_name}`;
           return !srvIds.has(String(l.id)) && !srvSignatures.has(sig);
@@ -361,13 +364,18 @@ const AppState = {
       this.waterLogs = data.water_logs || [];
 
       // Smart Reconciliation: Merge local meals with server meals if missing on server
+      // IMPORTANT: Only consider local meals for TODAY's shift date — skip meals from other dates
+      // (e.g. after toggling night mode, don't re-sync meals from the previous calendar date)
       const srvMeals = data.meals || [];
+      const shiftDateForReconcile = data.date; // authoritative shift date from server
       if (this.meals && this.meals.length > 0) {
         const srvMealIds = new Set(srvMeals.map(m => String(m.id)));
         const srvMealSigs = new Set(srvMeals.map(m => `${m.food_name}_${m.calories}_${m.timestamp}`));
 
         const missingMeals = this.meals.filter(m => {
-          if (String(m.id).startsWith('temp-')) return true;
+          // Skip meals that belong to a different date (they were reconciled for that day already)
+          if (m.date && m.date !== shiftDateForReconcile) return false;
+          if (String(m.id).startsWith('temp-') || String(m.id).startsWith('off_')) return true;
           const sig = `${m.food_name}_${m.calories}_${m.timestamp}`;
           return !srvMealIds.has(String(m.id)) && !srvMealSigs.has(sig);
         });
@@ -962,7 +970,8 @@ const AppState = {
       beverage_type: bevType,
       beverage_name: bevName,
       beverage_icon: bevIcon,
-      caffeine_mg: caffeineMg
+      caffeine_mg: caffeineMg,
+      date: this.shiftDate || this.getClientDateStr()
     };
     if (!this.waterLogs) this.waterLogs = [];
     this.waterLogs.unshift(tempLog);
@@ -1145,8 +1154,10 @@ const AppState = {
       vit_c_mg: this.selectedFood.vit_c_mg || 0,
       vit_d_iu: this.selectedFood.vit_d_iu || 0,
       iron_mg: this.selectedFood.iron_mg || 0,
-      meal_type: mealType
+      meal_type: mealType,
+      client_date: this.shiftDate || this.getClientDateStr()
     };
+
 
     try {
       const res = await fetch('/api/nutrition/log', {
@@ -1202,6 +1213,7 @@ const AppState = {
         carbs: payload.carbs,
         fats: payload.fats,
         time: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+        date: this.shiftDate || this.getClientDateStr(),
         offline: true
       });
       if (this.consumed) {
@@ -4796,7 +4808,8 @@ const AppState = {
           timestamp: timeVal,
           duration_hours: duration,
           notes: notes,
-          date: dateVal
+          date: dateVal || undefined,
+          client_date: this.shiftDate || this.getClientDateStr()
         })
       });
       const data = await res.json();
