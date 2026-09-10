@@ -4479,20 +4479,44 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
     def do_DELETE(self):
         parsed = urlparse(self.path)
         path = parsed.path
-        if path.startswith("/api/nutrition/log/"):
+        if path.startswith("/api/nutrition/log/") or path == "/api/nutrition/log":
             try:
-                log_id = int(path.split("/")[-1])
-                self.handle_delete_log(log_id)
+                param_id = path.split("/")[-1] if path.startswith("/api/nutrition/log/") else None
+                if not param_id or param_id == "log":
+                    parsed_query = parse_qs(parsed.query)
+                    param_id = parsed_query.get("id", [None])[0]
+                if param_id:
+                    try:
+                        log_id = int(param_id)
+                        self.handle_delete_log(log_id)
+                    except ValueError:
+                        # Offline ID (e.g. off_...) or string ID - already deleted locally, succeed gracefully
+                        self._set_headers(200)
+                        self.wfile.write(json.dumps({"status": "deleted", "id": param_id}, ensure_ascii=False).encode("utf-8"))
+                else:
+                    self._set_headers(400)
+                    self.wfile.write(json.dumps({"error": "Missing log id"}, ensure_ascii=False).encode("utf-8"))
             except Exception as e:
                 self._set_headers(400)
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
         elif path == "/api/nutrition/water" or path.startswith("/api/nutrition/water/"):
             try:
-                water_id = int(path.split("/")[-1]) if path.startswith("/api/nutrition/water/") else None
+                param_id = path.split("/")[-1] if path.startswith("/api/nutrition/water/") else None
+                if not param_id or param_id == "water":
+                    parsed_query = parse_qs(parsed.query)
+                    param_id = parsed_query.get("id", [None])[0]
+                water_id = None
+                if param_id:
+                    try:
+                        water_id = int(param_id)
+                    except ValueError:
+                        self._set_headers(200)
+                        self.wfile.write(json.dumps({"status": "deleted", "id": param_id}, ensure_ascii=False).encode("utf-8"))
+                        return
                 self.handle_delete_water(water_id)
             except Exception as e:
                 self._set_headers(400)
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
         elif path == "/api/medication/attent" or path.startswith("/api/medication/attent/"):
             dose_id = None
             if path.startswith("/api/medication/attent/"):
@@ -5329,16 +5353,32 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
 
     def handle_delete_log(self, log_id):
+        food_name = None
         with Database.get_connection() as conn:
             c = conn.cursor()
             c.execute("SELECT food_name, date FROM daily_logs WHERE id=?", (log_id,))
             row = c.fetchone()
             if row:
-                c.execute("DELETE FROM water_logs WHERE date = ? AND beverage_name = ?", (row["date"], f"{row['food_name']} (נוזלים)"))
+                food_name = row["food_name"]
+                fn = food_name.strip()
+                # Delete any associated fluid/water logs created for this food entry
+                c.execute("""
+                    DELETE FROM water_logs 
+                    WHERE date = ? 
+                      AND (
+                          beverage_name = ? 
+                          OR beverage_name = ? 
+                          OR beverage_name LIKE ?
+                      )
+                """, (row["date"], f"{fn} (נוזלים)", fn, f"%{fn}%"))
             c.execute("DELETE FROM daily_logs WHERE id=?", (log_id,))
             conn.commit()
         self._set_headers(200)
-        self.wfile.write(json.dumps({"status": "deleted", "id": log_id}).encode("utf-8"))
+        self.wfile.write(json.dumps({
+            "status": "deleted",
+            "id": log_id,
+            "food_name": food_name
+        }, ensure_ascii=False).encode("utf-8"))
 
     def handle_post_water(self, body):
         now_time = body.get("timestamp") or get_israel_now().strftime("%H:%M")

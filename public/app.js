@@ -216,7 +216,7 @@ const AppState = {
           window.location.reload();
         }
       });
-      navigator.serviceWorker.register('/service-worker.js?v=35').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=36').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -322,28 +322,47 @@ const AppState = {
       this.shiftInfo = data.shift_info;
       this.shiftDate = data.date;
 
-      // Smart Reconciliation: Merge local water logs with server water logs
-      // Only reconcile water logs for today's shift date (data.date) — ignore logs from other dates
-      const srvWaterList = data.water_logs || [];
+      // Load deleted blacklists to prevent zombie resurrections
+      let deletedMealIds = new Set();
+      let deletedMealSigs = new Set();
+      let deletedWaterIds = new Set();
+      let deletedWaterSigs = new Set();
+      try {
+        deletedMealIds = new Set(JSON.parse(localStorage.getItem('solo_deleted_meal_ids') || '[]'));
+        deletedMealSigs = new Set(JSON.parse(localStorage.getItem('solo_deleted_meal_sigs') || '[]'));
+        deletedWaterIds = new Set(JSON.parse(localStorage.getItem('solo_deleted_water_ids') || '[]'));
+        deletedWaterSigs = new Set(JSON.parse(localStorage.getItem('solo_deleted_water_sigs') || '[]'));
+      } catch (e) {}
+
+      // Filter server water list against deleted items
+      let srvWaterList = (data.water_logs || []).filter(l => {
+        if (deletedWaterIds.has(String(l.id))) return false;
+        const sig = `${l.amount_ml}_${l.timestamp}_${l.beverage_name}`;
+        if (deletedWaterSigs.has(sig)) return false;
+        return true;
+      });
+
+      // Smart Reconciliation: Only sync logs that were created offline (temp- or off_) and not deleted
       if (this.waterLogs && this.waterLogs.length > 0) {
         const srvIds = new Set(srvWaterList.map(l => String(l.id)));
         const srvSignatures = new Set(srvWaterList.map(l => `${l.amount_ml}_${l.timestamp}_${l.beverage_name}`));
         
         const missingOnServer = this.waterLogs.filter(l => {
-          // Skip logs from a different date
-          if (l.date && l.date !== data.date) return false;
-          if (String(l.id).startsWith('temp-')) return true;
+          if (deletedWaterIds.has(String(l.id))) return false;
           const sig = `${l.amount_ml}_${l.timestamp}_${l.beverage_name}`;
-          return !srvIds.has(String(l.id)) && !srvSignatures.has(sig);
+          if (deletedWaterSigs.has(sig)) return false;
+          if (l.date && l.date !== data.date) return false;
+          
+          // Only offline temporary logs get synced up to server
+          if (String(l.id).startsWith('temp-') || String(l.id).startsWith('off_')) {
+            return !srvIds.has(String(l.id)) && !srvSignatures.has(sig);
+          }
+          return false;
         });
 
         if (missingOnServer.length > 0) {
-          console.warn(`Found ${missingOnServer.length} local water logs missing on server. Syncing up...`);
-          const combinedWater = [...srvWaterList, ...missingOnServer];
-          data.water_logs = combinedWater;
-          if (!this.consumed) this.consumed = {};
-          this.consumed.water_ml = combinedWater.reduce((sum, w) => sum + (w.amount_ml || 0), 0);
-
+          console.warn(`Found ${missingOnServer.length} local offline water logs missing on server. Syncing up...`);
+          srvWaterList = [...srvWaterList, ...missingOnServer];
           for (const missing of missingOnServer) {
             fetch('/api/nutrition/water', {
               method: 'POST',
@@ -361,28 +380,40 @@ const AppState = {
           }
         }
       }
-      this.waterLogs = data.water_logs || [];
+      this.waterLogs = srvWaterList;
+      if (this.consumed) {
+        this.consumed.water_ml = this.waterLogs.reduce((sum, w) => sum + (w.amount_ml || 0), 0);
+      }
 
-      // Smart Reconciliation: Merge local meals with server meals if missing on server
-      // IMPORTANT: Only consider local meals for TODAY's shift date — skip meals from other dates
-      // (e.g. after toggling night mode, don't re-sync meals from the previous calendar date)
-      const srvMeals = data.meals || [];
+      // Filter server meals against deleted items
+      let srvMeals = (data.meals || []).filter(m => {
+        if (deletedMealIds.has(String(m.id))) return false;
+        const sig = `${m.food_name}_${m.calories}_${m.timestamp}`;
+        if (deletedMealSigs.has(sig)) return false;
+        return true;
+      });
+
       const shiftDateForReconcile = data.date; // authoritative shift date from server
       if (this.meals && this.meals.length > 0) {
         const srvMealIds = new Set(srvMeals.map(m => String(m.id)));
         const srvMealSigs = new Set(srvMeals.map(m => `${m.food_name}_${m.calories}_${m.timestamp}`));
 
         const missingMeals = this.meals.filter(m => {
-          // Skip meals that belong to a different date (they were reconciled for that day already)
-          if (m.date && m.date !== shiftDateForReconcile) return false;
-          if (String(m.id).startsWith('temp-') || String(m.id).startsWith('off_')) return true;
+          if (deletedMealIds.has(String(m.id))) return false;
           const sig = `${m.food_name}_${m.calories}_${m.timestamp}`;
-          return !srvMealIds.has(String(m.id)) && !srvMealSigs.has(sig);
+          if (deletedMealSigs.has(sig)) return false;
+          if (m.date && m.date !== shiftDateForReconcile) return false;
+
+          // Only offline temporary meals get synced up to server
+          if (String(m.id).startsWith('temp-') || String(m.id).startsWith('off_')) {
+            return !srvMealIds.has(String(m.id)) && !srvMealSigs.has(sig);
+          }
+          return false;
         });
 
         if (missingMeals.length > 0) {
-          console.warn(`Found ${missingMeals.length} local meals missing on server. Syncing up...`);
-          data.meals = [...srvMeals, ...missingMeals];
+          console.warn(`Found ${missingMeals.length} local offline meals missing on server. Syncing up...`);
+          srvMeals = [...srvMeals, ...missingMeals];
           for (const mm of missingMeals) {
             fetch('/api/nutrition/log', {
               method: 'POST',
@@ -405,7 +436,7 @@ const AppState = {
           }
         }
       }
-      this.meals = data.meals || [];
+      this.meals = srvMeals;
       if (data.supplements) this.supplements = data.supplements;
       if (data.total_workouts !== undefined) {
         this.totalWorkouts = data.total_workouts;
@@ -865,7 +896,7 @@ const AppState = {
                 ${Math.round(m.calories)} קלוריות | חלבון: ${Math.round(m.protein)}g | פחמימה: ${Math.round(m.carbs)}g | שומן: ${Math.round(m.fats)}g
               </div>
             </div>
-            <button class="meal-delete-btn" onclick="AppState.deleteMeal(${m.id})" title="מחק ארוחה">✕</button>
+            <button class="meal-delete-btn" onclick="AppState.deleteMeal('${m.id}')" title="מחק ארוחה">✕</button>
           `;
           listEl.appendChild(entry);
         });
@@ -900,7 +931,7 @@ const AppState = {
                 ✓ חושב ב-Vitality Matrix • נותן EXP לאלכימיה ותובנות בריאות
               </div>
             </div>
-            <button class="meal-delete-btn" onclick="AppState.deleteSupplement(${item.id})" title="מחק תוסף">✕</button>
+            <button class="meal-delete-btn" onclick="AppState.deleteSupplement('${item.id}')" title="מחק תוסף">✕</button>
           </div>
         `).join('');
       }
@@ -910,13 +941,132 @@ const AppState = {
   // --- Actions & API Calls ---
   async deleteMeal(id) {
     if (!confirm('האם למחוק ארוחה זו מהיומן?')) return;
+    this.triggerHaptic('medium');
     sfx.playClick();
-    try {
-      await fetch(`/api/nutrition/log/${id}`, { method: 'DELETE' });
-      await this.fetchTodayData();
-    } catch (e) {
-      alert('שגיאה במחיקת הארוחה');
+
+    const strId = String(id);
+    let targetMeal = null;
+
+    // 1. Optimistic removal from this.meals
+    if (this.meals) {
+      const idx = this.meals.findIndex(m => String(m.id) === strId);
+      if (idx !== -1) {
+        targetMeal = this.meals.splice(idx, 1)[0];
+      } else {
+        targetMeal = this.meals.find(m => String(m.id) === strId);
+        this.meals = this.meals.filter(m => String(m.id) !== strId);
+      }
     }
+
+    // 2. Blacklist ID and signature so reconciliation NEVER resurrects it
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('solo_deleted_meal_ids') || '[]');
+      if (!deletedIds.includes(strId)) {
+        deletedIds.push(strId);
+        localStorage.setItem('solo_deleted_meal_ids', JSON.stringify(deletedIds.slice(-200)));
+      }
+      if (targetMeal) {
+        const sig = `${targetMeal.food_name}_${targetMeal.calories}_${targetMeal.timestamp}`;
+        const deletedSigs = JSON.parse(localStorage.getItem('solo_deleted_meal_sigs') || '[]');
+        if (!deletedSigs.includes(sig)) {
+          deletedSigs.push(sig);
+          localStorage.setItem('solo_deleted_meal_sigs', JSON.stringify(deletedSigs.slice(-200)));
+        }
+      }
+    } catch (e) {}
+
+    // 3. Deduct macros from consumed stats
+    if (targetMeal && this.consumed) {
+      this.consumed.calories = Math.max(0, (this.consumed.calories || 0) - (targetMeal.calories || 0));
+      this.consumed.protein = Math.max(0, (this.consumed.protein || 0) - (targetMeal.protein || 0));
+      this.consumed.carbs = Math.max(0, (this.consumed.carbs || 0) - (targetMeal.carbs || 0));
+      this.consumed.fats = Math.max(0, (this.consumed.fats || 0) - (targetMeal.fats || 0));
+    }
+
+    // 4. Remove any associated fluid/water logs created by this meal (e.g. coconut water / beverage)
+    if (targetMeal && this.waterLogs) {
+      const fn = targetMeal.food_name || '';
+      const linkedIndices = [];
+      this.waterLogs.forEach((w, i) => {
+        const bn = w.beverage_name || '';
+        if (bn === `${fn} (נוזלים)` || bn === fn || (fn.includes('קוקוס') && bn.includes('קוקוס'))) {
+          linkedIndices.push(i);
+        }
+      });
+      // Remove backwards
+      for (let i = linkedIndices.length - 1; i >= 0; i--) {
+        const removedW = this.waterLogs.splice(linkedIndices[i], 1)[0];
+        if (this.consumed && removedW && removedW.amount_ml) {
+          this.consumed.water_ml = Math.max(0, (this.consumed.water_ml || 0) - removedW.amount_ml);
+        }
+        try {
+          if (removedW) {
+            const wSig = `${removedW.amount_ml}_${removedW.timestamp}_${removedW.beverage_name}`;
+            const dWSigs = JSON.parse(localStorage.getItem('solo_deleted_water_sigs') || '[]');
+            if (!dWSigs.includes(wSig)) {
+              dWSigs.push(wSig);
+              localStorage.setItem('solo_deleted_water_sigs', JSON.stringify(dWSigs.slice(-200)));
+            }
+          }
+        } catch(e) {}
+      }
+    }
+
+    // 5. Clean up pending offline queue actions
+    if (this.offlineQueue && targetMeal) {
+      this.offlineQueue = this.offlineQueue.filter(act => {
+        if (act.endpoint === '/api/nutrition/log' && act.body) {
+          const b = typeof act.body === 'string' ? JSON.parse(act.body) : act.body;
+          if (b.food_name === targetMeal.food_name && Math.round(b.calories || 0) === Math.round(targetMeal.calories || 0)) {
+            return false;
+          }
+        }
+        return true;
+      });
+      try {
+        localStorage.setItem('solo_offline_queue', JSON.stringify(this.offlineQueue));
+      } catch (e) {}
+      this.updateOfflineBadge();
+    }
+
+    // 6. Clean up disaster recovery snapshot in localStorage
+    try {
+      const snapRaw = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
+      if (snapRaw) {
+        const snap = JSON.parse(snapRaw);
+        if (snap.daily_logs) {
+          snap.daily_logs = snap.daily_logs.filter(l => String(l.id) !== strId && (!targetMeal || l.food_name !== targetMeal.food_name));
+        }
+        if (snap.water_logs && targetMeal) {
+          const fn = targetMeal.food_name || '';
+          snap.water_logs = snap.water_logs.filter(w => {
+            const bn = w.beverage_name || '';
+            return !bn.includes(fn) && !(fn.includes('קוקוס') && bn.includes('קוקוס'));
+          });
+        }
+        localStorage.setItem('SOLO_HUNTER_SYSTEM_SNAPSHOT', JSON.stringify(snap));
+      }
+    } catch(e) {}
+
+    // 7. Update UI immediately
+    this.renderMealsList();
+    this.renderWaterCockpit();
+    this.updateGauges();
+    this.saveLocalCache();
+    this.showToast('🗑️ הארוחה הוסרה מהיומן');
+
+    // 8. Send server DELETE if it's a persisted database record
+    if (!strId.startsWith('off_') && !strId.startsWith('temp-')) {
+      try {
+        await fetch(`/api/nutrition/log/${strId}`, { method: 'DELETE' });
+      } catch (e) {
+        console.warn('Network issue on delete meal, kept deleted locally:', e);
+      }
+    }
+
+    // 9. Re-fetch and debrief
+    await this.fetchTodayData();
+    if (typeof this.fetchDailyDebrief === 'function') this.fetchDailyDebrief();
   },
 
   async logQuickPotion(potionType) {
@@ -1074,29 +1224,78 @@ const AppState = {
     this.triggerHaptic('medium');
     sfx.playClick();
 
-    // Optimistic delete
+    const strId = String(id);
+    let removed = null;
+
+    // 1. Optimistic delete
     if (this.waterLogs) {
-      const idx = this.waterLogs.findIndex(l => String(l.id) === String(id));
+      const idx = this.waterLogs.findIndex(l => String(l.id) === strId);
       if (idx !== -1) {
-        const removed = this.waterLogs.splice(idx, 1)[0];
+        removed = this.waterLogs.splice(idx, 1)[0];
         if (this.consumed && removed.amount_ml) {
           this.consumed.water_ml = Math.max(0, (this.consumed.water_ml || 0) - removed.amount_ml);
         }
-        this.renderWaterCockpit();
-        this.updateGauges();
-        this.saveLocalCache();
       }
     }
 
-    if (String(id).startsWith('temp-')) {
-      this.showToast('✕ רישום מים נמחק');
+    // 2. Blacklist from resurrection
+    try {
+      const deletedWaterIds = JSON.parse(localStorage.getItem('solo_deleted_water_ids') || '[]');
+      if (!deletedWaterIds.includes(strId)) {
+        deletedWaterIds.push(strId);
+        localStorage.setItem('solo_deleted_water_ids', JSON.stringify(deletedWaterIds.slice(-200)));
+      }
+      if (removed) {
+        const sig = `${removed.amount_ml}_${removed.timestamp}_${removed.beverage_name}`;
+        const deletedWaterSigs = JSON.parse(localStorage.getItem('solo_deleted_water_sigs') || '[]');
+        if (!deletedWaterSigs.includes(sig)) {
+          deletedWaterSigs.push(sig);
+          localStorage.setItem('solo_deleted_water_sigs', JSON.stringify(deletedWaterSigs.slice(-200)));
+        }
+      }
+    } catch(e) {}
+
+    // 3. Clean up offline queue
+    if (this.offlineQueue && removed) {
+      this.offlineQueue = this.offlineQueue.filter(act => {
+        if (act.endpoint === '/api/nutrition/water' && act.body) {
+          const b = typeof act.body === 'string' ? JSON.parse(act.body) : act.body;
+          if (b.amount_ml === removed.amount_ml && b.timestamp === removed.timestamp) {
+            return false;
+          }
+        }
+        return true;
+      });
+      try {
+        localStorage.setItem('solo_offline_queue', JSON.stringify(this.offlineQueue));
+      } catch (e) {}
+      this.updateOfflineBadge();
+    }
+
+    // 4. Clean up disaster recovery snapshot in localStorage
+    try {
+      const snapRaw = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
+      if (snapRaw) {
+        const snap = JSON.parse(snapRaw);
+        if (snap.water_logs) {
+          snap.water_logs = snap.water_logs.filter(w => String(w.id) !== strId);
+        }
+        localStorage.setItem('SOLO_HUNTER_SYSTEM_SNAPSHOT', JSON.stringify(snap));
+      }
+    } catch(e) {}
+
+    this.renderWaterCockpit();
+    this.updateGauges();
+    this.saveLocalCache();
+    this.showToast('✕ רישום מים נמחק');
+
+    if (strId.startsWith('temp-') || strId.startsWith('off_')) {
       return;
     }
 
     try {
-      const res = await fetch(`/api/nutrition/water/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/nutrition/water/${strId}`, { method: 'DELETE' });
       if (res.ok) {
-        this.showToast('✕ רישום מים נמחק');
         await this.fetchTodayData();
         if (typeof this.fetchDailyDebrief === 'function') this.fetchDailyDebrief();
       }
