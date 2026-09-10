@@ -178,16 +178,25 @@ def get_hunter_shift_date(conn, client_date=None, force_date=False):
         reset_hour = row["day_reset_hour"] if row and row["day_reset_hour"] is not None else (8 if shift_mode == "night" else 0)
     except Exception:
         reset_hour = 0
+
     now = get_israel_now()
-    base_date = now.date()
-    if client_date and isinstance(client_date, str) and len(client_date) == 10:
-        try:
-            base_date = datetime.date.fromisoformat(client_date)
-        except Exception:
-            base_date = now.date()
+    calendar_today = now.date()
+
+    # Determine shift date from current Israel time
     if now.hour < reset_hour:
-        return (base_date - datetime.timedelta(days=1)).isoformat()
-    return base_date.isoformat()
+        current_shift_date = (calendar_today - datetime.timedelta(days=1)).isoformat()
+    else:
+        current_shift_date = calendar_today.isoformat()
+
+    # If client passed a date:
+    if client_date and isinstance(client_date, str) and len(client_date) == 10:
+        # If client passed current shift date or today's calendar date, return current_shift_date (prevents double subtraction!)
+        if client_date == current_shift_date or client_date == calendar_today.isoformat():
+            return current_shift_date
+        # Otherwise honor explicit target date (e.g. historical calendar view)
+        return client_date
+
+    return current_shift_date
 
 def safe_int(val, default=0):
     if val is None or val == "":
@@ -5066,15 +5075,15 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             # Step 3: Calculate "today" using the NEW shift mode
             new_shift_date = get_hunter_shift_date(conn)
 
-            # Step 4: If the shift date changed, migrate ALL records from old date → new date
-            # This preserves all data when switching shifts at night (e.g. 03:38 standard→night moves 2026-09-10 → 2026-09-09)
+            # Step 4: If the shift date changed at night (00:00 - 08:00), only migrate records
+            # that were logged during late-night hours (00:00 to 08:00) so daytime meals are never corrupted!
             if old_shift_date != new_shift_date:
-                tables = ["daily_logs", "water_logs", "medication_logs", "supplements_log", "workout_logs", "garmin_health_logs"]
+                tables = ["daily_logs", "water_logs", "medication_logs", "supplements_log", "workout_logs"]
                 for tbl in tables:
                     try:
-                        c.execute(f"UPDATE {tbl} SET date = ? WHERE date = ?", (new_shift_date, old_shift_date))
+                        c.execute(f"UPDATE {tbl} SET date = ? WHERE date = ? AND timestamp >= '00:00' AND timestamp <= '08:00'", (new_shift_date, old_shift_date))
                     except Exception:
-                        pass  # Table may not have that date, or garmin_health_logs has UNIQUE constraint
+                        pass
                 conn.commit()
         return self.handle_get_nutrition_today()
 
