@@ -162,6 +162,22 @@ const AppState = {
 
       const ach = localStorage.getItem('hunter_achievements');
       if (ach) this.achievements = JSON.parse(ach);
+
+      // Check snapshot if local waterLogs is empty
+      if (!this.waterLogs || this.waterLogs.length === 0) {
+        const rawSnap = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
+        if (rawSnap) {
+          try {
+            const snap = JSON.parse(rawSnap);
+            const snapWater = snap.water_logs || snap.water || [];
+            const todayStr = this.getClientDateStr();
+            const todaySnapWater = snapWater.filter(item => !item.date || item.date === todayStr);
+            if (todaySnapWater.length > 0) {
+              this.waterLogs = todaySnapWater;
+            }
+          } catch(e) {}
+        }
+      }
     } catch (e) {
       console.warn('Local cache load warning:', e);
     }
@@ -302,11 +318,86 @@ const AppState = {
       const data = await res.json();
       this.profile = data.profile;
       this.consumed = data.consumed;
-      this.meals = data.meals || [];
       this.quests = data.quests || [];
       this.shiftInfo = data.shift_info;
       this.shiftDate = data.date;
+
+      // Smart Reconciliation: Merge local water logs with server water logs
+      const srvWaterList = data.water_logs || [];
+      if (this.waterLogs && this.waterLogs.length > 0) {
+        const srvIds = new Set(srvWaterList.map(l => String(l.id)));
+        const srvSignatures = new Set(srvWaterList.map(l => `${l.amount_ml}_${l.timestamp}_${l.beverage_name}`));
+        
+        const missingOnServer = this.waterLogs.filter(l => {
+          if (String(l.id).startsWith('temp-')) return true;
+          const sig = `${l.amount_ml}_${l.timestamp}_${l.beverage_name}`;
+          return !srvIds.has(String(l.id)) && !srvSignatures.has(sig);
+        });
+
+        if (missingOnServer.length > 0) {
+          console.warn(`Found ${missingOnServer.length} local water logs missing on server. Syncing up...`);
+          const combinedWater = [...srvWaterList, ...missingOnServer];
+          data.water_logs = combinedWater;
+          if (!this.consumed) this.consumed = {};
+          this.consumed.water_ml = combinedWater.reduce((sum, w) => sum + (w.amount_ml || 0), 0);
+
+          for (const missing of missingOnServer) {
+            fetch('/api/nutrition/water', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                amount_ml: missing.amount_ml,
+                beverage_type: missing.beverage_type || 'water',
+                beverage_name: missing.beverage_name || 'מים',
+                beverage_icon: missing.beverage_icon || '💧',
+                caffeine_mg: missing.caffeine_mg || 0,
+                timestamp: missing.timestamp,
+                date: data.date
+              })
+            }).catch(e => console.warn('Failed to re-sync missing water log:', e));
+          }
+        }
+      }
       this.waterLogs = data.water_logs || [];
+
+      // Smart Reconciliation: Merge local meals with server meals if missing on server
+      const srvMeals = data.meals || [];
+      if (this.meals && this.meals.length > 0) {
+        const srvMealIds = new Set(srvMeals.map(m => String(m.id)));
+        const srvMealSigs = new Set(srvMeals.map(m => `${m.food_name}_${m.calories}_${m.timestamp}`));
+
+        const missingMeals = this.meals.filter(m => {
+          if (String(m.id).startsWith('temp-')) return true;
+          const sig = `${m.food_name}_${m.calories}_${m.timestamp}`;
+          return !srvMealIds.has(String(m.id)) && !srvMealSigs.has(sig);
+        });
+
+        if (missingMeals.length > 0) {
+          console.warn(`Found ${missingMeals.length} local meals missing on server. Syncing up...`);
+          data.meals = [...srvMeals, ...missingMeals];
+          for (const mm of missingMeals) {
+            fetch('/api/nutrition/log', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                food_id: mm.food_id,
+                food_name: mm.food_name,
+                serving_count: mm.serving_count || 1.0,
+                serving_size_g: mm.serving_size_g || 100,
+                calories: mm.calories,
+                protein: mm.protein,
+                carbs: mm.carbs,
+                fats: mm.fats,
+                fiber: mm.fiber || 0,
+                meal_type: mm.meal_type || 'snack',
+                timestamp: mm.timestamp,
+                date: data.date
+              })
+            }).catch(e => console.warn('Failed to re-sync missing meal:', e));
+          }
+        }
+      }
+      this.meals = data.meals || [];
       if (data.supplements) this.supplements = data.supplements;
       if (data.total_workouts !== undefined) {
         this.totalWorkouts = data.total_workouts;
