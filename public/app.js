@@ -741,6 +741,7 @@ const AppState = {
       { name: 'מגנזיום (התאוששות)', cur: Math.round(c.magnesium_mg), tgt: 400, unit: 'mg', icon: '🌙', suppBonus: suppM.magnesium_mg || 0 },
       { name: 'אבץ (מערכת חיסון)', cur: Math.round(c.zinc_mg), tgt: 15, unit: 'mg', icon: '🛡️', suppBonus: suppM.zinc_mg || 0 },
       { name: 'ויטמין C (נוגד חמצון)', cur: Math.round(c.vit_c_mg), tgt: 90, unit: 'mg', icon: '🍊', suppBonus: suppM.vit_c_mg || 0 },
+      { name: 'ברזל (חמצן ואנרגיה)', cur: Math.round(c.iron_mg || 0), tgt: 15, unit: 'mg', icon: '🩸', suppBonus: suppM.iron_mg || 0 },
       { name: 'אשלגן (אלקטרוליטים)', cur: Math.round(c.potassium_mg), tgt: 3500, unit: 'mg', icon: '⚡', suppBonus: suppM.potassium_mg || 0 },
       { name: 'ויטמין D3 (צפיפות ועצבים)', cur: Math.round(c.vit_d_iu || 0), tgt: 1500, unit: 'IU', icon: '☀️', suppBonus: suppM.vit_d_iu || 0 },
       { name: 'אומגה 3 (EPA/DHA)', cur: Math.round(c.omega3_mg || 0), tgt: 1000, unit: 'mg', icon: '🐟', suppBonus: suppM.omega3_mg || 0 }
@@ -3179,6 +3180,9 @@ const AppState = {
 
   async saveLocalSnapshot(optionalData = null, isIntentionalReset = false) {
     try {
+      if (this._isPerformingReset || localStorage.getItem('SOLO_HUNTER_INTENTIONAL_RESET') === 'true') {
+        if (!optionalData && !isIntentionalReset) return;
+      }
       if (optionalData) {
         localStorage.setItem('SOLO_HUNTER_SYSTEM_SNAPSHOT', JSON.stringify(optionalData));
         localStorage.setItem('SOLO_HUNTER_SNAPSHOT_TIMESTAMP', new Date().toISOString());
@@ -3190,14 +3194,15 @@ const AppState = {
         const data = await res.json();
         // SAFEGUARD: If server DB was wiped/restarted while client has saved data,
         // and this is NOT an intentional user reset, heal the server!
-        if (!isIntentionalReset) {
+        if (!isIntentionalReset && !this._isPerformingReset && localStorage.getItem('SOLO_HUNTER_INTENTIONAL_RESET') !== 'true') {
           const existingRaw = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
           if (existingRaw) {
             try {
               const existing = JSON.parse(existingRaw);
               const exCount = (existing.daily_logs || []).length + (existing.workout_logs || []).length + (existing.supplements_log || []).length + (existing.water_logs || []).length;
               const newCount = (data.daily_logs || []).length + (data.workout_logs || []).length + (data.supplements_log || []).length + (data.water_logs || []).length;
-              if (exCount > 0 && newCount === 0) {
+              const exLevel = (existing.hunter_profile || existing.profile || {}).level || 1;
+              if ((exCount > 0 && newCount === 0) || (exLevel > 1 && (data.hunter_profile?.level || 1) <= 1 && newCount === 0)) {
                 console.warn('Server database is empty while client has local data. Auto-healing server from local snapshot...');
                 await this.restoreFromLocalSnapshot(true);
                 return;
@@ -3233,6 +3238,9 @@ const AppState = {
   // Auto-heal server on launch if Render container was restarted/wiped
   async checkAndHealServerInstance() {
     try {
+      if (this._isPerformingReset || localStorage.getItem('SOLO_HUNTER_INTENTIONAL_RESET') === 'true') {
+        return;
+      }
       const rawSnapshot = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
       if (!rawSnapshot) return;
 
@@ -3244,7 +3252,7 @@ const AppState = {
       const snapWater = snapshot.water_logs || snapshot.water || [];
 
       const totalSnapRecords = snapDailyLogs.length + snapWorkouts.length + snapSupps.length + snapWater.length;
-      const hasMeaningfulData = (snapProfile.level && snapProfile.level > 1) || totalSnapRecords > 0 || snapProfile.is_awakened;
+      const hasMeaningfulData = (snapProfile.level && snapProfile.level > 1) || totalSnapRecords > 0;
       if (!hasMeaningfulData) return;
 
       // Probe server with client date
@@ -3269,6 +3277,10 @@ const AppState = {
   async checkDisasterRecovery() {
     try {
       const banner = document.getElementById('disaster-recovery-banner');
+      if (this._isPerformingReset || localStorage.getItem('SOLO_HUNTER_INTENTIONAL_RESET') === 'true') {
+        if (banner) banner.style.display = 'none';
+        return;
+      }
       const rawSnapshot = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
       if (!rawSnapshot) {
         if (banner) banner.style.display = 'none';
@@ -3284,7 +3296,7 @@ const AppState = {
       const totalSnapRecords = snapDailyLogs.length + snapWorkouts.length + snapSupps.length + snapWater.length;
       const isServerFresh = (!this.profile || this.profile.level <= 1) && (!this.meals || this.meals.length === 0);
 
-      if (isServerFresh && (snapProfile.level > 1 || totalSnapRecords > 0 || snapProfile.is_awakened)) {
+      if (isServerFresh && (snapProfile.level > 1 || totalSnapRecords > 0)) {
         const healed = await this.restoreFromLocalSnapshot(true);
         if (healed) {
           if (banner) banner.style.display = 'none';
@@ -3445,7 +3457,7 @@ const AppState = {
       const res = await fetch('/api/reset/today', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({ client_date: this.getClientDateStr() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Reset failed');
@@ -3490,16 +3502,11 @@ const AppState = {
         } catch(e) {}
       }
 
-      this.showToast('🔄 נתוני יום זה אופסו בהצלחה! מעביר לטקס ההתעוררות...', 'success');
+      this.showToast('🔄 נתוני יום זה אופסו בהצלחה!', 'success');
       await this.fetchTodayData();
       await this.fetchSupplements();
       await this.fetchDailyDebrief();
       await this.saveLocalSnapshot(null, true);
-
-      // Open Awakening modal right away so the hunter can calibrate goals
-      setTimeout(() => {
-        this.openFirstTimeAwakening(true);
-      }, 300);
     } catch (err) {
       this.closeModal('reset-modal');
       this.forceUnlockBody();
@@ -3521,7 +3528,23 @@ const AppState = {
     this.closeModal('settings-modal');
     this.forceUnlockBody();
 
-    // Call /api/reset/full FIRST so the reset is guaranteed to execute without browser interference
+    // 1. Cancel pending snapshot timers immediately
+    if (this.snapshotTimer) {
+      clearTimeout(this.snapshotTimer);
+      this.snapshotTimer = null;
+    }
+
+    // 2. Set intentional reset flags to prevent any auto-heal or zombie resurrection
+    this._isPerformingReset = true;
+    try {
+      localStorage.setItem('SOLO_HUNTER_INTENTIONAL_RESET', 'true');
+      localStorage.removeItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
+      localStorage.removeItem('SOLO_HUNTER_CACHE');
+      localStorage.removeItem('SOLO_HUNTER_OFFLINE_QUEUE');
+      sessionStorage.clear();
+    } catch(e) {}
+
+    // 3. Call server reset
     try {
       const res = await fetch('/api/reset/full', {
         method: 'POST',
@@ -3531,14 +3554,22 @@ const AppState = {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Rebirth failed');
 
-      // Wipe local storage and mark unawakened
-      localStorage.clear();
-      localStorage.setItem('hunter_awakened', 'false');
+      // 4. Wipe local storage and mark unawakened
+      try {
+        localStorage.clear();
+        localStorage.setItem('hunter_awakened', 'false');
+        localStorage.setItem('SOLO_HUNTER_INTENTIONAL_RESET', 'true');
+      } catch(e) {}
 
-      // Reset in-memory state
+      // 5. Reset in-memory state completely
       this.meals = [];
       this.waterLogs = [];
       this.supplements = [];
+      this.quests = [];
+      this.totalWorkouts = 0;
+      this.activePenalty = null;
+      this.healthAdvisor = null;
+      this.achievementsSummary = null;
       if (this.consumed) {
         this.consumed.calories = 0;
         this.consumed.protein = 0;
@@ -3553,32 +3584,64 @@ const AppState = {
         this.consumed.vit_c_mg = 0;
         this.consumed.vit_d_iu = 0;
         this.consumed.iron_mg = 0;
+        this.consumed.supp_micros = {};
       }
 
-      // Also ensure profile reflects unawakened state locally
       if (this.profile) {
         this.profile.is_awakened = 0;
         this.profile.level = 1;
+        this.profile.rank = 'E-Rank';
+        this.profile.exp = 0;
+        this.profile.exp_to_next = 300;
+        this.profile.stats_str = 10;
+        this.profile.stats_agi = 10;
+        this.profile.stats_vit = 10;
+        this.profile.stats_int = 10;
+        this.profile.stats_per = 10;
       }
 
       sfx.playLevelUp();
-      this.showToast('✨ לידה מחדש הושלמה! מעביר לטקס ההתעוררות...', 'success');
+      this.showToast('✨ לידה מחדש הושלמה! כל הנתונים אופסו לרמה 1. מעביר לטקס ההתעוררות...', 'success');
 
-      // Refresh data from server (profile now at level 1 with is_awakened = 0)
+      // 6. Fetch clean data from server (Level 1, 0 meals)
       try {
         await this.fetchTodayData();
         await this.fetchSkills();
         await this.fetchSupplements();
         await this.fetchDailyDebrief();
+        await this.fetchAchievements();
       } catch (fetchErr) {
-        console.warn('Post-rebirth fetch failed, opening awakening anyway:', fetchErr);
+        console.warn('Post-rebirth fetch error:', fetchErr);
       }
 
-      // Open First-Time Awakening screen directly - always, no matter what
+      // 7. Save a clean Level 1 snapshot so if Render restarts, it restores Level 1, NOT old Level 3!
+      try {
+        const backupRes = await fetch('/api/backup');
+        if (backupRes.ok) {
+          const cleanBackup = await backupRes.json();
+          localStorage.setItem('SOLO_HUNTER_SYSTEM_SNAPSHOT', JSON.stringify(cleanBackup));
+          localStorage.setItem('SOLO_HUNTER_SNAPSHOT_TIMESTAMP', new Date().toISOString());
+        }
+      } catch (backupErr) {
+        console.warn('Post-rebirth backup save error:', backupErr);
+      }
+
+      // 8. Release intentional reset flags
+      this._isPerformingReset = false;
+      try {
+        localStorage.removeItem('SOLO_HUNTER_INTENTIONAL_RESET');
+      } catch(e) {}
+
+      // 9. Render updated clean UI
+      this.renderAll();
+
+      // 10. Open First-Time Awakening screen directly
       setTimeout(() => {
         this.openFirstTimeAwakening(true);
       }, 200);
     } catch (err) {
+      this._isPerformingReset = false;
+      try { localStorage.removeItem('SOLO_HUNTER_INTENTIONAL_RESET'); } catch(e) {}
       this.forceUnlockBody();
       alert('שגיאה בתהליך הלידה מחדש: ' + err.message);
     }
@@ -5240,6 +5303,14 @@ const AppState = {
           protein: item.protein || 0,
           carbs: item.carbs || 0,
           fats: item.fats || 0,
+          fiber: item.fiber || 0,
+          sodium_mg: item.sodium_mg || 0,
+          potassium_mg: item.potassium_mg || 0,
+          magnesium_mg: item.magnesium_mg || 0,
+          zinc_mg: item.zinc_mg || 0,
+          vit_c_mg: item.vit_c_mg || 0,
+          vit_d_iu: item.vit_d_iu || 0,
+          iron_mg: item.iron_mg || 0,
           serving_count: 1.0,
           serving_size_g: item.estimated_grams || 100,
           meal_type: 'snack',

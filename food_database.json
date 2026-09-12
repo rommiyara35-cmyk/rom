@@ -1,5 +1,23 @@
 [
   {
+    "name": "Pure Coconut Water 100%",
+    "name_he": "מי קוקוס טבעי 100% (ללא תוספת סוכר)",
+    "category": "beverage",
+    "serving_size_g": 250,
+    "calories": 48,
+    "protein": 0.5,
+    "carbs": 9.3,
+    "fats": 0.2,
+    "fiber": 2.8,
+    "sodium_mg": 260,
+    "potassium_mg": 625,
+    "magnesium_mg": 62,
+    "zinc_mg": 0.3,
+    "vit_c_mg": 6.0,
+    "vit_d_iu": 0,
+    "iron_mg": 0.7
+  },
+  {
     "name": "Cow Milk 3%",
     "name_he": "חלב פרה 3% (תנובה / טרה)",
     "category": "dairy",

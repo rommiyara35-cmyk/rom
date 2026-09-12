@@ -1163,7 +1163,7 @@
             ⚡ שחזר מגיבוי אוטומטי של הדפדפן (LocalStorage Snapshot)
           </button>
           <button type="button" class="action-btn-primary" onclick="AppState.forceClearCacheAndReload()" style="background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8; font-size:11.5px; padding:9px; margin-top:4px; font-weight:700;">
-            🔄 גרסה v40 — נקה מטמון ורענן גרסה (Force Reload)
+            🔄 גרסה v41 — נקה מטמון ורענן גרסה (Force Reload)
           </button>
         </div>
         <div id="backup-last-time-text" style="font-size:11px; color:var(--text-dim); margin-top:6px;">
@@ -1818,8 +1818,8 @@
         <ul class="reset-card-list danger">
           <li>⚠️ מאפס את הצייד לרמה 1, דרגת E-Rank, ו-10 בכל התכונות (STR, AGI, VIT, INT, PER)</li>
           <li>⚠️ מאפס את כל 5 הסקילים לרמה 1 (0/100 XP)</li>
-          <li>⚠️ מנקה את כל יומני הארוחות, האימונים, התוספים והשעון</li>
-          <li style="color:#34d399; font-weight:700;">🛡️ <strong>חגורת ביטחון אוטומטית:</strong> המערכת תוריד אוטומטית קובץ גיבוי מלא (JSON) למכשירך שנייה לפני האיפוס!</li>
+          <li>⚠️ מוחק לחלוטין את כל יומני הארוחות, השתייה, האימונים, התוספים וכל המאכלים המועדפים שנלמדו</li>
+          <li>🔄 מחזיר את המערכת למצב התעוררות ראשונית נקי לחלוטין</li>
         </ul>
 
         <div class="form-group" style="margin-top:10px;">
@@ -1828,7 +1828,7 @@
         </div>
 
         <button class="action-btn-primary" onclick="AppState.confirmFullRebirth()" style="background:linear-gradient(90deg, #b91c1c, #ef4444); color:#ffffff; font-weight:900; font-size:13px; padding:11px;">
-          💀 בצע לידה מחדש (הורד גיבוי חירום ואפס הכל)
+          💀 בצע לידה מחדש מלאה (איפוס מוחלט לרמה 1)
         </button>
       </div>
 
@@ -2474,6 +2474,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=40"></script>
+  <script src="/app.js?v=41"></script>
 </body>
 </html>

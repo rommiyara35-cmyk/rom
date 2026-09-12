@@ -255,6 +255,153 @@ def detect_food_fluid(food_name, serving_size_g, serving_count=1.0):
         
     return 0, None, None
 
+def infer_food_micronutrients(food_name, serving_size_g, serving_count=1.0):
+    """
+    Infers realistic micronutrients (potassium, magnesium, zinc, vit_c, vit_d, iron, fiber, sodium)
+    per serving for recognized whole and nutrient-dense foods and beverages when not explicitly provided.
+    Values are scaled per 100g.
+    """
+    fn = str(food_name or "").lower().strip()
+    total_g = max(1.0, float(serving_size_g or 100) * float(serving_count or 1.0))
+    scale = total_g / 100.0
+
+    micros = {
+        "fiber": 0.0,
+        "sodium_mg": 0.0,
+        "potassium_mg": 0.0,
+        "magnesium_mg": 0.0,
+        "zinc_mg": 0.0,
+        "vit_c_mg": 0.0,
+        "vit_d_iu": 0.0,
+        "iron_mg": 0.0
+    }
+
+    # Coconut water / Coconut products
+    if "קוקוס" in fn:
+        if any(w in fn for w in ["מי ", "מים", "משקה", "נוזל", "water", "juice"]):
+            micros["potassium_mg"] += 250.0 * scale
+            micros["magnesium_mg"] += 25.0 * scale
+            micros["sodium_mg"] += 105.0 * scale
+            micros["vit_c_mg"] += 2.4 * scale
+            micros["fiber"] += 1.1 * scale
+        else:
+            micros["potassium_mg"] += 356.0 * scale
+            micros["magnesium_mg"] += 32.0 * scale
+            micros["iron_mg"] += 2.4 * scale
+            micros["fiber"] += 9.0 * scale
+
+    # Citrus fruits & rich Vitamin C sources
+    if any(k in fn for k in ["תפוז", "קלמנטינה", "אשכולית", "לימון", "פומלה", "mandarin", "orange"]):
+        micros["vit_c_mg"] += 53.0 * scale
+        micros["potassium_mg"] += 181.0 * scale
+        micros["fiber"] += 2.4 * scale
+
+    if any(k in fn for k in ["פלפל", "גמבה", "bell pepper", "capsicum"]):
+        micros["vit_c_mg"] += 128.0 * scale
+        micros["potassium_mg"] += 211.0 * scale
+        micros["fiber"] += 2.1 * scale
+
+    # Bananas & high-potassium fruits
+    if any(k in fn for k in ["בננה", "banana"]):
+        micros["potassium_mg"] += 358.0 * scale
+        micros["magnesium_mg"] += 27.0 * scale
+        micros["vit_c_mg"] += 8.7 * scale
+        micros["fiber"] += 2.6 * scale
+
+    # Salmon & fatty fish
+    if any(k in fn for k in ["סלמון", "salmon", "אלתית"]):
+        micros["vit_d_iu"] += 526.0 * scale
+        micros["potassium_mg"] += 490.0 * scale
+        micros["magnesium_mg"] += 29.0 * scale
+        micros["zinc_mg"] += 0.6 * scale
+        micros["iron_mg"] += 0.8 * scale
+        micros["sodium_mg"] += 59.0 * scale
+
+    # Tuna
+    if any(k in fn for k in ["טונה", "tuna"]):
+        micros["vit_d_iu"] += 82.0 * scale
+        micros["potassium_mg"] += 320.0 * scale
+        micros["magnesium_mg"] += 35.0 * scale
+        micros["zinc_mg"] += 1.0 * scale
+        micros["iron_mg"] += 1.3 * scale
+
+    # Eggs
+    if any(k in fn for k in ["ביצה", "ביצים", "חביתה", "מקושקשת", "עין", "שקשוקה", "egg"]):
+        micros["vit_d_iu"] += 87.0 * scale
+        micros["zinc_mg"] += 1.3 * scale
+        micros["iron_mg"] += 1.8 * scale
+        micros["potassium_mg"] += 138.0 * scale
+        micros["sodium_mg"] += 142.0 * scale
+
+    # Beef & red meats
+    if any(k in fn for k in ["בקר", "אנטריקוט", "סינטה", "פילה", "בשר טחון", "אסאדו", "beef", "steak"]):
+        micros["zinc_mg"] += 5.5 * scale
+        micros["iron_mg"] += 2.6 * scale
+        micros["potassium_mg"] += 318.0 * scale
+        micros["magnesium_mg"] += 21.0 * scale
+        micros["sodium_mg"] += 72.0 * scale
+
+    # Poultry (chicken, turkey)
+    if any(k in fn for k in ["חזה עוף", "עוף", "פרגית", "הודו", "chicken", "turkey"]):
+        micros["zinc_mg"] += 1.0 * scale
+        micros["iron_mg"] += 1.0 * scale
+        micros["potassium_mg"] += 256.0 * scale
+        micros["magnesium_mg"] += 29.0 * scale
+
+    # Oats & oatmeal
+    if any(k in fn for k in ["שיבולת שועל", "קוואקר", "oats", "oatmeal"]):
+        micros["magnesium_mg"] += 138.0 * scale
+        micros["zinc_mg"] += 4.0 * scale
+        micros["iron_mg"] += 4.7 * scale
+        micros["fiber"] += 10.6 * scale
+        micros["potassium_mg"] += 429.0 * scale
+
+    # Dark leafy greens (spinach, kale, broccoli)
+    if any(k in fn for k in ["תרד", "קייל", "ברוקולי", "spinach", "kale", "broccoli"]):
+        micros["vit_c_mg"] += 45.0 * scale
+        micros["magnesium_mg"] += 60.0 * scale
+        micros["iron_mg"] += 2.7 * scale
+        micros["potassium_mg"] += 380.0 * scale
+        micros["fiber"] += 2.6 * scale
+
+    # Nuts, seeds & tahini
+    if any(k in fn for k in ["שקדים", "אגוז", "קשיו", "טחינה", "זרעי צ'יה", "chia", "almond", "walnut"]):
+        micros["magnesium_mg"] += 220.0 * scale
+        micros["zinc_mg"] += 3.5 * scale
+        micros["iron_mg"] += 3.7 * scale
+        micros["fiber"] += 7.0 * scale
+        micros["potassium_mg"] += 500.0 * scale
+
+    # Avocado
+    if any(k in fn for k in ["אבוקדו", "avocado", "גוואקמולי"]):
+        micros["potassium_mg"] += 485.0 * scale
+        micros["magnesium_mg"] += 29.0 * scale
+        micros["fiber"] += 6.7 * scale
+        micros["vit_c_mg"] += 10.0 * scale
+
+    # Tomatoes & tomato sauce
+    if any(k in fn for k in ["עגבנייה", "עגבניות", "רסק", "tomato"]):
+        micros["vit_c_mg"] += 14.0 * scale
+        micros["potassium_mg"] += 237.0 * scale
+        micros["fiber"] += 1.2 * scale
+
+    # Legumes (lentils, chickpeas, beans)
+    if any(k in fn for k in ["עדשים", "שעועית", "חומוס", "פול", "lentils", "chickpeas", "beans"]):
+        micros["iron_mg"] += 3.3 * scale
+        micros["magnesium_mg"] += 36.0 * scale
+        micros["zinc_mg"] += 1.4 * scale
+        micros["potassium_mg"] += 369.0 * scale
+        micros["fiber"] += 7.9 * scale
+
+    # Dairy (milk, yogurt, cottage, quark)
+    if any(k in fn for k in ["חלב", "יוגורט", "קוטג'", "גבינה", "פרו", "pro", "milk", "yogurt"]):
+        micros["potassium_mg"] += 150.0 * scale
+        micros["magnesium_mg"] += 12.0 * scale
+        micros["zinc_mg"] += 0.5 * scale
+        micros["vit_d_iu"] += 40.0 * scale
+
+    return {k: round(v, 1) for k, v in micros.items()}
+
 # -------------------------------------------------------------
 # Database Manager
 # -------------------------------------------------------------
@@ -2867,8 +3014,8 @@ class FoodVisionAI:
         "gemini-flash-latest:generateContent?key={key}"
     )
 
-    PROMPT = """אתה מנתח תמונות אוכל לאפליקציית כושר.
-תתבונן בתמונה ותזהה את כל פריטי המזון הנראים.
+    PROMPT = """אתה מנתח תמונות אוכל לאפליקציית כושר ומדע תזונה.
+תתבונן בתמונה ותזהה את כל פריטי המזון והמשקאות הנראים.
 החזר תשובה ב-JSON בלבד, ללא טקסט נוסף, בפורמט הבא:
 {
   "items": [
@@ -2880,6 +3027,14 @@ class FoodVisionAI:
       "protein": 10.0,
       "carbs": 25.0,
       "fats": 5.0,
+      "fiber": 2.5,
+      "sodium_mg": 80.0,
+      "potassium_mg": 250.0,
+      "magnesium_mg": 25.0,
+      "zinc_mg": 1.0,
+      "vit_c_mg": 12.0,
+      "vit_d_iu": 0.0,
+      "iron_mg": 1.2,
       "confidence": "high"
     }
   ],
@@ -2889,8 +3044,8 @@ class FoodVisionAI:
   "total_carbs": 25.0,
   "total_fats": 5.0
 }
-הערכות הגרמים צריכות להיות ריאליסטיות לגודל המנה הנראה בתמונה.
-אם לא ברור מה הגודל, הניח מנה רגילה אחת.
+הערכות הגרמים והערכים התזונתיים (כולל ויטמינים ומינרלים) צריכות להיות ריאליסטיות לגודל המנה הנראה בתמונה.
+אם מדובר במי קוקוס, הדרים, פירות, ירקות, בקר, סלמון או מוצרי חלב - ציין את המיקרו-נוטריאנטים הרלוונטיים במדויק.
 confidence יכול להיות: high / medium / low"""
 
     MODELS = [
@@ -2901,7 +3056,7 @@ confidence יכול להיות: high / medium / low"""
 
     @classmethod
     def recognize(cls, image_b64: str, mime_type: str = "image/jpeg") -> dict:
-        """Call Gemini Vision API and return parsed food items dict."""
+        """Call Gemini Vision API and return parsed food items dict with micronutrients."""
         if not GEMINI_API_KEY:
             return {"error": "GEMINI_API_KEY not configured", "items": []}
 
@@ -2951,6 +3106,35 @@ confidence יכול להיות: high / medium / low"""
                         text = text[4:]
                     text = text.strip()
                 result = json.loads(text)
+
+                # Normalize items and guarantee micronutrients
+                if "items" in result and isinstance(result["items"], list):
+                    normalized = []
+                    for item in result["items"]:
+                        n_he = item.get("name_he") or item.get("name") or "פריט מזון"
+                        grams = float(item.get("estimated_grams") or item.get("weight_g") or 100)
+                        inferred = infer_food_micronutrients(n_he, grams, 1.0)
+                        norm = {
+                            "name_he": n_he,
+                            "name_en": item.get("name_en") or item.get("name") or "",
+                            "estimated_grams": grams,
+                            "calories": float(item.get("calories") or item.get("cal") or 0),
+                            "protein": float(item.get("protein") or item.get("protein_g") or 0),
+                            "carbs": float(item.get("carbs") or item.get("carbs_g") or 0),
+                            "fats": float(item.get("fats") or item.get("fat") or item.get("fat_g") or 0),
+                            "fiber": float(item.get("fiber") or inferred.get("fiber") or 0),
+                            "sodium_mg": float(item.get("sodium_mg") or inferred.get("sodium_mg") or 0),
+                            "potassium_mg": float(item.get("potassium_mg") or inferred.get("potassium_mg") or 0),
+                            "magnesium_mg": float(item.get("magnesium_mg") or inferred.get("magnesium_mg") or 0),
+                            "zinc_mg": float(item.get("zinc_mg") or inferred.get("zinc_mg") or 0),
+                            "vit_c_mg": float(item.get("vit_c_mg") or inferred.get("vit_c_mg") or 0),
+                            "vit_d_iu": float(item.get("vit_d_iu") or inferred.get("vit_d_iu") or 0),
+                            "iron_mg": float(item.get("iron_mg") or inferred.get("iron_mg") or 0),
+                            "confidence": item.get("confidence") or "high"
+                        }
+                        normalized.append(norm)
+                    result["items"] = normalized
+
                 return result
             except urllib.error.HTTPError as e:
                 err_body = e.read().decode("utf-8", errors="replace")
@@ -2974,7 +3158,7 @@ class FoodChatAI:
     ]
 
     PROMPT_TEMPLATE = """אתה עוזר תזונה חכם לאפליקציית כושר בסגנון Solo Leveling.
-המשתמש יתאר מה אכל בטקסט חופשי בעברית (לדוגמה: "אכלתי חזה עוף עם אורז ושעועית" או "2 ביצים עם 3 כפות חומוס ולחם").
+המשתמש יתאר מה אכל או שתה בטקסט חופשי בעברית (לדוגמה: "אכלתי חזה עוף עם אורז ושעועית" או "שתיתי 300 מ"ל מי קוקוס ותפוז").
 
 תנתח את הטקסט ותחזיר אך ורק אובייקט JSON חוקי (ללא markdown, ללא טקסט פותח או סוגר):
 {{
@@ -2987,6 +3171,14 @@ class FoodChatAI:
       "protein": 30.0,
       "carbs": 10.0,
       "fats": 5.0,
+      "fiber": 3.0,
+      "sodium_mg": 90.0,
+      "potassium_mg": 320.0,
+      "magnesium_mg": 30.0,
+      "zinc_mg": 1.5,
+      "vit_c_mg": 10.0,
+      "vit_d_iu": 0.0,
+      "iron_mg": 1.8,
       "confidence": "high"
     }}
   ],
@@ -3000,8 +3192,8 @@ class FoodChatAI:
 כללים:
 - confidence: high (ציין כמות מפורשת), medium (ציין מזון ללא כמות), low (הערכה גסה)
 - estimated_grams: הערכת משקל הגיונית בגרמים
-- ערכי תזונה מדויקים לפי מאגרי מידע תזונתיים
-- שמות השדות חייבים להיות בדיוק: name_he, estimated_grams, calories, protein, carbs, fats
+- ערכי תזונה מדויקים לפי מאגרי מידע תזונתיים (כולל סיבים, נתרן, אשלגן, מגנזיום, אבץ, ויטמין C, ויטמין D, ברזל)
+- שמות השדות חייבים להיות בדיוק: name_he, estimated_grams, calories, protein, carbs, fats, fiber, sodium_mg, potassium_mg, magnesium_mg, zinc_mg, vit_c_mg, vit_d_iu, iron_mg
 
 טקסט המשתמש: "{user_text}"
 """
@@ -3043,17 +3235,28 @@ class FoodChatAI:
                         text = text[4:]
                     text = text.strip()
                 parsed = json.loads(text)
-                # Normalize fields if LLM returned alternate key names
+                # Normalize fields if LLM returned alternate key names and guarantee micronutrients
                 normalized_items = []
                 for item in parsed.get("items", []):
+                    n_he = item.get("name_he") or item.get("name") or "פריט מזון"
+                    grams = float(item.get("estimated_grams") or item.get("weight_g") or item.get("amount_g") or 100)
+                    inferred = infer_food_micronutrients(n_he, grams, 1.0)
                     norm = {
-                        "name_he": item.get("name_he") or item.get("name") or "פריט מזון",
+                        "name_he": n_he,
                         "name_en": item.get("name_en") or item.get("name") or "",
-                        "estimated_grams": float(item.get("estimated_grams") or item.get("weight_g") or item.get("amount_g") or 100),
+                        "estimated_grams": grams,
                         "calories": float(item.get("calories") or item.get("cal") or 0),
                         "protein": float(item.get("protein") or item.get("protein_g") or 0),
                         "carbs": float(item.get("carbs") or item.get("carbs_g") or 0),
                         "fats": float(item.get("fats") or item.get("fat") or item.get("fat_g") or 0),
+                        "fiber": float(item.get("fiber") or inferred.get("fiber") or 0),
+                        "sodium_mg": float(item.get("sodium_mg") or inferred.get("sodium_mg") or 0),
+                        "potassium_mg": float(item.get("potassium_mg") or inferred.get("potassium_mg") or 0),
+                        "magnesium_mg": float(item.get("magnesium_mg") or inferred.get("magnesium_mg") or 0),
+                        "zinc_mg": float(item.get("zinc_mg") or inferred.get("zinc_mg") or 0),
+                        "vit_c_mg": float(item.get("vit_c_mg") or inferred.get("vit_c_mg") or 0),
+                        "vit_d_iu": float(item.get("vit_d_iu") or inferred.get("vit_d_iu") or 0),
+                        "iron_mg": float(item.get("iron_mg") or inferred.get("iron_mg") or 0),
                         "confidence": item.get("confidence") or "high"
                     }
                     normalized_items.append(norm)
@@ -3113,12 +3316,13 @@ class FoodChatAI:
             (r'סלמון', 'פילה סלמון אפוי בתנור', 150),
             (r'בקר|סטייק|המבורגר', 'סטייק סינטה בקר צלוי', 150),
             (r'שקשוקה', 'שקשוקה ביתית מ-2 ביצים ברוטב עגבניות ופלפלים', 200),
+            (r'מי\s*קוקוס|קוקוס', 'מי קוקוס טבעי 100% (ללא תוספת סוכר)', 250),
         ]
 
         try:
             with Database.get_connection() as conn:
                 c = conn.cursor()
-                c.execute("SELECT id, name, name_he, calories, protein, carbs, fats, serving_size_g FROM food_items")
+                c.execute("SELECT id, name, name_he, calories, protein, carbs, fats, fiber, sodium_mg, potassium_mg, magnesium_mg, zinc_mg, vit_c_mg, vit_d_iu, iron_mg, serving_size_g FROM food_items")
                 foods = [dict(r) for r in c.fetchall()]
 
             text_lower = user_text.lower()
@@ -3152,6 +3356,14 @@ class FoodChatAI:
                             'protein': round(item['protein'] * ratio, 1),
                             'carbs': round(item['carbs'] * ratio, 1),
                             'fats': round(item['fats'] * ratio, 1),
+                            'fiber': round((item.get('fiber') or 0) * ratio, 1),
+                            'sodium_mg': round((item.get('sodium_mg') or 0) * ratio, 1),
+                            'potassium_mg': round((item.get('potassium_mg') or 0) * ratio, 1),
+                            'magnesium_mg': round((item.get('magnesium_mg') or 0) * ratio, 1),
+                            'zinc_mg': round((item.get('zinc_mg') or 0) * ratio, 1),
+                            'vit_c_mg': round((item.get('vit_c_mg') or 0) * ratio, 1),
+                            'vit_d_iu': round((item.get('vit_d_iu') or 0) * ratio, 1),
+                            'iron_mg': round((item.get('iron_mg') or 0) * ratio, 1),
                             'confidence': 'high'
                         })
 
@@ -4493,7 +4705,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         elif path == "/api/supplements/log":
             self.handle_post_supplement(body)
         elif path == "/api/reset/today":
-            self.handle_reset_today()
+            self.handle_reset_today(body)
         elif path == "/api/reset/full":
             self.handle_reset_full()
         elif path == "/api/food/recognize":
@@ -5137,8 +5349,10 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                     c.execute("DELETE FROM water_logs WHERE id = ?", (fr["id"],))
             conn.commit()
 
-            c.execute("SELECT COALESCE(SUM(amount_ml), 0) as total_water FROM water_logs WHERE date = ?", (today,))
-            total_water = c.fetchone()["total_water"]
+            # Fetch today's water & beverage logs
+            c.execute("SELECT * FROM water_logs WHERE date = ? ORDER BY id ASC", (today,))
+            water_logs = [dict(r) for r in c.fetchall()]
+            total_water = sum(w["amount_ml"] for w in water_logs)
 
             c.execute("SELECT * FROM hunter_profile WHERE id=1")
             profile = dict(c.fetchone())
@@ -5166,17 +5380,39 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             # Calculate micronutrient contributions from supplements
             supp_micros = parse_supplement_micros(supps)
 
+            # Calculate beverage micronutrients from water_logs (e.g. coconut water, electrolytes, juices)
+            bev_potassium = 0.0
+            bev_magnesium = 0.0
+            bev_sodium = 0.0
+            bev_vit_c = 0.0
+            for w in water_logs:
+                w_name = (w.get("beverage_name") or "").lower()
+                w_type = (w.get("beverage_type") or "").lower()
+                w_ml = float(w.get("amount_ml") or 0)
+                if "קוקוס" in w_name or "קוקוס" in w_type:
+                    bev_potassium += (w_ml / 100.0) * 250.0
+                    bev_magnesium += (w_ml / 100.0) * 25.0
+                    bev_sodium += (w_ml / 100.0) * 105.0
+                    bev_vit_c += (w_ml / 100.0) * 2.4
+                elif "אלקטרוליט" in w_name or "איזוטוני" in w_name or "electrolyte" in w_name:
+                    bev_sodium += (w_ml / 100.0) * 60.0
+                    bev_potassium += (w_ml / 100.0) * 40.0
+                    bev_magnesium += (w_ml / 100.0) * 10.0
+                elif any(k in w_name for k in ["תפוז", "מיץ", "orange", "juice"]):
+                    bev_vit_c += (w_ml / 100.0) * 45.0
+                    bev_potassium += (w_ml / 100.0) * 180.0
+
             consumed = {
                 "calories": sum(m["calories"] for m in meals) + supp_micros.get("calories", 0),
                 "protein": sum(m["protein"] for m in meals) + supp_micros.get("protein", 0),
                 "carbs": sum(m["carbs"] for m in meals) + supp_micros.get("carbs", 0),
                 "fats": sum(m["fats"] for m in meals) + supp_micros.get("fats", 0),
                 "fiber": sum(m["fiber"] for m in meals),
-                "sodium_mg": sum(m["sodium_mg"] for m in meals) + supp_micros.get("sodium_mg", 0),
-                "potassium_mg": sum(m["potassium_mg"] for m in meals) + supp_micros.get("potassium_mg", 0),
-                "magnesium_mg": sum(m["magnesium_mg"] for m in meals) + supp_micros.get("magnesium_mg", 0),
+                "sodium_mg": sum(m["sodium_mg"] for m in meals) + supp_micros.get("sodium_mg", 0) + round(bev_sodium, 1),
+                "potassium_mg": sum(m["potassium_mg"] for m in meals) + supp_micros.get("potassium_mg", 0) + round(bev_potassium, 1),
+                "magnesium_mg": sum(m["magnesium_mg"] for m in meals) + supp_micros.get("magnesium_mg", 0) + round(bev_magnesium, 1),
                 "zinc_mg": sum(m["zinc_mg"] for m in meals) + supp_micros.get("zinc_mg", 0),
-                "vit_c_mg": sum(m["vit_c_mg"] for m in meals) + supp_micros.get("vit_c_mg", 0),
+                "vit_c_mg": sum(m["vit_c_mg"] for m in meals) + supp_micros.get("vit_c_mg", 0) + round(bev_vit_c, 1),
                 "vit_d_iu": sum(m["vit_d_iu"] for m in meals) + supp_micros.get("vit_d_iu", 0),
                 "omega3_mg": supp_micros.get("omega3_mg", 0),
                 "creatine_g": supp_micros.get("creatine_g", 0),
@@ -5354,6 +5590,18 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             vit_d_iu = float(body.get("vit_d_iu") or 0) * serving_count
             iron_mg = float(body.get("iron_mg") or 0) * serving_count
             meal_type = body.get("meal_type", "snack") or "snack"
+
+            # If micronutrients were missing or 0, auto-enrich from recognized food knowledge base
+            if (magnesium_mg == 0 and vit_c_mg == 0 and potassium_mg == 0 and iron_mg == 0 and zinc_mg == 0 and vit_d_iu == 0):
+                inferred = infer_food_micronutrients(food_name, serving_size_g, serving_count)
+                fiber = fiber if fiber > 0 else inferred.get("fiber", 0.0)
+                sodium_mg = sodium_mg if sodium_mg > 0 else inferred.get("sodium_mg", 0.0)
+                potassium_mg = potassium_mg if potassium_mg > 0 else inferred.get("potassium_mg", 0.0)
+                magnesium_mg = magnesium_mg if magnesium_mg > 0 else inferred.get("magnesium_mg", 0.0)
+                zinc_mg = zinc_mg if zinc_mg > 0 else inferred.get("zinc_mg", 0.0)
+                vit_c_mg = vit_c_mg if vit_c_mg > 0 else inferred.get("vit_c_mg", 0.0)
+                vit_d_iu = vit_d_iu if vit_d_iu > 0 else inferred.get("vit_d_iu", 0.0)
+                iron_mg = iron_mg if iron_mg > 0 else inferred.get("iron_mg", 0.0)
 
             with Database.get_connection() as conn:
                 today = body.get("date") or get_hunter_shift_date(conn, body.get("client_date"))
@@ -6264,10 +6512,11 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self._set_headers(400)
             self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
 
-    def handle_reset_today(self):
+    def handle_reset_today(self, body=None):
         try:
             with Database.get_connection() as conn:
-                today = get_hunter_shift_date(conn)
+                client_date = body.get("client_date") if isinstance(body, dict) else None
+                today = get_hunter_shift_date(conn, client_date)
                 c = conn.cursor()
                 c.execute("DELETE FROM daily_logs WHERE date = ?", (today,))
                 c.execute("DELETE FROM water_logs WHERE date = ?", (today,))
@@ -6291,7 +6540,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         try:
             with Database.get_connection() as conn:
                 c = conn.cursor()
-                # Reset Hunter Profile to Level 1 Awakened Novice
+                # Reset Hunter Profile to Level 1 Awakened Novice (across all rows)
                 c.execute("""
                 UPDATE hunter_profile SET
                     rank = 'E-Rank',
@@ -6311,9 +6560,9 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                     stats_per = 10,
                     fatigue = 15,
                     streak_days = 1,
+                    has_penalty_debuff = 0,
                     last_active_date = date('now'),
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = 1
                 """)
 
                 # Reset all 5 Skills to Level 1, 0/100 XP
@@ -6335,12 +6584,35 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 c.execute("DELETE FROM supplements_log")
                 c.execute("DELETE FROM medication_logs")
                 c.execute("DELETE FROM garmin_health_logs")
+                c.execute("DELETE FROM ai_chat_messages")
+                c.execute("DELETE FROM ai_recommendations")
+                c.execute("DELETE FROM hunter_penalties")
+
+                # Re-seed baseline scientific recommendations
+                c.execute("""
+                INSERT INTO ai_recommendations (title, content, category, is_active)
+                VALUES 
+                ('פרוטוקול היפרטרופיה ומסה נקייה', 'שמור על עודף קלורי יומי מבוקר וסגור את יעד החלבון היומי לחלוקה של 4-5 ארוחות.', 'nutrition', 1),
+                ('הידרציה והתאוששות שריר', 'שתה מים באופן רציף לאורך המשמרת לתמיכה בנפח התא השרירי ופינוי חומרי פסולת.', 'hydration', 1),
+                ('קריאטין מונוהידראט יומי', 'צרוך 5 גרם קריאטין מונוהידראט באופן יומי ורציף (כולל ימי מנוחה) לרוויית מאגרי הפוספוקריאטין בשריר.', 'supplements', 1)
+                """)
+
+                # Re-seed fresh welcome AI chat
+                c.execute("""
+                INSERT INTO ai_chat_messages (sender, message, recommendations_json)
+                VALUES (
+                    'system',
+                    'שלום צייד! המערכת זיהתה את התעוררותך. אני ה-AI של המערכת, כאן ללוות אותך 24/7. תוכל לשאול אותי בכל שלב: מה לאכול עכשיו, איך לתזמן תוספים, איך להתמודד עם עייפות או משמרות לילה, ולעדכן יעדים!',
+                    '[]'
+                )
+                """)
                 conn.commit()
 
             self._set_headers(200)
             self.wfile.write(json.dumps({
                 "status": "rebirth_complete",
-                "message": "[SYSTEM: לידה מחדש הושלמה! הצייד חזר לרמה 1, דרגת E-Rank. כל הסקילים אופסו לרמה 1.]"
+                "was_reset": True,
+                "message": "[SYSTEM: לידה מחדש הושלמה! הצייד חזר לרמה 1, דרגת E-Rank. כל הסקילים ויומני הארוחות אופסו לחלוטין.]"
             }, ensure_ascii=False).encode("utf-8"))
         except Exception as e:
             self._set_headers(400)
