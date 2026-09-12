@@ -3238,6 +3238,18 @@ class GoalAdvisorAI:
                 h3 = re.search(r'\b(1\.[4-9]\d|2\.[0-2]\d)\s*(?:מטר|m)\b', text_lower)
                 if h3:
                     height = float(h3.group(1)) * 100
+                else:
+                    h4 = re.search(r'(?:מטר|מ\')\s*(\d{2})\b', text_lower)
+                    if h4:
+                        height = 100.0 + float(h4.group(1))
+                    else:
+                        h5 = re.search(r'\b(?:אני|גובה)\s*(1\.[4-9]\d|2\.[0-2]\d)\b', text_lower)
+                        if h5:
+                            height = float(h5.group(1)) * 100
+                        else:
+                            h6 = re.search(r'\b(?:אני)\s*(1[4-9]\d|2[0-2]\d)\b', text_lower)
+                            if h6:
+                                height = float(h6.group(1))
 
         # Weight extraction (e.g. משקל 83, שוקל 83.5, המשקל שלי 83, 83 ק"ג)
         w_match = re.search(
@@ -3438,6 +3450,18 @@ class HunterAIConsultant:
                 h3 = re.search(r'\b(1\.[4-9]\d|2\.[0-2]\d)\s*(?:מטר|m)\b', text_lower)
                 if h3:
                     res["height"] = float(h3.group(1)) * 100
+                else:
+                    h4 = re.search(r'(?:מטר|מ\')\s*(\d{2})\b', text_lower)
+                    if h4:
+                        res["height"] = 100.0 + float(h4.group(1))
+                    else:
+                        h5 = re.search(r'\b(?:אני|גובה)\s*(1\.[4-9]\d|2\.[0-2]\d)\b', text_lower)
+                        if h5:
+                            res["height"] = float(h5.group(1)) * 100
+                        else:
+                            h6 = re.search(r'\b(?:אני)\s*(1[4-9]\d|2[0-2]\d)\b', text_lower)
+                            if h6:
+                                res["height"] = float(h6.group(1))
 
         # Weight extraction
         w_match = re.search(
@@ -3578,8 +3602,11 @@ class HunterAIConsultant:
 
         conn.commit()
 
-        # Fetch latest active recommendations to return with response
+        # Fetch latest active recommendations and updated profile to return with response
         result["active_recommendations"] = cls.get_recommendations(conn)
+        c.execute("SELECT * FROM hunter_profile WHERE id = 1")
+        prof_row = c.fetchone()
+        result["profile"] = dict(prof_row) if prof_row else {}
         return result
 
     @classmethod
@@ -5491,7 +5518,24 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             # Auto-save immediately to database so user never loses recommendations
             with Database.get_connection() as conn:
                 c = conn.cursor()
-                calc_tw = res.get("detected_target_weight") or (round(profile.get("weight", 83.0) + 4.0, 1) if res.get("goal_type") == "bulk" else round(profile.get("weight", 83.0) - 4.0, 1))
+                final_height = float(res.get("detected_height") or body.get("height") or profile.get("height", 180.0))
+                final_weight = float(res.get("detected_weight") or body.get("weight") or profile.get("weight", 83.0))
+                final_age = int(res.get("detected_age") or body.get("age") or profile.get("age", 26))
+                final_sex = str(body.get("sex") or profile.get("sex", "male"))
+                final_activity = str(body.get("activity_level") or profile.get("activity_level", "moderate"))
+                goal_val = res.get("goal_type") or profile.get("goal", "bulk")
+
+                calc_tw = res.get("detected_target_weight") or (round(final_weight + 4.0, 1) if goal_val == "bulk" else round(max(40.0, final_weight - 4.0), 1))
+
+                sci = NutritionScienceEngine.calculate_full_profile(
+                    weight_kg=final_weight,
+                    height_cm=final_height,
+                    age=final_age,
+                    sex=final_sex,
+                    activity_level=final_activity,
+                    goal=goal_val
+                )
+
                 c.execute("""
                 UPDATE hunter_profile SET
                     ai_analysis_headline = ?,
@@ -5507,6 +5551,12 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                     target_weight = ?,
                     goal = ?,
                     weight = ?,
+                    height = ?,
+                    age = ?,
+                    sex = ?,
+                    activity_level = ?,
+                    bmr = ?,
+                    tdee = ?,
                     is_awakened = 1,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = 1
@@ -5515,16 +5565,27 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                     res.get("ai_explanation", ""),
                     res.get("hunter_rank_tip", ""),
                     goal_text,
-                    res.get("target_calories", profile.get("target_calories", 2550)),
-                    res.get("target_protein", profile.get("target_protein", 175)),
-                    res.get("target_carbs", profile.get("target_carbs", 290)),
-                    res.get("target_fats", profile.get("target_fats", 75)),
-                    res.get("target_water", profile.get("target_water", 3300)),
+                    res.get("target_calories", profile.get("target_calories", sci["target_calories"])),
+                    res.get("target_protein", profile.get("target_protein", sci["target_protein"])),
+                    res.get("target_carbs", profile.get("target_carbs", sci["target_carbs"])),
+                    res.get("target_fats", profile.get("target_fats", sci["target_fats"])),
+                    res.get("target_water", profile.get("target_water", sci["target_water"])),
                     res.get("target_fiber", res.get("target_fiber", 30)),
                     calc_tw,
-                    res.get("goal_type", "bulk"),
-                    profile.get("weight", 83.0)
+                    goal_val,
+                    final_weight,
+                    final_height,
+                    final_age,
+                    final_sex,
+                    final_activity,
+                    sci["bmr"],
+                    sci["tdee"]
                 ))
+                res["detected_height"] = final_height
+                res["detected_weight"] = final_weight
+                res["detected_age"] = final_age
+                res["height"] = final_height
+                res["weight"] = final_weight
 
                 # Save into ai_chat_messages
                 if goal_text:

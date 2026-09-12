@@ -1634,6 +1634,18 @@ const AppState = {
       if (goalSelect && data.goal_type) {
         goalSelect.value = data.goal_type;
       }
+      if (data.detected_height) {
+        const hEl = document.getElementById('awakening-height');
+        if (hEl) hEl.value = data.detected_height;
+      }
+      if (data.detected_weight) {
+        const wEl = document.getElementById('awakening-weight');
+        if (wEl) wEl.value = data.detected_weight;
+      }
+      if (data.detected_age) {
+        const aEl = document.getElementById('awakening-age');
+        if (aEl) aEl.value = data.detected_age;
+      }
 
       // Render the AI explanation box
       const resultBox = document.getElementById('ai-goal-result-box');
@@ -2464,6 +2476,12 @@ const AppState = {
         thinkingBubble.parentNode.removeChild(thinkingBubble);
       }
 
+      if (data.profile) {
+        this.profile = { ...this.profile, ...data.profile };
+        localStorage.setItem('hunter_profile', JSON.stringify(this.profile));
+        this.renderProfile();
+      }
+      await this.fetchTodayData();
       await this.loadAIConsultationHistory();
       await this.fetchAIRecommendations();
       sfx.playLevelUp();
