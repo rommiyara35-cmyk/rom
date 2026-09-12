@@ -1485,17 +1485,28 @@
           </button>
         </div>
 
-        <div class="garmin-export-tips" style="margin-top:14px;">
-          <div class="tip-title">📱 הגדרת קיצור דרך באייפון (Apple Health -> מערכת):</div>
-          <ol style="padding-right:18px; margin-top:6px; font-size:11.5px; color:var(--text-dim); line-height:1.7;">
-            <li>באייפון: פתח את אפליקציית <strong>'קיצורי דרך' (Shortcuts)</strong> -> לחץ על <strong>+</strong> ליצירת קיצור חדש.</li>
-            <li>הוסף פעולה <strong>'מצא דגימות בריאות'</strong>: בחר <strong>צעדים</strong>, הגדר סכום עבור <strong>היום</strong>.</li>
-            <li>הוסף פעולה <strong>'מצא דגימות בריאות'</strong> נוספת: בחר <strong>דופק</strong>, קח את הדגימה האחרונה.</li>
-            <li>הוסף פעולה <strong>'קבל תוכן מכתובת URL'</strong> עם הכתובת:<br>
-              <code style="background:#091326; color:#00f0ff; padding:3px 6px; border-radius:4px; font-size:10.5px; word-break:break-all; display:inline-block; margin-top:3px;" id="shortcut-example-code">.../api/garmin/webhook?steps=[צעדים]&hr=[דופק]</code>
-            </li>
-            <li>זה הכל! בלחיצה אחת על הקיצור (או אוטומטית בכל בוקר) — הצעדים והדופק האמיתיים שלך מאפליקציית הבריאות נשאבים ישירות לכאן!</li>
-          </ol>
+        <div class="garmin-export-tips" style="margin-top:14px; background: rgba(0,240,255,0.04); border:1px solid rgba(0,240,255,0.2); border-radius:10px; padding:14px;">
+          <div class="tip-title" style="color:#00f0ff; font-weight:700; font-size:13px; display:flex; align-items:center; gap:6px;">
+            <span>📱</span> מדריך מדויק לקיצור הדרך באייפון (Apple Health / Garmin):
+          </div>
+          <div style="font-size:12px; color:var(--text-dim); line-height:1.7; margin-top:8px;">
+            <p style="margin:0 0 8px 0;">באפליקציית <strong>'קיצורי דרך' (Shortcuts)</strong> צור 3 פעולות לפי הסדר:</p>
+            <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:10px; margin-bottom:8px;">
+              <strong style="color:#38bdf8;">פעולה 1:</strong> <code>מצא דגימות בריאות</code> -> סוג: <strong>צעדים</strong>, תאריך התחלה: <strong>היום</strong>.
+            </div>
+            <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:10px; margin-bottom:8px;">
+              <strong style="color:#38bdf8;">פעולה 2:</strong> <code>מצא דגימות בריאות</code> -> סוג: <strong>דופק</strong>, הגבלה: <strong>1 דגימה</strong>, סדר: <strong>החדש ביותר תחילה</strong>.<br>
+              <span style="color:#f59e0b; font-size:11px;">⚠️ שים לב: אם כתוב "סנן דגימות בריאות" מפעולה 1, לחץ על הבועה ונקה אותה כדי שזה יחפש דופק ישירות מ-Health!</span>
+            </div>
+            <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:10px;">
+              <strong style="color:#38bdf8;">פעולה 3:</strong> <code>קבל תוכן מכתובת URL</code>:<br>
+              הדבק את כתובת ה-Webhook ולחץ בסופה להוספת המשתנים:<br>
+              <code style="background:#030712; color:#00f0ff; padding:6px 10px; border-radius:6px; font-size:11px; word-break:break-all; display:block; margin-top:6px;" id="shortcut-example-code">.../api/garmin/webhook?steps=[דגימות בריאות]&hr=[דגימות בריאות]</code>
+              <div style="margin-top:6px; font-size:11px; color:#10b981;">
+                ✅ תומך גם ב-POST: אם פותחים את החץ הכחול (>) ובוחרים ב-POST, ניתן להעביר את השדות ב-Form או ב-JSON!
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

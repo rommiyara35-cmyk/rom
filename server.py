@@ -1258,16 +1258,27 @@ class GarminDataEngine:
                 return sum(cleaned)
             elif mode == "max":
                 return max(cleaned)
+            elif mode == "min":
+                return min(cleaned)
             else:
                 return cleaned[-1]
         if isinstance(val, str):
-            val = val.replace(",", "").strip()
             import re
-            m = re.search(r"[-+]?\d*\.?\d+", val)
-            if m:
+            # Remove thousand separators like 1,500 while keeping lists like 10, 20 intact
+            val_clean = re.sub(r'(?<=\d),(?=\d{3}(?:\D|$))', '', val.strip())
+            nums = re.findall(r"[-+]?\d*\.?\d+", val_clean)
+            if nums:
                 try:
-                    num = float(m.group(0))
-                    return int(num) if num.is_integer() else num
+                    parsed = [float(x) for x in nums]
+                    if mode == "sum":
+                        res = sum(parsed)
+                    elif mode == "max":
+                        res = max(parsed)
+                    elif mode == "min":
+                        res = min(parsed)
+                    else:  # latest
+                        res = parsed[-1]
+                    return int(res) if res.is_integer() else res
                 except Exception:
                     pass
         return None
@@ -1277,106 +1288,109 @@ class GarminDataEngine:
         if not isinstance(payload, dict):
             return {}, {}
 
+        # Build normalized lookup for case-insensitivity and whitespace stripping
+        norm = {}
+        for k, v in payload.items():
+            if k is not None:
+                norm[str(k).lower().strip().replace("-", "_").replace(" ", "_")] = v
+
+        def get_val(keys):
+            for k in keys:
+                if k in payload and payload[k] is not None:
+                    return payload[k]
+                k_norm = str(k).lower().strip().replace("-", "_").replace(" ", "_")
+                if k_norm in norm and norm[k_norm] is not None:
+                    return norm[k_norm]
+            return None
+
         bio = {}
         # Steps
-        for k in ["steps", "step_count", "stepCount", "dailySteps", "totalSteps"]:
-            if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="sum")
-                if clean is not None:
-                    bio["steps"] = int(clean)
-                    break
+        steps_val = get_val(["steps", "step_count", "stepCount", "dailySteps", "totalSteps", "count", "samples", "צעדים", "צעד", "כמות צעדים", "דגימות צעדים"])
+        if steps_val is not None:
+            clean = GarminDataEngine.clean_biometric_number(steps_val, mode="sum")
+            if clean is not None:
+                bio["steps"] = int(clean)
 
         # Heart Rate
-        for k in ["heart_rate", "heartRate", "hr", "currentHeartRate", "bpm"]:
-            if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
-                if clean is not None:
-                    bio["heart_rate"] = int(clean)
-                    break
+        hr_val = get_val(["heart_rate", "heartRate", "hr", "currentHeartRate", "bpm", "pulse", "דופק", "קצב לב", "דופק נוכחי", "דופק_נוכחי"])
+        if hr_val is not None:
+            clean = GarminDataEngine.clean_biometric_number(hr_val, mode="latest")
+            if clean is not None:
+                bio["heart_rate"] = int(clean)
 
         # Resting HR
-        for k in ["resting_hr", "restingHeartRate", "rhr", "resting_heart_rate"]:
-            if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
-                if clean is not None:
-                    bio["resting_hr"] = int(clean)
-                    break
+        rhr_val = get_val(["resting_hr", "restingHeartRate", "rhr", "resting_heart_rate", "דופק מנוחה", "דופק_מנוחה"])
+        if rhr_val is not None:
+            clean = GarminDataEngine.clean_biometric_number(rhr_val, mode="latest")
+            if clean is not None:
+                bio["resting_hr"] = int(clean)
 
         # Sleep Score & Hours
-        for k in ["sleep_score", "sleepScore", "sleep_quality", "sleep"]:
-            if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
-                if clean is not None:
-                    val = float(clean)
-                    if val <= 14.0 and "sleep_hours" not in bio:
-                        bio["sleep_hours"] = round(val, 1)
-                    else:
-                        bio["sleep_score"] = int(val)
-                    break
+        sleep_hours_val = get_val(["sleep_hours", "sleepDurationHours", "sleepHours", "sleep_duration", "asleep_hours", "hours", "שעות שינה", "שעות_שינה", "משך שינה", "שינה"])
+        if sleep_hours_val is not None:
+            clean = GarminDataEngine.clean_biometric_number(sleep_hours_val, mode="latest")
+            if clean is not None:
+                bio["sleep_hours"] = round(float(clean), 1)
 
-        for k in ["sleep_hours", "sleepDurationHours", "sleepHours", "sleep_duration", "asleep_hours"]:
-            if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
-                if clean is not None:
-                    bio["sleep_hours"] = round(float(clean), 1)
-                    break
+        sleep_score_val = get_val(["sleep_score", "sleepScore", "sleep_quality", "sleepquality", "ציון שינה", "ציון_שינה", "איכות שינה"])
+        if sleep_score_val is not None:
+            clean = GarminDataEngine.clean_biometric_number(sleep_score_val, mode="latest")
+            if clean is not None:
+                val = float(clean)
+                if val <= 14.0 and "sleep_hours" not in bio:
+                    bio["sleep_hours"] = round(val, 1)
+                else:
+                    bio["sleep_score"] = int(val)
 
         # Stress
-        for k in ["stress_level", "stressScore", "stress", "stress_score"]:
-            if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
-                if clean is not None:
-                    bio["stress_level"] = int(clean)
-                    break
+        stress_val = get_val(["stress_level", "stressScore", "stress", "stress_score", "stresslevel", "לחץ", "סטרס", "רמת לחץ"])
+        if stress_val is not None:
+            clean = GarminDataEngine.clean_biometric_number(stress_val, mode="latest")
+            if clean is not None:
+                bio["stress_level"] = int(clean)
 
         # Body Battery
-        for k in ["body_battery", "bodyBattery", "bb", "body_battery_pct"]:
-            if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
-                if clean is not None:
-                    bio["body_battery"] = int(clean)
-                    break
+        bb_val = get_val(["body_battery", "bodyBattery", "bb", "body_battery_pct", "bodybattery", "סוללת גוף", "סוללת_גוף", "אנרגיה"])
+        if bb_val is not None:
+            clean = GarminDataEngine.clean_biometric_number(bb_val, mode="latest")
+            if clean is not None:
+                bio["body_battery"] = int(clean)
 
         # Active Calories
-        for k in ["active_calories", "activeEnergyBurned", "activeCalories", "active_cals", "active_burn"]:
-            if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="sum")
-                if clean is not None:
-                    bio["active_calories"] = int(clean)
-                    break
+        cal_val = get_val(["active_calories", "activeEnergyBurned", "activeCalories", "active_cals", "active_burn", "calories", "cals", "קלוריות", "שריפה", "קלוריות פעילות"])
+        if cal_val is not None:
+            clean = GarminDataEngine.clean_biometric_number(cal_val, mode="sum")
+            if clean is not None:
+                bio["active_calories"] = int(clean)
 
         # SpO2
-        for k in ["spo2_pct", "oxygenSaturation", "spo2", "blood_oxygen"]:
-            if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
-                if clean is not None:
-                    val = float(clean)
-                    if val <= 1.0:
-                        val = val * 100.0
-                    bio["spo2_pct"] = int(val)
-                    break
+        spo2_val = get_val(["spo2_pct", "oxygenSaturation", "spo2", "blood_oxygen", "חמצן", "חמצן בדם"])
+        if spo2_val is not None:
+            clean = GarminDataEngine.clean_biometric_number(spo2_val, mode="latest")
+            if clean is not None:
+                val = float(clean)
+                if val <= 1.0:
+                    val = val * 100.0
+                bio["spo2_pct"] = int(val)
 
         # Respiration
-        for k in ["respiration_rpm", "respirationRate", "respiration"]:
-            if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k], mode="latest")
-                if clean is not None:
-                    bio["respiration_rpm"] = int(clean)
-                    break
+        resp_val = get_val(["respiration_rpm", "respirationRate", "respiration", "respirationrate", "נשימה", "קצב נשימה"])
+        if resp_val is not None:
+            clean = GarminDataEngine.clean_biometric_number(resp_val, mode="latest")
+            if clean is not None:
+                bio["respiration_rpm"] = int(clean)
 
         # VO2 Max
-        for k in ["vo2_max", "vo2Max", "vo2"]:
-            if k in payload and payload[k] is not None:
-                clean = GarminDataEngine.clean_biometric_number(payload[k])
-                if clean is not None:
-                    bio["vo2_max"] = int(clean)
-                    break
+        vo2_val = get_val(["vo2_max", "vo2Max", "vo2", "כושר אירובי"])
+        if vo2_val is not None:
+            clean = GarminDataEngine.clean_biometric_number(vo2_val, mode="latest")
+            if clean is not None:
+                bio["vo2_max"] = int(clean)
 
         # HRV Status
-        for k in ["hrv_status", "hrvStatus", "hrv"]:
-            if k in payload and payload[k]:
-                bio["hrv_status"] = str(payload[k])
-                break
+        hrv_val = get_val(["hrv_status", "hrvStatus", "hrv", "סטטוס hrv"])
+        if hrv_val is not None:
+            bio["hrv_status"] = str(hrv_val)
 
         # Sync Source
         bio["sync_source"] = str(payload.get("source") or payload.get("sync_source") or "webhook")
@@ -4701,10 +4715,32 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         content_length = int(self.headers.get("Content-Length", 0))
         body_bytes = self.rfile.read(content_length) if content_length > 0 else b"{}"
         
-        try:
-            body = json.loads(body_bytes.decode("utf-8")) if body_bytes else {}
-        except Exception:
-            body = {}
+        body = {}
+        if body_bytes:
+            body_str = body_bytes.decode("utf-8", errors="ignore").strip()
+            if body_str:
+                try:
+                    body = json.loads(body_str)
+                except Exception:
+                    # Fallback to form-urlencoded (common in iOS Shortcuts POST)
+                    try:
+                        from urllib.parse import parse_qs
+                        qs = parse_qs(body_str)
+                        body = {k: v[0] if isinstance(v, list) and len(v) == 1 else v for k, v in qs.items()}
+                    except Exception:
+                        body = {}
+
+        # Merge URL query parameters into body if not already present
+        if parsed.query:
+            try:
+                from urllib.parse import parse_qs
+                qs = parse_qs(parsed.query)
+                for k, v in qs.items():
+                    val = v[0] if isinstance(v, list) and len(v) == 1 else v
+                    if k not in body or body[k] is None or body[k] == "":
+                        body[k] = val
+            except Exception:
+                pass
 
         if path == "/api/awakening":
             self.handle_post_awakening(body)
@@ -6793,28 +6829,32 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
 
     def handle_garmin_webhook_get(self, query):
         try:
-            extracted = {}
-            mapping = {
-                "heart_rate": ["heart_rate", "hr"],
-                "resting_hr": ["resting_hr", "rhr"],
-                "sleep_score": ["sleep_score", "sleep"],
-                "sleep_hours": ["sleep_hours", "hours"],
-                "stress_level": ["stress_level", "stress"],
-                "body_battery": ["body_battery", "bb"],
-                "steps": ["steps", "step_count"],
-                "active_calories": ["active_calories", "calories", "cals"],
-                "spo2_pct": ["spo2_pct", "spo2"]
-            }
-            for field, aliases in mapping.items():
-                for a in aliases:
-                    if a in query:
-                        clean = GarminDataEngine.clean_biometric_number(query[a])
-                        if clean is not None:
-                            extracted[field] = int(clean) if field not in ["sleep_hours"] else round(float(clean), 1)
-                            break
+            # Flatten query dict
+            flat = {}
+            for k, v in query.items():
+                flat[k] = v[0] if isinstance(v, list) and len(v) == 1 else v
 
-            extracted["sync_source"] = "ios_shortcuts"
-            return self.handle_post_garmin_sync(extracted)
+            bio, activity = GarminDataEngine.parse_universal_payload(flat)
+            has_metrics = any(k in bio for k in [
+                "steps", "heart_rate", "resting_hr", "sleep_hours", "sleep_score",
+                "stress_level", "body_battery", "active_calories", "spo2_pct", "vo2_max"
+            ])
+
+            if not has_metrics:
+                self._set_headers(200)
+                resp = {
+                    "status": "warning",
+                    "code": "no_metrics_provided",
+                    "message": "⚠️ שרת ה-Webhook מחובר ופעיל, אך לא נשלחו מדדים בבקשה!",
+                    "tip": "בקיצור הדרך באייפון: בפעולה 'קבל תוכן מכתובת URL', הוסף לסוף הקישור: ?steps=[בחר דגימות צעדים]&hr=[בחר דגימות דופק]",
+                    "received_keys": list(query.keys()),
+                    "example_url": "https://rom-z019.onrender.com/api/garmin/webhook?steps=5200&hr=72"
+                }
+                self.wfile.write(json.dumps(resp, ensure_ascii=False).encode("utf-8"))
+                return
+
+            flat["sync_source"] = "ios_shortcuts"
+            return self.handle_post_garmin_sync(flat)
         except Exception as e:
             self._set_headers(400)
             self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
@@ -6823,6 +6863,25 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         try:
             if not isinstance(body, dict):
                 body = {}
+
+            bio, activity = GarminDataEngine.parse_universal_payload(body)
+            has_metrics = any(k in bio for k in [
+                "steps", "heart_rate", "resting_hr", "sleep_hours", "sleep_score",
+                "stress_level", "body_battery", "active_calories", "spo2_pct", "vo2_max"
+            ])
+
+            if not has_metrics and not body.get("sync_dummy"):
+                self._set_headers(200)
+                resp = {
+                    "status": "warning",
+                    "code": "no_metrics_provided",
+                    "message": "⚠️ שרת ה-Webhook מחובר ופעיל ב-POST, אך לא צורפו שדות צעדים או דופק בבקשה!",
+                    "tip": "הוסף שדות: steps (צעדים) ו-hr (דופק)",
+                    "received_keys": list(body.keys())
+                }
+                self.wfile.write(json.dumps(resp, ensure_ascii=False).encode("utf-8"))
+                return
+
             if not body.get("sync_source"):
                 body["sync_source"] = "ios_shortcuts"
             return self.handle_post_garmin_sync(body)
@@ -6923,10 +6982,20 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
 
                 health_data = HunterHealthAIAdvisor.analyze_and_generate_insights(conn, today)
 
+            summary_parts = []
+            if "steps" in merged and merged["steps"] is not None:
+                summary_parts.append(f"{merged['steps']} צעדים")
+            if "heart_rate" in merged and merged["heart_rate"] is not None:
+                summary_parts.append(f"דופק {merged['heart_rate']} bpm")
+            if "sleep_hours" in merged and merged["sleep_hours"] is not None:
+                summary_parts.append(f"{merged['sleep_hours']}h שינה")
+            summary_str = " | ".join(summary_parts) if summary_parts else "עודכן"
+
             self._set_headers()
             self.wfile.write(json.dumps({
                 "status": "synced",
-                "message": "[SYSTEM: מדדי Garmin Venu 4 סונכרנו בהצלחה!]",
+                "message": f"[SYSTEM: מדדי Garmin Venu 4 סונכרנו בהצלחה! {summary_str}]",
+                "summary": f"✅ {summary_str}",
                 "sync_source": merged["sync_source"],
                 "activity_logged": workout_logged,
                 "data": health_data
