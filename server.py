@@ -1892,44 +1892,53 @@ class HunterHealthAIAdvisor:
     @staticmethod
     def get_health_state(conn, today):
         c = conn.cursor()
-        # 1. Fetch Garmin biometrics row
-        c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
-        g_row = c.fetchone()
-        if not g_row:
-            now_time = get_israel_now().strftime("%H:%M")
-            c.execute("""
-            INSERT OR IGNORE INTO garmin_health_logs 
-            (date, timestamp, heart_rate, resting_hr, sleep_score, sleep_hours, stress_level, body_battery, steps, active_calories)
-            VALUES (?, ?, 68, 58, 82, 7.2, 28, 75, 8500, 450)
-            """, (today, now_time))
-            conn.commit()
-            c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
-            g_row = c.fetchone()
-
-        garmin = dict(g_row) if g_row else {
-            "heart_rate": 68, "resting_hr": 58, "sleep_score": 82, "sleep_hours": 7.2,
-            "stress_level": 28, "body_battery": 75, "steps": 8500, "active_calories": 450,
-            "spo2_pct": 98, "respiration_rpm": 14
-        }
-
-        # 2. Fetch medication logs for today
-        c.execute("SELECT * FROM medication_logs WHERE date = ? ORDER BY id DESC", (today,))
-        meds = [dict(r) for r in c.fetchall()]
-
-        # 3. Check for active Attent (supporting multiple doses & boosters)
-        attent_info = None
         now = get_israel_now()
+
+        # 1. Fetch candidate medication logs for today, current local calendar date, or previous date (supporting night shifts)
+        c.execute("""
+            SELECT * FROM medication_logs 
+            WHERE date = ? 
+               OR date = date('now', 'localtime') 
+               OR date = date('now', 'localtime', '-1 day')
+            ORDER BY id DESC
+        """, (today,))
+        raw_meds = [dict(r) for r in c.fetchall()]
+        seen_med_ids = set()
+        meds = []
+        for m in raw_meds:
+            if m["id"] not in seen_med_ids:
+                seen_med_ids.add(m["id"])
+                meds.append(m)
+
+        # 2. Check for active Attent (supporting night shift crossovers, boosters, and multiple doses)
+        attent_info = None
         attent_doses = []
         for m in meds:
-            if m["med_name"].lower() == "attent":
+            if (m.get("med_name") or "").lower() == "attent":
+                med_date_str = m.get("date") or today
+                med_time_str = m.get("timestamp") or "09:00"
                 try:
-                    time_parts = m["timestamp"].split(":")
+                    time_parts = med_time_str.split(":")
                     dose_hour = int(time_parts[0])
                     dose_min = int(time_parts[1]) if len(time_parts) > 1 else 0
-                    dose_dt = now.replace(hour=dose_hour, minute=dose_min, second=0, microsecond=0)
-                    if dose_dt > now:
-                        dose_dt -= datetime.timedelta(days=1)
-                    elapsed_h = max(0.0, round((now - dose_dt).total_seconds() / 3600.0, 1))
+                    d_parts = [int(p) for p in med_date_str.split("-")]
+                    dose_dt = datetime.datetime(d_parts[0], d_parts[1], d_parts[2], dose_hour, dose_min, 0)
+                    now_dt = datetime.datetime(now.year, now.month, now.day, now.hour, now.minute, now.second)
+                    diff_sec = (now_dt - dose_dt).total_seconds()
+
+                    # Shift worker night crossover:
+                    # If dose was logged under shift date (e.g. yesterday) but taken post-midnight (00:00-08:00)
+                    if 18 * 3600 <= diff_sec <= 30 * 3600 and now.hour < 12 and dose_hour < 12:
+                        dose_dt += datetime.timedelta(days=1)
+                        diff_sec = (now_dt - dose_dt).total_seconds()
+
+                    # Grace period for clock skew / future 30 mins
+                    if -1800 <= diff_sec < 0:
+                        elapsed_h = 0.0
+                    elif diff_sec < -1800:
+                        elapsed_h = 999.0
+                    else:
+                        elapsed_h = max(0.0, round(diff_sec / 3600.0, 1))
                 except Exception:
                     elapsed_h = 2.0
 
@@ -1949,30 +1958,29 @@ class HunterHealthAIAdvisor:
 
                 effective_contrib = potency * (dose_mg / 20.0)
 
-                attent_doses.append({
-                    "id": m["id"],
-                    "med_name": m["med_name"],
-                    "dose_mg": dose_mg,
-                    "timestamp": m["timestamp"],
-                    "elapsed_hours": elapsed_h,
-                    "duration_hours": duration,
-                    "remaining_hours": remaining,
-                    "is_active": is_active,
-                    "potency": round(potency, 2),
-                    "effective_contrib": round(effective_contrib, 3),
-                    "notes": m.get("notes", "")
-                })
+                if is_active or m.get("date") == today:
+                    attent_doses.append({
+                        "id": m["id"],
+                        "med_name": m["med_name"],
+                        "dose_mg": dose_mg,
+                        "timestamp": m["timestamp"],
+                        "date": m.get("date", today),
+                        "elapsed_hours": elapsed_h,
+                        "duration_hours": duration,
+                        "remaining_hours": remaining,
+                        "is_active": is_active,
+                        "potency": round(potency, 2),
+                        "effective_contrib": round(effective_contrib, 3),
+                        "notes": m.get("notes", "")
+                    })
 
         if attent_doses:
-            # Sort chronologically by timestamp
             attent_doses.sort(key=lambda d: d["timestamp"])
             total_dose_mg = sum(d["dose_mg"] for d in attent_doses)
             active_doses = [d for d in attent_doses if d["is_active"]]
             is_active = len(active_doses) > 0
-            
-            # Superposition principle: sum active contributions, smoothly capped at 2.2
+
             combined_potency = min(2.2, sum(d["effective_contrib"] for d in active_doses)) if is_active else 0.0
-            
             primary_dose = active_doses[-1] if active_doses else attent_doses[-1]
             max_remaining = max((d["remaining_hours"] for d in active_doses), default=0.0)
 
@@ -1995,6 +2003,34 @@ class HunterHealthAIAdvisor:
                 "notes": primary_dose.get("notes", ""),
                 "doses": attent_doses
             }
+
+        # 3. Fetch or Seed Garmin biometrics row
+        c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
+        g_row = c.fetchone()
+        if not g_row:
+            seed_bio = GarminDataEngine.generate_smart_diurnal_biometrics(now, attent_info)
+            now_time = now.strftime("%H:%M")
+            c.execute("""
+            INSERT OR IGNORE INTO garmin_health_logs 
+            (date, timestamp, heart_rate, resting_hr, sleep_score, sleep_hours, stress_level, body_battery, steps, active_calories, sync_source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                today, now_time,
+                seed_bio["heart_rate"], seed_bio["resting_hr"],
+                seed_bio["sleep_score"], seed_bio["sleep_hours"],
+                seed_bio["stress_level"], seed_bio["body_battery"],
+                seed_bio["steps"], seed_bio["active_calories"],
+                seed_bio.get("sync_source", "smart_diurnal")
+            ))
+            conn.commit()
+            c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
+            g_row = c.fetchone()
+
+        garmin = dict(g_row) if g_row else {
+            "heart_rate": 68, "resting_hr": 58, "sleep_score": 82, "sleep_hours": 7.2,
+            "stress_level": 28, "body_battery": 75, "steps": 8500, "active_calories": 450,
+            "spo2_pct": 98, "respiration_rpm": 14
+        }
 
         return garmin, attent_info, meds
 
@@ -4614,9 +4650,9 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self._set_headers()
             self.wfile.write(json.dumps({"ip": get_local_ip(), "port": 8080}).encode("utf-8"))
         elif path == "/api/garmin/status":
-            self.handle_garmin_status()
+            self.handle_garmin_status(query)
         elif path == "/api/garmin/health":
-            self.handle_get_garmin_health()
+            self.handle_get_garmin_health(query)
         elif path == "/api/garmin/webhook-info":
             self.handle_get_garmin_webhook_info()
         elif path in ["/api/garmin/webhook", "/api/garmin/sync", "/api/garmin/health-sync", "/api/garmin/smart-sync"]:
@@ -6659,9 +6695,10 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
 
     # ------------------ Garmin & Health Integration ------------------
-    def handle_garmin_status(self):
+    def handle_garmin_status(self, query=None):
         with Database.get_connection() as conn:
-            today = get_hunter_shift_date(conn)
+            client_date = query.get("client_date", [None])[0] if query else None
+            today = get_hunter_shift_date(conn, client_date)
             c = conn.cursor()
             c.execute("SELECT * FROM hunter_profile WHERE id=1")
             profile = dict(c.fetchone())
@@ -6710,9 +6747,10 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         self._set_headers()
         self.wfile.write(json.dumps(garmin_payload, ensure_ascii=False).encode("utf-8"))
 
-    def handle_get_garmin_health(self):
+    def handle_get_garmin_health(self, query=None):
         with Database.get_connection() as conn:
-            today = get_hunter_shift_date(conn)
+            client_date = query.get("client_date", [None])[0] if query else None
+            today = get_hunter_shift_date(conn, client_date)
             health_data = HunterHealthAIAdvisor.analyze_and_generate_insights(conn, today)
         self._set_headers()
         self.wfile.write(json.dumps(health_data, ensure_ascii=False).encode("utf-8"))
@@ -6810,7 +6848,7 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 merged["sync_source"] = body.get("source", "webhook" if "/webhook" in self.path else "manual")
 
             with Database.get_connection() as conn:
-                today = get_hunter_shift_date(conn)
+                today = get_hunter_shift_date(conn, body.get("client_date"))
                 c = conn.cursor()
                 now_time = get_israel_now().strftime("%H:%M")
 
@@ -6933,32 +6971,39 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
     def handle_garmin_smart_sync(self, body):
         try:
             with Database.get_connection() as conn:
-                today = get_hunter_shift_date(conn)
+                shift_date = get_hunter_shift_date(conn, body.get("client_date"))
                 c = conn.cursor()
-                c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
+                c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (shift_date,))
                 row = c.fetchone()
 
-                now_time = get_israel_now().strftime("%H:%M")
+                now_israel = get_israel_now()
+                now_time = now_israel.strftime("%H:%M")
 
-                # If the user already has data for today, PRESERVE IT 100%!
+                _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, shift_date)
+                smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(now_israel, attent_info)
+                smart_bio["sync_source"] = body.get("source", "smart_sync")
+
+                # Merge explicit sensor metrics if passed (from simulator sliders, Shortcuts, etc.)
+                for k in ["heart_rate", "resting_hr", "sleep_score", "sleep_hours",
+                          "stress_level", "body_battery", "steps", "active_calories",
+                          "spo2_pct", "respiration_rpm", "vo2_max"]:
+                    if k in body and body[k] is not None and body[k] != "":
+                        clean = GarminDataEngine.clean_biometric_number(body[k])
+                        if clean is not None:
+                            smart_bio[k] = clean
+
                 if row:
-                    c.execute("UPDATE garmin_health_logs SET timestamp = ?, updated_at = CURRENT_TIMESTAMP WHERE date = ?", (now_time, today))
-                    conn.commit()
-                    health_data = HunterHealthAIAdvisor.analyze_and_generate_insights(conn, today)
-                    self._set_headers()
-                    self.wfile.write(json.dumps({
-                        "status": "synced",
-                        "message": "[SYSTEM: מדדי השעון שלך שמורים ומעודכנים!]",
-                        "sync_source": row["sync_source"] or "saved",
-                        "data": health_data
-                    }, ensure_ascii=False).encode("utf-8"))
-                    return
+                    # Preserve highest steps & active calories unless explicitly sent in body
+                    if "steps" not in body:
+                        smart_bio["steps"] = max(row["steps"] or 0, smart_bio.get("steps", 0))
+                    if "active_calories" not in body:
+                        smart_bio["active_calories"] = max(row["active_calories"] or 0, smart_bio.get("active_calories", 0))
+                    if "sleep_score" not in body and row["sleep_score"] is not None:
+                        smart_bio["sleep_score"] = row["sleep_score"]
+                    if "sleep_hours" not in body and row["sleep_hours"] is not None:
+                        smart_bio["sleep_hours"] = row["sleep_hours"]
 
-                # Only if NO record exists at all for today:
-                _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, today)
-                smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(get_israel_now(), attent_info)
-                smart_bio["sync_source"] = "smart_sync"
-
+                smart_bio["client_date"] = body.get("client_date")
             return self.handle_post_garmin_sync(smart_bio)
         except Exception as e:
             self._set_headers(400)
@@ -6993,6 +7038,60 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 conn.commit()
 
                 lvl_res = HunterLevelingEngine.add_exp(conn, 35)
+
+                # Immediately apply Attent stimulation to garmin biometrics and normalize
+                now_israel = get_israel_now()
+                now_time = now_israel.strftime("%H:%M")
+                _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, shift_date)
+                smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(now_israel, attent_info)
+
+                c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (shift_date,))
+                g_row = c.fetchone()
+                if g_row:
+                    prev_steps = g_row["steps"] or 0
+                    prev_cals = g_row["active_calories"] or 0
+                    prev_sleep = g_row["sleep_score"]
+                    prev_sleep_h = g_row["sleep_hours"]
+                    c.execute("""
+                    UPDATE garmin_health_logs SET
+                        timestamp = ?,
+                        heart_rate = ?,
+                        resting_hr = ?,
+                        stress_level = ?,
+                        body_battery = ?,
+                        steps = ?,
+                        active_calories = ?,
+                        sleep_score = ?,
+                        sleep_hours = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE date = ?
+                    """, (
+                        now_time,
+                        smart_bio["heart_rate"],
+                        smart_bio["resting_hr"],
+                        smart_bio["stress_level"],
+                        smart_bio["body_battery"],
+                        max(prev_steps, smart_bio["steps"]),
+                        max(prev_cals, smart_bio["active_calories"]),
+                        prev_sleep if prev_sleep is not None else smart_bio["sleep_score"],
+                        prev_sleep_h if prev_sleep_h is not None else smart_bio["sleep_hours"],
+                        shift_date
+                    ))
+                else:
+                    c.execute("""
+                    INSERT OR IGNORE INTO garmin_health_logs (
+                        date, timestamp, heart_rate, resting_hr, sleep_score, sleep_hours,
+                        stress_level, body_battery, steps, active_calories, sync_source
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'attent_log')
+                    """, (
+                        shift_date, now_time,
+                        smart_bio["heart_rate"], smart_bio["resting_hr"],
+                        smart_bio["sleep_score"], smart_bio["sleep_hours"],
+                        smart_bio["stress_level"], smart_bio["body_battery"],
+                        smart_bio["steps"], smart_bio["active_calories"]
+                    ))
+                conn.commit()
+
                 health_data = HunterHealthAIAdvisor.analyze_and_generate_insights(conn, shift_date)
 
             self._set_headers()
@@ -7017,6 +7116,35 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 else:
                     c.execute("DELETE FROM medication_logs WHERE date = ? AND LOWER(med_name) = 'attent'", (today,))
                 conn.commit()
+
+                # Revert garmin biometrics back to normal baseline without Attent
+                now_israel = get_israel_now()
+                now_time = now_israel.strftime("%H:%M")
+                _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, today)
+                smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(now_israel, attent_info)
+
+                c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
+                g_row = c.fetchone()
+                if g_row:
+                    c.execute("""
+                    UPDATE garmin_health_logs SET
+                        timestamp = ?,
+                        heart_rate = ?,
+                        resting_hr = ?,
+                        stress_level = ?,
+                        body_battery = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE date = ?
+                    """, (
+                        now_time,
+                        smart_bio["heart_rate"],
+                        smart_bio["resting_hr"],
+                        smart_bio["stress_level"],
+                        smart_bio["body_battery"],
+                        today
+                    ))
+                    conn.commit()
+
                 health_data = HunterHealthAIAdvisor.analyze_and_generate_insights(conn, today)
 
             self._set_headers()

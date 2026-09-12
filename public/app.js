@@ -275,7 +275,8 @@ const AppState = {
 
   async refreshGarminHealthQuietly() {
     try {
-      const res = await fetch('/api/garmin/health');
+      const cDate = this.shiftDate || this.getClientDateStr();
+      const res = await fetch(`/api/garmin/health?client_date=${encodeURIComponent(cDate)}`);
       if (res.ok) {
         const data = await res.json();
         if (data && data.biometrics) {
@@ -4639,7 +4640,9 @@ const AppState = {
       const res = await fetch('/api/garmin/smart-sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({
+          client_date: this.shiftDate || this.getClientDateStr()
+        })
       });
       const data = await res.json();
       if (data.data) {
@@ -4849,7 +4852,8 @@ const AppState = {
       body_battery: Math.round(getNum('garmin-input-bb', 75)),
       steps: Math.round(getNum('garmin-input-steps', 0)),
       active_calories: Math.round(getNum('garmin-input-active-cals', 0)),
-      source: "manual"
+      source: "manual",
+      client_date: this.shiftDate || this.getClientDateStr()
     };
 
     try {
@@ -4884,10 +4888,10 @@ const AppState = {
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, '0');
     const mm = String(now.getMinutes()).padStart(2, '0');
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const activeDate = targetDate || this.shiftDate || this.getClientDateStr();
 
     if (dateInput) {
-      dateInput.value = targetDate || todayStr;
+      dateInput.value = activeDate;
     }
 
     if (timeInput) {
@@ -4990,7 +4994,8 @@ const AppState = {
     const timeVal = document.getElementById('attent-input-time')?.value || '09:00';
     const duration = parseFloat(document.getElementById('attent-input-duration')?.value) || 7.0;
     const notes = document.getElementById('attent-input-notes')?.value || 'מנת אטנט';
-    const dateVal = document.getElementById('attent-input-date')?.value || '';
+    const dateVal = document.getElementById('attent-input-date')?.value;
+    const activeDate = dateVal || this.shiftDate || this.getClientDateStr();
 
     try {
       const res = await fetch('/api/medication/attent', {
@@ -5001,7 +5006,7 @@ const AppState = {
           timestamp: timeVal,
           duration_hours: duration,
           notes: notes,
-          date: dateVal || undefined,
+          date: activeDate,
           client_date: this.shiftDate || this.getClientDateStr()
         })
       });
