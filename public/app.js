@@ -4281,28 +4281,30 @@ const AppState = {
       timeEl.innerText = b.sync_timestamp ? `סונכרן: היום ב-${b.sync_timestamp}` : 'סונכרן היום';
     }
     const sourceEl = document.getElementById('garmin-source-badge');
-    if (sourceEl) {
-      const srcMap = {
-        'connect_iq': 'CONNECT IQ',
-        'connect_iq_venu4': 'CONNECT IQ',
-        'ios_shortcuts': 'SHORTCUTS',
-        'ios_shortcuts_test': 'SHORTCUTS',
-        'csv_file': 'CSV FILE',
-        'fit_file': 'FIT FILE',
-        'webhook': 'WEBHOOK',
-        'smart_diurnal': 'SMART AUTO',
-        'manual': 'MANUAL'
-      };
-      const rawSrc = (b.sync_source || 'connect_iq').toLowerCase();
-      sourceEl.innerText = srcMap[rawSrc] || rawSrc.toUpperCase();
-    }
     const statusTextEl = document.getElementById('garmin-status-text');
-    if (statusTextEl) {
-      statusTextEl.innerText = 'Garmin Venu 4: מקושר ומסונכרן';
-    }
     const statusInd = document.getElementById('garmin-status-indicator');
-    if (statusInd) {
-      statusInd.className = 'garmin-status-indicator online';
+
+    const rawSrc = (b.sync_source || 'smart_diurnal').toLowerCase();
+    if (rawSrc === 'ios_shortcuts' || rawSrc === 'webhook') {
+      if (sourceEl) sourceEl.innerText = 'APPLE HEALTH';
+      if (statusTextEl) statusTextEl.innerText = 'אפליקציית הבריאות: סונכרן ישירות';
+      if (statusInd) statusInd.className = 'garmin-status-indicator online';
+    } else if (rawSrc === 'manual') {
+      if (sourceEl) sourceEl.innerText = 'שעון אישי';
+      if (statusTextEl) statusTextEl.innerText = 'מדדי שעון: עודכנו ידנית';
+      if (statusInd) statusInd.className = 'garmin-status-indicator online';
+    } else if (rawSrc === 'connect_iq' || rawSrc === 'connect_iq_venu4' || rawSrc === 'bluetooth') {
+      if (sourceEl) sourceEl.innerText = 'GARMIN VENU 4';
+      if (statusTextEl) statusTextEl.innerText = 'שעון Garmin: מקושר בלוטות׳';
+      if (statusInd) statusInd.className = 'garmin-status-indicator online';
+    } else if (rawSrc === 'csv_file' || rawSrc === 'fit_file') {
+      if (sourceEl) sourceEl.innerText = 'קובץ GARMIN';
+      if (statusTextEl) statusTextEl.innerText = 'מדדי שעון: יובאו מקובץ';
+      if (statusInd) statusInd.className = 'garmin-status-indicator online';
+    } else {
+      if (sourceEl) sourceEl.innerText = 'הערכת מודל';
+      if (statusTextEl) statusTextEl.innerText = 'מודל ביולוגי (לחץ לעדכון מהשעון)';
+      if (statusInd) statusInd.className = 'garmin-status-indicator warning';
     }
   },
 
@@ -4485,6 +4487,10 @@ const AppState = {
       const input = document.getElementById('garmin-webhook-url-display');
       if (input) input.value = `${window.location.origin}/api/garmin/webhook`;
     }
+    const input = document.getElementById('garmin-webhook-url-display');
+    const codeEl = document.getElementById('shortcut-example-code');
+    const base = (input && input.value) ? input.value : `${window.location.origin}/api/garmin/webhook`;
+    if (codeEl) codeEl.innerText = `${base}?steps=[צעדים]&hr=[דופק]`;
   },
 
   copyWebhookUrl() {
@@ -4868,6 +4874,7 @@ const AppState = {
         this.renderAll();
         sfx.playSystemNotification();
         this.closeModal('garmin-modal');
+        this.showToast('✅ מדדי השעון עודכנו בהצלחה!');
       }
     } catch (e) {
       alert('שגיאה בסנכרון מדדי גרמין');

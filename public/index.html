@@ -647,22 +647,22 @@
           <!-- Injected dynamically by AppState.renderAttentBanner() -->
         </div>
 
-        <!-- GARMIN VENU 4 BIOMETRICS HUD COCKPIT -->
+        <!-- GARMIN VENU 4 & APPLE HEALTH BIOMETRICS HUD -->
         <section class="garmin-hud-card" id="garmin-hud-card" style="margin-top:0;">
           <div class="garmin-hud-header">
             <div class="garmin-hud-title-wrap">
-              <span class="garmin-pulse-dot" title="Garmin Venu 4 מחובר"></span>
-              <span class="garmin-hud-title">GARMIN VENU 4 • BIOMETRICS HUD</span>
+              <span class="garmin-pulse-dot" title="מדדי בריאות ושעון"></span>
+              <span class="garmin-hud-title">GARMIN / APPLE HEALTH • BIOMETRICS HUD</span>
               <div id="attent-norm-pill" class="attent-norm-pill" onclick="AppState.openAttentNormModal()" style="display:none;" title="לחץ להסבר מדעי על ניטרול הטיית אטנט ב-HRV">
                 <span class="norm-pulse-dot"></span>
                 <span id="attent-norm-pill-text">💊 פילטר אטנט פעיל (מנוקה מדעית)</span>
               </div>
             </div>
             <div style="display:flex; gap:6px; align-items:center;">
-              <button class="garmin-sync-btn" id="garmin-top-sync-btn" onclick="AppState.triggerSmartGarminSync()" title="סנכרון חכם בזמן אמת לפי שעת ישראל">
-                <span id="garmin-top-sync-btn-text">⚡ סנכרן עכשיו</span>
+              <button class="garmin-sync-btn" id="garmin-top-sync-btn" onclick="AppState.openGarminModal('quick')" title="עדכן לפי נתוני השעון שלך או אפליקציית הבריאות">
+                <span id="garmin-top-sync-btn-text">✏️ עדכן לפי השעון</span>
               </button>
-              <button class="garmin-gear-btn" onclick="AppState.openGarminModal()" title="הגדרות שעון, בלוטות' וקבצים" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:6px 10px; cursor:pointer; color:#fff; font-size:14px;">
+              <button class="garmin-gear-btn" onclick="AppState.openGarminModal()" title="הגדרות שעון, בלוטות' ואוטומציה באייפון" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:6px 10px; cursor:pointer; color:#fff; font-size:14px;">
                 ⚙️
               </button>
             </div>
@@ -671,23 +671,20 @@
           <!-- GARMIN REAL-TIME STATUS & ACTION STRIP -->
           <div class="garmin-hud-status-strip" id="garmin-hud-status-strip">
             <div class="garmin-status-left">
-              <span class="garmin-status-indicator online" id="garmin-status-indicator">●</span>
-              <span class="garmin-status-label" id="garmin-status-text">Garmin Venu 4: מקושר</span>
+              <span class="garmin-status-indicator warning" id="garmin-status-indicator">●</span>
+              <span class="garmin-status-label" id="garmin-status-text">מודל ביולוגי (לחץ לעדכון מהשעון)</span>
               <span class="garmin-sync-time-badge" id="garmin-sync-time-badge">סונכרן היום</span>
-              <span class="garmin-source-badge" id="garmin-source-badge">CONNECT IQ</span>
+              <span class="garmin-source-badge" id="garmin-source-badge">הערכת מודל</span>
             </div>
             <div class="garmin-status-actions">
+              <button class="garmin-strip-btn" onclick="AppState.openGarminModal('quick')" title="הזן ערכים מדויקים מהשעון או מאפליקציית הבריאות">
+                ✏️ עדכן מהשעון
+              </button>
+              <button class="garmin-strip-btn" onclick="AppState.openGarminModal('webhook')" title="חיבור אוטומטי לאפליקציית הבריאות באייפון (Apple Health)">
+                🍎 סנכרון מאפל Health
+              </button>
               <button class="garmin-strip-btn smart-btn" id="garmin-strip-sync-btn" onclick="AppState.triggerSmartGarminSync()" title="סנכרון חכם בזמן אמת לפי שעת היום">
-                <span class="spin-icon">🔄</span> סנכרן עכשיו
-              </button>
-              <button class="garmin-strip-btn" id="garmin-bt-btn" onclick="AppState.toggleBluetoothGarmin()" title="חיבור בלוטות' ישיר לשעון Garmin">
-                📡 בלוטות'
-              </button>
-              <button class="garmin-strip-btn" onclick="AppState.openGarminModal('webhook')" title="חיבור אוטומטי / קיצור לאייפון">
-                🔗 Webhook
-              </button>
-              <button class="garmin-strip-btn" onclick="AppState.openGarminModal('file')" title="ייבא קובץ Garmin FIT/CSV/JSON">
-                📁 קובץ
+                <span class="spin-icon">🔄</span> רענן מודל
               </button>
             </div>
           </div>
@@ -1163,7 +1160,7 @@
             ⚡ שחזר מגיבוי אוטומטי של הדפדפן (LocalStorage Snapshot)
           </button>
           <button type="button" class="action-btn-primary" onclick="AppState.forceClearCacheAndReload()" style="background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8; font-size:11.5px; padding:9px; margin-top:4px; font-weight:700;">
-            🔄 גרסה v42 — נקה מטמון ורענן גרסה (Force Reload)
+            🔄 גרסה v43 — נקה מטמון ורענן גרסה (Force Reload)
           </button>
         </div>
         <div id="backup-last-time-text" style="font-size:11px; color:var(--text-dim); margin-top:6px;">
@@ -1311,20 +1308,20 @@
   <div id="garmin-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('garmin-modal')" style="display:none;">
     <div class="modal-content" style="max-width: 520px;">
       <div class="modal-header">
-        <span class="modal-title">⌚ סנכרון מדדי בריאות Garmin Venu 4</span>
+        <span class="modal-title">⌚ סנכרון מדדי שעון ואפליקציית בריאות (Health / Garmin)</span>
         <button class="close-modal-btn" onclick="AppState.closeModal('garmin-modal')">✕</button>
       </div>
 
       <!-- Modal Tab Switcher -->
       <div class="garmin-modal-tabs">
         <button type="button" class="garmin-tab-btn active" id="btn-tab-garmin-quick" onclick="AppState.switchGarminTab('quick')">
-          ⚡ סנכרון מהיר וחכם
+          ✏️ הזנה מהירה מהשעון
+        </button>
+        <button type="button" class="garmin-tab-btn" id="btn-tab-garmin-webhook" onclick="AppState.switchGarminTab('webhook')">
+          🍎 אוטומציה מאפל Health
         </button>
         <button type="button" class="garmin-tab-btn" id="btn-tab-garmin-bluetooth" onclick="AppState.switchGarminTab('bluetooth')">
           📡 בלוטות' חי
-        </button>
-        <button type="button" class="garmin-tab-btn" id="btn-tab-garmin-webhook" onclick="AppState.switchGarminTab('webhook')">
-          🔗 אוטומציה באייפון
         </button>
         <button type="button" class="garmin-tab-btn" id="btn-tab-garmin-file" onclick="AppState.switchGarminTab('file')">
           📁 קובץ Garmin
@@ -1333,6 +1330,10 @@
 
       <!-- TAB 1: QUICK & SMART SYNC -->
       <div id="garmin-pane-quick" class="garmin-pane active">
+        <div style="font-size:12px; color:#38bdf8; margin-bottom:12px; line-height:1.4; background:rgba(56,189,248,0.1); padding:10px 14px; border-radius:10px; border-right:3px solid #38bdf8;">
+          📌 <strong>הזן את המדדים המופיעים כעת בשעון שלך או באפליקציית 'בריאות' (Apple Health / Garmin):</strong><br>
+          <span style="font-size:11px; color:#cbd5e1;">המערכת תעדכן מיד את תקציב הקלוריות, עייפות הצייד ופילטר האטנט לפי הנתונים האמיתיים שלך.</span>
+        </div>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
           <span style="font-size:12px; color:var(--text-secondary);">בחר תרחיש מוכן או סנכרן לפי שעת היום:</span>
           <button type="button" onclick="AppState.triggerSmartGarminSync()" class="garmin-smart-btn" title="מחשב מדדים ביולוגיים לפי שעת היממה ונוכחות אטנט">
@@ -1401,7 +1402,7 @@
         </div>
 
         <button class="action-btn-primary" onclick="AppState.saveGarminHealth()" style="background:linear-gradient(90deg, #0284c7, #00f0ff); color:#030712; font-weight:900; margin-top:8px;">
-          ⚡ סנכרן מדדים והפק תובנות AI
+          ✅ שמור מדדים מהשעון / אפליקציית הבריאות
         </button>
       </div>
 
@@ -1485,11 +1486,15 @@
         </div>
 
         <div class="garmin-export-tips" style="margin-top:14px;">
-          <div class="tip-title">📱 הגדרת אוטומציה באייפון ב-3 שלבים:</div>
-          <ol style="padding-right:18px; margin-top:6px; font-size:11px; color:var(--text-dim); line-height:1.6;">
-            <li>פתח באייפון את אפליקציית <strong>'קיצורי דרך' (Shortcuts)</strong> -> לשונית <strong>אוטומציה (Automation)</strong>.</li>
-            <li>צור אוטומציה חדשה לשעה הרצויה (למשל <strong>07:00 בבוקר</strong> או בכיבוי שעון מעורר).</li>
-            <li>הוסף פעולת <strong>'קבל תוכן מכתובת URL' (Get contents of URL)</strong> והדבק את הכתובת למעלה — עובד מיד ללא שום הגדרות נוספות (תומך גם ב-GET וגם ב-POST)!</li>
+          <div class="tip-title">📱 הגדרת קיצור דרך באייפון (Apple Health -> מערכת):</div>
+          <ol style="padding-right:18px; margin-top:6px; font-size:11.5px; color:var(--text-dim); line-height:1.7;">
+            <li>באייפון: פתח את אפליקציית <strong>'קיצורי דרך' (Shortcuts)</strong> -> לחץ על <strong>+</strong> ליצירת קיצור חדש.</li>
+            <li>הוסף פעולה <strong>'מצא דגימות בריאות'</strong>: בחר <strong>צעדים</strong>, הגדר סכום עבור <strong>היום</strong>.</li>
+            <li>הוסף פעולה <strong>'מצא דגימות בריאות'</strong> נוספת: בחר <strong>דופק</strong>, קח את הדגימה האחרונה.</li>
+            <li>הוסף פעולה <strong>'קבל תוכן מכתובת URL'</strong> עם הכתובת:<br>
+              <code style="background:#091326; color:#00f0ff; padding:3px 6px; border-radius:4px; font-size:10.5px; word-break:break-all; display:inline-block; margin-top:3px;" id="shortcut-example-code">.../api/garmin/webhook?steps=[צעדים]&hr=[דופק]</code>
+            </li>
+            <li>זה הכל! בלחיצה אחת על הקיצור (או אוטומטית בכל בוקר) — הצעדים והדופק האמיתיים שלך מאפליקציית הבריאות נשאבים ישירות לכאן!</li>
           </ol>
         </div>
       </div>
@@ -2474,6 +2479,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=42"></script>
+  <script src="/app.js?v=43"></script>
 </body>
 </html>
