@@ -162,22 +162,6 @@ const AppState = {
 
       const ach = localStorage.getItem('hunter_achievements');
       if (ach) this.achievements = JSON.parse(ach);
-
-      // Check snapshot if local waterLogs is empty
-      if (!this.waterLogs || this.waterLogs.length === 0) {
-        const rawSnap = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
-        if (rawSnap) {
-          try {
-            const snap = JSON.parse(rawSnap);
-            const snapWater = snap.water_logs || snap.water || [];
-            const todayStr = this.getClientDateStr();
-            const todaySnapWater = snapWater.filter(item => !item.date || item.date === todayStr);
-            if (todaySnapWater.length > 0) {
-              this.waterLogs = todaySnapWater;
-            }
-          } catch(e) {}
-        }
-      }
     } catch (e) {
       console.warn('Local cache load warning:', e);
     }
@@ -216,7 +200,7 @@ const AppState = {
           window.location.reload();
         }
       });
-      navigator.serviceWorker.register('/service-worker.js?v=39').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=40').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -226,6 +210,8 @@ const AppState = {
       localStorage.removeItem('solo_deleted_meal_names');
       localStorage.removeItem('solo_deleted_meal_sigs');
       localStorage.removeItem('solo_deleted_water_sigs');
+      localStorage.removeItem('solo_deleted_meal_ids');
+      localStorage.removeItem('solo_deleted_water_ids');
     } catch (e) {}
 
     // Load sound toggle state
@@ -329,21 +315,13 @@ const AppState = {
       this.shiftInfo = data.shift_info;
       this.shiftDate = data.date;
 
-      // Track recently deleted IDs to prevent momentary UI race conditions
-      let deletedMealIds = new Set();
-      let deletedWaterIds = new Set();
-      try {
-        deletedMealIds = new Set(JSON.parse(localStorage.getItem('solo_deleted_meal_ids') || '[]'));
-        deletedWaterIds = new Set(JSON.parse(localStorage.getItem('solo_deleted_water_ids') || '[]'));
-      } catch (e) {}
-
       // Server DB is the authoritative source of truth for water logs
-      this.waterLogs = (data.water_logs || []).filter(l => !deletedWaterIds.has(String(l.id)));
+      this.waterLogs = data.water_logs || [];
 
       // Server DB is the authoritative source of truth for meals
-      this.meals = (data.meals || []).filter(m => !deletedMealIds.has(String(m.id)));
+      this.meals = data.meals || [];
 
-      // Always accurately calculate consumed metrics from the filtered active items!
+      // Always accurately calculate consumed metrics from the active items!
       if (this.consumed) {
         this.consumed.water_ml = this.waterLogs.reduce((sum, w) => sum + (w.amount_ml || 0), 0);
         this.consumed.calories = this.meals.reduce((sum, m) => sum + (m.calories || 0), 0);
@@ -408,6 +386,13 @@ const AppState = {
     this.renderAIRecommendations();
     this.renderPenaltyStatus();
     this.loadMealRecommendations();
+  },
+
+  updateGauges() {
+    if (typeof this.renderCalorieGauge === 'function') this.renderCalorieGauge();
+    if (typeof this.renderMacroBars === 'function') this.renderMacroBars();
+    if (typeof this.renderWaterCockpit === 'function') this.renderWaterCockpit();
+    if (typeof this.renderQuests === 'function') this.renderQuests();
   },
 
   renderProfile() {
@@ -894,16 +879,7 @@ const AppState = {
       this.consumed.fats = (this.meals || []).reduce((sum, m) => sum + (m.fats || 0), 0);
     }
 
-    // 4. Remember deleted ID to prevent momentary UI race condition
-    try {
-      const deletedIds = JSON.parse(localStorage.getItem('solo_deleted_meal_ids') || '[]');
-      if (!deletedIds.includes(strId)) {
-        deletedIds.push(strId);
-        localStorage.setItem('solo_deleted_meal_ids', JSON.stringify(deletedIds.slice(-200)));
-      }
-    } catch (e) {}
-
-    // 5. Clean up pending offline queue actions
+    // 4. Clean up pending offline queue actions
     if (this.offlineQueue && foodName) {
       this.offlineQueue = this.offlineQueue.filter(act => {
         if (act.endpoint === '/api/nutrition/log' && act.body) {
@@ -1005,8 +981,24 @@ const AppState = {
     const effectiveMl = Math.max(10, Math.round(amount * factor));
 
     // 1. Instant Optimistic UI update
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const tempLog = {
+      id: 'temp-' + Date.now(),
+      amount_ml: effectiveMl,
+      timestamp: timeStr,
+      beverage_type: bevType,
+      beverage_name: bevName,
+      beverage_icon: bevIcon,
+      caffeine_mg: caffeineMg,
+      date: this.shiftDate || this.getClientDateStr()
+    };
+    if (!this.waterLogs) this.waterLogs = [];
+    this.waterLogs.unshift(tempLog);
+
     if (!this.consumed) this.consumed = { water_ml: 0 };
-    this.consumed.water_ml = (this.consumed.water_ml || 0) + effectiveMl;
+    this.consumed.water_ml = (this.waterLogs || []).reduce((sum, w) => sum + (w.amount_ml || 0), 0);
+    this.renderWaterCockpit();
     this.updateGauges();
 
     const caffText = caffeineMg > 0 ? ` (+${caffeineMg}mg קפאין)` : '';
@@ -1031,7 +1023,6 @@ const AppState = {
         this.showLevelUpModal(data.leveling);
       }
       await this.fetchTodayData();
-      this.renderWaterCockpit();
       this.saveLocalCache();
       if (typeof this.fetchDailyDebrief === 'function') this.fetchDailyDebrief();
     } catch (e) {
@@ -1041,25 +1032,9 @@ const AppState = {
         beverage_type: bevType,
         beverage_name: bevName,
         beverage_icon: bevIcon,
-        caffeine_mg: caffeineMg
-      }, `${amount}ml ${bevName}`);
-
-      const now = new Date();
-      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const offLog = {
-        id: 'off_' + Date.now(),
-        amount_ml: effectiveMl,
-        timestamp: timeStr,
-        beverage_type: bevType,
-        beverage_name: bevName,
-        beverage_icon: bevIcon,
         caffeine_mg: caffeineMg,
-        date: this.shiftDate || this.getClientDateStr(),
-        offline: true
-      };
-      if (!this.waterLogs) this.waterLogs = [];
-      this.waterLogs.unshift(offLog);
-      this.renderWaterCockpit();
+        client_date: this.shiftDate || null
+      }, `${amount}ml ${bevName}`);
       this.saveLocalCache();
     }
   },
@@ -1099,14 +1074,20 @@ const AppState = {
     const removed = this.waterLogs.shift();
     const strId = String(removed.id);
 
-    // Track deleted ID so it cannot resurrect
+    // Clean up disaster recovery snapshot in localStorage
     try {
-      const deletedWaterIds = JSON.parse(localStorage.getItem('solo_deleted_water_ids') || '[]');
-      if (!deletedWaterIds.includes(strId)) {
-        deletedWaterIds.push(strId);
-        localStorage.setItem('solo_deleted_water_ids', JSON.stringify(deletedWaterIds.slice(-200)));
+      const snapRaw = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
+      if (snapRaw) {
+        const snap = JSON.parse(snapRaw);
+        if (snap.water_logs) {
+          snap.water_logs = snap.water_logs.filter(w => String(w.id) !== strId);
+        }
+        if (snap.water) {
+          snap.water = snap.water.filter(w => String(w.id) !== strId);
+        }
+        localStorage.setItem('SOLO_HUNTER_SYSTEM_SNAPSHOT', JSON.stringify(snap));
       }
-    } catch(e) {}
+    } catch (e) {}
 
     // Clean up offline queue if this was an offline action
     if (this.offlineQueue) {
@@ -1162,14 +1143,20 @@ const AppState = {
       }
     }
 
-    // Track deleted ID so it cannot resurrect
+    // Clean up disaster recovery snapshot in localStorage
     try {
-      const deletedWaterIds = JSON.parse(localStorage.getItem('solo_deleted_water_ids') || '[]');
-      if (!deletedWaterIds.includes(strId)) {
-        deletedWaterIds.push(strId);
-        localStorage.setItem('solo_deleted_water_ids', JSON.stringify(deletedWaterIds.slice(-200)));
+      const snapRaw = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
+      if (snapRaw) {
+        const snap = JSON.parse(snapRaw);
+        if (snap.water_logs) {
+          snap.water_logs = snap.water_logs.filter(w => String(w.id) !== strId);
+        }
+        if (snap.water) {
+          snap.water = snap.water.filter(w => String(w.id) !== strId);
+        }
+        localStorage.setItem('SOLO_HUNTER_SYSTEM_SNAPSHOT', JSON.stringify(snap));
       }
-    } catch(e) {}
+    } catch (e) {}
 
     // Clean up offline queue
     if (this.offlineQueue && removed) {
