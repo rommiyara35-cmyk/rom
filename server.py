@@ -4665,6 +4665,8 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"ip": get_local_ip(), "port": 8080}).encode("utf-8"))
         elif path == "/api/garmin/status":
             self.handle_garmin_status(query)
+        elif path == "/api/garmin/debug":
+            self.handle_get_garmin_debug()
         elif path == "/api/garmin/health":
             self.handle_get_garmin_health(query)
         elif path == "/api/garmin/webhook-info":
@@ -6827,6 +6829,26 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         self._set_headers()
         self.wfile.write(json.dumps(info, ensure_ascii=False).encode("utf-8"))
 
+    def handle_get_garmin_debug(self):
+        global _LAST_WEBHOOK_CALL
+        try:
+            with Database.get_connection() as conn:
+                c = conn.cursor()
+                today = get_hunter_shift_date(conn)
+                c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
+                row = c.fetchone()
+                data = {
+                    "last_webhook_call": _LAST_WEBHOOK_CALL,
+                    "db_today_row": dict(row) if row else None,
+                    "today_shift_date": today,
+                    "server_time_israel": get_israel_now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+            self._set_headers()
+            self.wfile.write(json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(500)
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
     def handle_garmin_webhook_get(self, query):
         try:
             # Flatten query dict
@@ -6905,6 +6927,18 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
 
             if not merged.get("sync_source"):
                 merged["sync_source"] = body.get("source", "webhook" if "/webhook" in self.path else "manual")
+
+            global _LAST_WEBHOOK_CALL
+            _LAST_WEBHOOK_CALL = {
+                "timestamp": get_israel_now().strftime("%Y-%m-%d %H:%M:%S"),
+                "method": self.command,
+                "path": self.path,
+                "received_keys": list(body.keys()) if isinstance(body, dict) else [],
+                "body_steps_raw": str(body.get("steps")) if isinstance(body, dict) else None,
+                "body_hr_raw": str(body.get("hr")) if isinstance(body, dict) else None,
+                "parsed_bio": bio,
+                "merged": merged
+            }
 
             with Database.get_connection() as conn:
                 today = get_hunter_shift_date(conn, body.get("client_date"))
