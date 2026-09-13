@@ -200,7 +200,7 @@ const AppState = {
           window.location.reload();
         }
       });
-      navigator.serviceWorker.register('/service-worker.js?v=45').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=46').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
