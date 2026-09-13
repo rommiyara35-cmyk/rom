@@ -200,7 +200,7 @@ const AppState = {
           window.location.reload();
         }
       });
-      navigator.serviceWorker.register('/service-worker.js?v=46').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=47').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -4650,50 +4650,33 @@ const AppState = {
 
     const topBtn = document.getElementById('garmin-top-sync-btn-text');
     const stripBtn = document.getElementById('garmin-strip-sync-btn');
-    const oldTopText = topBtn ? topBtn.innerText : '⚡ סנכרן עכשיו';
-    if (topBtn) topBtn.innerHTML = '⏳ מסנכרן...';
-    if (stripBtn) stripBtn.innerHTML = '<span class="spin-icon" style="animation: spin 0.8s linear infinite; display:inline-block;">🔄</span> מסנכרן...';
+    if (topBtn) topBtn.innerHTML = '⏳ מרענן...';
+    if (stripBtn) stripBtn.innerHTML = '<span class="spin-icon" style="animation: spin 0.8s linear infinite; display:inline-block;">🔄</span> מרענן...';
 
     try {
-      const res = await fetch('/api/garmin/smart-sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_date: this.shiftDate || this.getClientDateStr()
-        })
-      });
-      const data = await res.json();
-      if (data.data) {
-        this.healthAdvisor = data.data;
-        this.saveLocalCache();
-        this.renderGarminBiometrics();
-        if (typeof this.renderDailyDebrief === 'function') this.renderDailyDebrief();
-        if (typeof this.renderCalorieGauge === 'function') this.renderCalorieGauge();
-        if (typeof this.renderAIInsights === 'function') this.renderAIInsights();
-        sfx.playSystemNotification();
-        this.closeModal('garmin-modal');
+      await this.refreshGarminHealthQuietly();
+      sfx.playSystemNotification();
+      this.closeModal('garmin-modal');
 
-        const hud = document.getElementById('garmin-hud-card');
-        if (hud) {
-          hud.style.boxShadow = '0 0 35px rgba(0, 240, 255, 0.6)';
-          setTimeout(() => {
-            hud.style.boxShadow = '0 0 20px rgba(0, 240, 255, 0.15)';
-          }, 1200);
-        }
-
-        const syncTime = data.data.biometrics?.sync_timestamp || '';
-        this.showToast(`⚡ שעון סונכרן בהצלחה לפי שעה ${syncTime} בישראל!`);
-        if (topBtn) topBtn.innerText = `✅ סונכרן (${syncTime})`;
-        if (stripBtn) stripBtn.innerHTML = `✅ סונכרן (${syncTime})`;
+      const hud = document.getElementById('garmin-hud-card');
+      if (hud) {
+        hud.style.boxShadow = '0 0 35px rgba(0, 240, 255, 0.6)';
         setTimeout(() => {
-          if (topBtn) topBtn.innerText = '⚡ סנכרן עכשיו';
-          if (stripBtn) stripBtn.innerHTML = '<span class="spin-icon">🔄</span> סנכרן עכשיו';
-        }, 4000);
+          hud.style.boxShadow = '0 0 20px rgba(0, 240, 255, 0.15)';
+        }, 1200);
       }
+
+      const syncTime = this.healthAdvisor?.biometrics?.sync_timestamp || '';
+      const steps = this.healthAdvisor?.biometrics?.steps ?? 0;
+      this.showToast(`⚡ מדדים עודכנו בהצלחה: ${steps.toLocaleString()} צעדים!`);
+      if (topBtn) topBtn.innerText = `✅ עודכן (${syncTime})`;
+      if (stripBtn) stripBtn.innerHTML = `✅ עודכן (${syncTime})`;
+      setTimeout(() => {
+        if (topBtn) topBtn.innerText = '✏️ עדכן מהשעון';
+        if (stripBtn) stripBtn.innerHTML = '<span class="spin-icon">🔄</span> רענן מדדים';
+      }, 3500);
     } catch (e) {
-      if (topBtn) topBtn.innerText = oldTopText;
-      if (stripBtn) stripBtn.innerHTML = '<span class="spin-icon">🔄</span> סנכרן עכשיו';
-      alert('שגיאה בסנכרון חכם: ' + e.message);
+      this.showToast('⚠️ שגיאה ברענון מדדים');
     }
   },
 
