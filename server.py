@@ -4899,13 +4899,13 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 except Exception:
                     pass
             else:
-                parsed_query = parse_qs(parsed.query)
                 if "id" in parsed_query:
                     try:
                         dose_id = int(parsed_query["id"][0])
                     except Exception:
                         pass
-            self.handle_delete_attent(dose_id)
+            date_param = parsed_query.get("date", [None])[0] or parsed_query.get("client_date", [None])[0]
+            self.handle_delete_attent(dose_id, date_param)
         elif path.startswith("/api/supplements/log/"):
             try:
                 supp_id = int(path.split("/")[-1])
@@ -7202,35 +7202,43 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (shift_date,))
                 g_row = c.fetchone()
                 if g_row:
-                    prev_steps = g_row["steps"] or 0
-                    prev_cals = g_row["active_calories"] or 0
-                    prev_sleep = g_row["sleep_score"]
-                    prev_sleep_h = g_row["sleep_hours"]
-                    c.execute("""
-                    UPDATE garmin_health_logs SET
-                        timestamp = ?,
-                        heart_rate = ?,
-                        resting_hr = ?,
-                        stress_level = ?,
-                        body_battery = ?,
-                        steps = ?,
-                        active_calories = ?,
-                        sleep_score = ?,
-                        sleep_hours = ?,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE date = ?
-                    """, (
-                        now_time,
-                        smart_bio["heart_rate"],
-                        smart_bio["resting_hr"],
-                        smart_bio["stress_level"],
-                        smart_bio["body_battery"],
-                        max(prev_steps, smart_bio["steps"]),
-                        max(prev_cals, smart_bio["active_calories"]),
-                        prev_sleep if prev_sleep is not None else smart_bio["sleep_score"],
-                        prev_sleep_h if prev_sleep_h is not None else smart_bio["sleep_hours"],
-                        shift_date
-                    ))
+                    g_dict = dict(g_row)
+                    real_sources = ["ios_shortcuts", "webhook", "manual", "bluetooth", "connect_iq", "apple_health", "health_app"]
+                    if g_dict.get("sync_source") in real_sources or (g_dict.get("sync_source") not in ["smart_diurnal", "attent_log", "simulated", "file_fallback"] and g_dict.get("sync_source") is not None):
+                        # Authentic sensor data exists (e.g. from Apple Health / Watch).
+                        # NEVER overwrite authentic biometrics with simulated diurnal estimates!
+                        # Attent normalization runs dynamically on read via AttentBiometricNormalizer.
+                        pass
+                    else:
+                        prev_steps = g_row["steps"] or 0
+                        prev_cals = g_row["active_calories"] or 0
+                        prev_sleep = g_row["sleep_score"]
+                        prev_sleep_h = g_row["sleep_hours"]
+                        c.execute("""
+                        UPDATE garmin_health_logs SET
+                            timestamp = ?,
+                            heart_rate = ?,
+                            resting_hr = ?,
+                            stress_level = ?,
+                            body_battery = ?,
+                            steps = ?,
+                            active_calories = ?,
+                            sleep_score = ?,
+                            sleep_hours = ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE date = ?
+                        """, (
+                            now_time,
+                            smart_bio["heart_rate"],
+                            smart_bio["resting_hr"],
+                            smart_bio["stress_level"],
+                            smart_bio["body_battery"],
+                            max(prev_steps, smart_bio["steps"]),
+                            max(prev_cals, smart_bio["active_calories"]),
+                            prev_sleep if prev_sleep is not None else smart_bio["sleep_score"],
+                            prev_sleep_h if prev_sleep_h is not None else smart_bio["sleep_hours"],
+                            shift_date
+                        ))
                 else:
                     c.execute("""
                     INSERT OR IGNORE INTO garmin_health_logs (
@@ -7260,46 +7268,60 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             self._set_headers(400)
             self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
 
-    def handle_delete_attent(self, dose_id=None):
+    def handle_delete_attent(self, dose_id=None, client_date=None):
         try:
             with Database.get_connection() as conn:
-                today = get_hunter_shift_date(conn)
                 c = conn.cursor()
+                shift_date = None
                 if dose_id:
+                    c.execute("SELECT date FROM medication_logs WHERE id = ?", (dose_id,))
+                    med_row = c.fetchone()
+                    if med_row and med_row["date"]:
+                        shift_date = med_row["date"]
                     c.execute("DELETE FROM medication_logs WHERE id = ? AND LOWER(med_name) = 'attent'", (dose_id,))
                 else:
-                    c.execute("DELETE FROM medication_logs WHERE date = ? AND LOWER(med_name) = 'attent'", (today,))
+                    shift_date = get_hunter_shift_date(conn, client_date)
+                    c.execute("DELETE FROM medication_logs WHERE date = ? AND LOWER(med_name) = 'attent'", (shift_date,))
                 conn.commit()
 
-                # Revert garmin biometrics back to normal baseline without Attent
+                if not shift_date:
+                    shift_date = get_hunter_shift_date(conn, client_date)
+
+                # Revert garmin biometrics back to normal baseline without Attent (only if not real sensor data)
                 now_israel = get_israel_now()
                 now_time = now_israel.strftime("%H:%M")
-                _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, today)
+                _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, shift_date)
                 smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(now_israel, attent_info)
 
-                c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
+                c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (shift_date,))
                 g_row = c.fetchone()
                 if g_row:
-                    c.execute("""
-                    UPDATE garmin_health_logs SET
-                        timestamp = ?,
-                        heart_rate = ?,
-                        resting_hr = ?,
-                        stress_level = ?,
-                        body_battery = ?,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE date = ?
-                    """, (
-                        now_time,
-                        smart_bio["heart_rate"],
-                        smart_bio["resting_hr"],
-                        smart_bio["stress_level"],
-                        smart_bio["body_battery"],
-                        today
-                    ))
-                    conn.commit()
+                    g_dict = dict(g_row)
+                    real_sources = ["ios_shortcuts", "webhook", "manual", "bluetooth", "connect_iq", "apple_health", "health_app"]
+                    if g_dict.get("sync_source") in real_sources or (g_dict.get("sync_source") not in ["smart_diurnal", "attent_log", "simulated", "file_fallback"] and g_dict.get("sync_source") is not None):
+                        # Preserve authentic sensor data
+                        pass
+                    else:
+                        c.execute("""
+                        UPDATE garmin_health_logs SET
+                            timestamp = ?,
+                            heart_rate = ?,
+                            resting_hr = ?,
+                            stress_level = ?,
+                            body_battery = ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE date = ?
+                        """, (
+                            now_time,
+                            smart_bio["heart_rate"],
+                            smart_bio["resting_hr"],
+                            smart_bio["stress_level"],
+                            smart_bio["body_battery"],
+                            shift_date
+                        ))
+                        conn.commit()
 
-                health_data = HunterHealthAIAdvisor.analyze_and_generate_insights(conn, today)
+                health_data = HunterHealthAIAdvisor.analyze_and_generate_insights(conn, shift_date)
 
             self._set_headers()
             self.wfile.write(json.dumps({
