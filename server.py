@@ -1327,31 +1327,48 @@ class GarminDataEngine:
                 bio["resting_hr"] = int(clean)
 
         # Sleep Score & Hours
-        sleep_hours_val = get_val(["sleep_hours", "sleepDurationHours", "sleepHours", "sleep_duration", "asleep_hours", "hours", "שעות שינה", "שעות_שינה", "משך שינה", "שינה"])
+        sleep_hours_val = get_val(["sleep_hours", "sleepDurationHours", "sleepHours", "sleep_duration", "asleep_hours", "hours", "שעות שינה", "שעות_שינה", "משך שינה", "שינה", "sleep", "sleep_time"])
         if sleep_hours_val is not None:
             clean = GarminDataEngine.clean_biometric_number(sleep_hours_val, mode="latest")
             if clean is not None:
-                bio["sleep_hours"] = round(float(clean), 1)
+                val = float(clean)
+                if val > 1440.0:  # in seconds (e.g. 27000s from HealthKit)
+                    val = val / 3600.0
+                elif val > 24.0:  # in minutes (e.g. 450m)
+                    val = val / 60.0
+                bio["sleep_hours"] = round(val, 1)
 
-        sleep_score_val = get_val(["sleep_score", "sleepScore", "sleep_quality", "sleepquality", "ציון שינה", "ציון_שינה", "איכות שינה"])
+        sleep_score_val = get_val(["sleep_score", "sleepScore", "sleep_quality", "sleepquality", "ציון שינה", "ציון_שינה", "איכות שינה", "איכות_שינה", "score"])
         if sleep_score_val is not None:
             clean = GarminDataEngine.clean_biometric_number(sleep_score_val, mode="latest")
             if clean is not None:
                 val = float(clean)
                 if val <= 14.0 and "sleep_hours" not in bio:
                     bio["sleep_hours"] = round(val, 1)
-                else:
+                elif val > 14.0 and val <= 100.0:
                     bio["sleep_score"] = int(val)
 
+        # If sleep hours was provided but not sleep score, infer a realistic scientific sleep score
+        if "sleep_hours" in bio and "sleep_score" not in bio:
+            sh = bio["sleep_hours"]
+            if sh >= 8.0:
+                bio["sleep_score"] = min(98, int(85 + (sh - 8.0) * 5))
+            elif sh >= 7.0:
+                bio["sleep_score"] = int(80 + (sh - 7.0) * 10)
+            elif sh >= 6.0:
+                bio["sleep_score"] = int(68 + (sh - 6.0) * 12)
+            elif sh > 0:
+                bio["sleep_score"] = max(35, int(sh * 11))
+
         # Stress
-        stress_val = get_val(["stress_level", "stressScore", "stress", "stress_score", "stresslevel", "לחץ", "סטרס", "רמת לחץ"])
+        stress_val = get_val(["stress_level", "stressScore", "stress", "stress_score", "stresslevel", "לחץ", "סטרס", "רמת לחץ", "רמת_לחץ", "מדד סטרס"])
         if stress_val is not None:
             clean = GarminDataEngine.clean_biometric_number(stress_val, mode="latest")
             if clean is not None:
                 bio["stress_level"] = int(clean)
 
         # Body Battery
-        bb_val = get_val(["body_battery", "bodyBattery", "bb", "body_battery_pct", "bodybattery", "סוללת גוף", "סוללת_גוף", "אנרגיה"])
+        bb_val = get_val(["body_battery", "bodyBattery", "bb", "body_battery_pct", "bodybattery", "סוללת גוף", "סוללת_גוף", "אנרגיה", "סוללה", "battery"])
         if bb_val is not None:
             clean = GarminDataEngine.clean_biometric_number(bb_val, mode="latest")
             if clean is not None:
@@ -1388,10 +1405,17 @@ class GarminDataEngine:
             if clean is not None:
                 bio["vo2_max"] = int(clean)
 
-        # HRV Status
-        hrv_val = get_val(["hrv_status", "hrvStatus", "hrv", "סטטוס hrv"])
+        # HRV Status / HRV derivation
+        hrv_val = get_val(["hrv_status", "hrvStatus", "hrv", "סטטוס hrv", "שונות דופק", "שונות בקצב הלב"])
         if hrv_val is not None:
-            bio["hrv_status"] = str(hrv_val)
+            clean_hrv = GarminDataEngine.clean_biometric_number(hrv_val, mode="latest")
+            if clean_hrv is not None and isinstance(clean_hrv, (int, float)) and clean_hrv > 5:
+                if "stress_level" not in bio:
+                    derived_stress = max(12, min(88, int(105 - (clean_hrv * 1.35))))
+                    bio["stress_level"] = derived_stress
+                bio["hrv_status"] = "balanced" if clean_hrv >= 40 else ("unbalanced" if clean_hrv >= 25 else "low")
+            else:
+                bio["hrv_status"] = str(hrv_val)
 
         # Sync Source
         bio["sync_source"] = str(payload.get("source") or payload.get("sync_source") or "webhook")
