@@ -7124,37 +7124,38 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                             smart_bio[k] = clean
 
                 if row:
+                    row_dict = dict(row)
                     # If the row already has real watch / iOS sensor data, PRESERVE IT!
-                    if row.get("sync_source") in ["ios_shortcuts", "webhook", "manual", "bluetooth", "connect_iq"]:
-                        if "heart_rate" not in body and row["heart_rate"] is not None:
-                            smart_bio["heart_rate"] = row["heart_rate"]
-                        if "resting_hr" not in body and row["resting_hr"] is not None:
-                            smart_bio["resting_hr"] = row["resting_hr"]
-                        if "steps" not in body and row["steps"] is not None:
-                            smart_bio["steps"] = row["steps"]
-                        if "active_calories" not in body and row["active_calories"] is not None:
-                            smart_bio["active_calories"] = row["active_calories"]
-                        if "sleep_score" not in body and row["sleep_score"] is not None:
-                            smart_bio["sleep_score"] = row["sleep_score"]
-                        if "sleep_hours" not in body and row["sleep_hours"] is not None:
-                            smart_bio["sleep_hours"] = row["sleep_hours"]
-                        if "stress_level" not in body and row["stress_level"] is not None:
-                            smart_bio["stress_level"] = row["stress_level"]
-                        if "body_battery" not in body and row["body_battery"] is not None:
-                            smart_bio["body_battery"] = row["body_battery"]
-                        if "spo2_pct" not in body and row.get("spo2_pct") is not None:
-                            smart_bio["spo2_pct"] = row["spo2_pct"]
-                        smart_bio["sync_source"] = row["sync_source"]
+                    if row_dict.get("sync_source") in ["ios_shortcuts", "webhook", "manual", "bluetooth", "connect_iq"]:
+                        if "heart_rate" not in body and row_dict.get("heart_rate") is not None:
+                            smart_bio["heart_rate"] = row_dict["heart_rate"]
+                        if "resting_hr" not in body and row_dict.get("resting_hr") is not None:
+                            smart_bio["resting_hr"] = row_dict["resting_hr"]
+                        if "steps" not in body and row_dict.get("steps") is not None:
+                            smart_bio["steps"] = row_dict["steps"]
+                        if "active_calories" not in body and row_dict.get("active_calories") is not None:
+                            smart_bio["active_calories"] = row_dict["active_calories"]
+                        if "sleep_score" not in body and row_dict.get("sleep_score") is not None:
+                            smart_bio["sleep_score"] = row_dict["sleep_score"]
+                        if "sleep_hours" not in body and row_dict.get("sleep_hours") is not None:
+                            smart_bio["sleep_hours"] = row_dict["sleep_hours"]
+                        if "stress_level" not in body and row_dict.get("stress_level") is not None:
+                            smart_bio["stress_level"] = row_dict["stress_level"]
+                        if "body_battery" not in body and row_dict.get("body_battery") is not None:
+                            smart_bio["body_battery"] = row_dict["body_battery"]
+                        if "spo2_pct" not in body and row_dict.get("spo2_pct") is not None:
+                            smart_bio["spo2_pct"] = row_dict["spo2_pct"]
+                        smart_bio["sync_source"] = row_dict.get("sync_source")
                     else:
                         # Diurnal fallback: preserve highest steps & active calories
                         if "steps" not in body:
-                            smart_bio["steps"] = max(row["steps"] or 0, smart_bio.get("steps", 0))
+                            smart_bio["steps"] = max(row_dict.get("steps") or 0, smart_bio.get("steps", 0))
                         if "active_calories" not in body:
-                            smart_bio["active_calories"] = max(row["active_calories"] or 0, smart_bio.get("active_calories", 0))
-                        if "sleep_score" not in body and row["sleep_score"] is not None:
-                            smart_bio["sleep_score"] = row["sleep_score"]
-                        if "sleep_hours" not in body and row["sleep_hours"] is not None:
-                            smart_bio["sleep_hours"] = row["sleep_hours"]
+                            smart_bio["active_calories"] = max(row_dict.get("active_calories") or 0, smart_bio.get("active_calories", 0))
+                        if "sleep_score" not in body and row_dict.get("sleep_score") is not None:
+                            smart_bio["sleep_score"] = row_dict["sleep_score"]
+                        if "sleep_hours" not in body and row_dict.get("sleep_hours") is not None:
+                            smart_bio["sleep_hours"] = row_dict["sleep_hours"]
 
                 smart_bio["client_date"] = body.get("client_date")
             return self.handle_post_garmin_sync(smart_bio)
