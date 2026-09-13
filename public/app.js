@@ -200,7 +200,7 @@ const AppState = {
           window.location.reload();
         }
       });
-      navigator.serviceWorker.register('/service-worker.js?v=40').then((reg) => {
+      navigator.serviceWorker.register('/service-worker.js?v=45').then((reg) => {
         reg.update();
       }).catch(console.error);
     }
@@ -261,16 +261,19 @@ const AppState = {
   startGarminHeartbeat() {
     if (this._garminHeartbeatInterval) return;
 
-    document.addEventListener('visibilitychange', () => {
+    const onResume = () => {
       if (!document.hidden) {
         this.refreshGarminHealthQuietly();
       }
-    });
+    };
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('pageshow', onResume);
+    window.addEventListener('focus', onResume);
 
     this._garminHeartbeatInterval = setInterval(async () => {
       if (document.hidden) return;
       this.refreshGarminHealthQuietly();
-    }, 30000);
+    }, 3000);
   },
 
   async refreshGarminHealthQuietly() {
@@ -281,10 +284,18 @@ const AppState = {
         const data = await res.json();
         if (data && data.biometrics) {
           const oldSync = this.healthAdvisor?.biometrics?.sync_timestamp;
+          const oldSteps = this.healthAdvisor?.biometrics?.steps;
+          const oldHr = this.healthAdvisor?.biometrics?.heart_rate;
           const newSync = data.biometrics.sync_timestamp;
+          const newSteps = data.biometrics.steps;
+          const newHr = data.biometrics.heart_rate;
           this.healthAdvisor = data;
+          this.saveLocalCache();
           this.renderGarminBiometrics();
-          if (oldSync && newSync && oldSync !== newSync) {
+          if (typeof this.renderDailyDebrief === 'function') this.renderDailyDebrief();
+          if (typeof this.renderCalorieGauge === 'function') this.renderCalorieGauge();
+          if (typeof this.renderAIInsights === 'function') this.renderAIInsights();
+          if ((oldSync && newSync && oldSync !== newSync) || oldSteps !== newSteps || oldHr !== newHr) {
             sfx.playTone(880, 0.1, 'sine', 0.08);
           }
         }
@@ -4226,52 +4237,52 @@ const AppState = {
 
     // 1. Heart Rate
     const hrEl = document.getElementById('garmin-hr-val');
-    if (hrEl) hrEl.innerText = b.heart_rate || 68;
+    if (hrEl) hrEl.innerText = b.heart_rate !== undefined && b.heart_rate !== null ? b.heart_rate : '--';
     const rhrEl = document.getElementById('garmin-resting-hr');
     if (rhrEl) {
       if (isNorm && b.raw_rhr) {
         rhrEl.innerHTML = `<span class="norm-clean-line">מנוחה: <strong>${b.resting_hr} bpm</strong></span><span class="norm-raw-line">(שעון: ${b.raw_rhr} bpm)</span>`;
       } else {
-        rhrEl.innerText = `מנוחה: ${b.resting_hr || 58} bpm`;
+        rhrEl.innerText = `מנוחה: ${b.resting_hr !== undefined && b.resting_hr !== null ? b.resting_hr : '--'} bpm`;
       }
     }
 
     // 2. Sleep Quality
     const sleepEl = document.getElementById('garmin-sleep-val');
-    if (sleepEl) sleepEl.innerText = b.sleep_score || 82;
+    if (sleepEl) sleepEl.innerText = b.sleep_score !== undefined && b.sleep_score !== null ? b.sleep_score : '--';
     const sleepHEl = document.getElementById('garmin-sleep-hours');
-    if (sleepHEl) sleepHEl.innerText = `${b.sleep_hours || 7.2} שעות שינה`;
+    if (sleepHEl) sleepHEl.innerText = `${b.sleep_hours !== undefined && b.sleep_hours !== null ? b.sleep_hours : '--'} שעות שינה`;
 
     // 3. Stress Level
     const stressEl = document.getElementById('garmin-stress-val');
-    if (stressEl) stressEl.innerText = b.stress_level || 28;
+    if (stressEl) stressEl.innerText = b.stress_level !== undefined && b.stress_level !== null ? b.stress_level : '--';
     const stressStatEl = document.getElementById('garmin-stress-status');
     if (stressStatEl) {
       if (isNorm && b.raw_stress !== undefined) {
         stressStatEl.innerHTML = `<span class="norm-clean-line">${b.stress_state_he || 'מנוחה (מנורמל)'}</span><span class="norm-raw-line">(שעון: ${b.raw_stress})</span>`;
       } else {
-        const s = b.stress_level || 28;
-        stressStatEl.innerText = s < 25 ? 'מנוחה (נמוך)' : (s < 50 ? 'נמוך-בינוני' : (s < 75 ? 'בינוני' : 'גבוה'));
+        const s = b.stress_level;
+        stressStatEl.innerText = s != null ? (s < 25 ? 'מנוחה (נמוך)' : (s < 50 ? 'נמוך-בינוני' : (s < 75 ? 'בינוני' : 'גבוה'))) : '--';
       }
     }
 
     // 4. Body Battery
     const bbEl = document.getElementById('garmin-battery-val');
-    if (bbEl) bbEl.innerText = `${b.body_battery || 75}%`;
+    if (bbEl) bbEl.innerText = b.body_battery != null ? `${b.body_battery}%` : '--';
     const bbStatEl = document.getElementById('garmin-battery-status');
     if (bbStatEl) {
       if (isNorm && b.raw_bb !== undefined) {
         bbStatEl.innerHTML = `<span class="norm-clean-line">מוגן מאטנט</span><span class="norm-raw-line">(שעון: ${b.raw_bb}%)</span>`;
       } else {
-        const bb = b.body_battery || 75;
-        bbStatEl.innerText = bb > 70 ? 'אנרגיה טעונה' : (bb > 40 ? 'רמה בינונית' : 'מאגר נמוך');
+        const bb = b.body_battery;
+        bbStatEl.innerText = bb != null ? (bb > 70 ? 'אנרגיה טעונה' : (bb > 40 ? 'רמה בינונית' : 'מאגר נמוך')) : '--';
       }
     }
 
     const stepsEl = document.getElementById('garmin-steps-val');
-    if (stepsEl) stepsEl.innerText = (b.steps || 8500).toLocaleString();
+    if (stepsEl) stepsEl.innerText = (b.steps !== undefined && b.steps !== null ? b.steps : 0).toLocaleString();
     const activeEl = document.getElementById('garmin-active-cals-val');
-    if (activeEl) activeEl.innerText = `+${b.active_calories || 450}`;
+    if (activeEl) activeEl.innerText = `+${b.active_calories !== undefined && b.active_calories !== null ? b.active_calories : 0}`;
     const spo2El = document.getElementById('garmin-spo2-val');
     if (spo2El) spo2El.innerText = `${b.spo2_pct || 98}%`;
 
@@ -4513,15 +4524,16 @@ const AppState = {
 
   async testGarminWebhook() {
     sfx.playClick();
+    const cur = this.healthAdvisor?.biometrics || {};
     const testPayload = {
-      steps: 9450,
-      active_calories: 520,
-      heart_rate: 68,
-      resting_hr: 56,
-      sleep_score: 85,
-      sleep_hours: 7.6,
-      stress_level: 24,
-      body_battery: 80,
+      steps: cur.steps ?? 2292,
+      active_calories: cur.active_calories ?? 520,
+      heart_rate: cur.heart_rate ?? 90,
+      resting_hr: cur.resting_hr ?? 56,
+      sleep_score: cur.sleep_score ?? 85,
+      sleep_hours: cur.sleep_hours ?? 7.6,
+      stress_level: cur.stress_level ?? 24,
+      body_battery: cur.body_battery ?? 80,
       source: "ios_shortcuts_test"
     };
     try {
@@ -4653,8 +4665,11 @@ const AppState = {
       const data = await res.json();
       if (data.data) {
         this.healthAdvisor = data.data;
+        this.saveLocalCache();
         this.renderGarminBiometrics();
         if (typeof this.renderDailyDebrief === 'function') this.renderDailyDebrief();
+        if (typeof this.renderCalorieGauge === 'function') this.renderCalorieGauge();
+        if (typeof this.renderAIInsights === 'function') this.renderAIInsights();
         sfx.playSystemNotification();
         this.closeModal('garmin-modal');
 

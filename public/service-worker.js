@@ -1,4 +1,4 @@
-const CACHE_NAME = 'solo-system-v43';
+const CACHE_NAME = 'solo-system-v45';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();

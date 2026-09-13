@@ -700,10 +700,10 @@
                 <span id="garmin-hr-badge" class="bio-norm-badge" style="display:none;">מנורמל</span>
               </div>
               <div class="bio-value-row">
-                <span id="garmin-hr-val" class="bio-main-val">68</span>
+                <span id="garmin-hr-val" class="bio-main-val">--</span>
                 <span class="bio-unit">bpm</span>
               </div>
-              <div class="bio-sub" id="garmin-resting-hr">מנוחה: 58 bpm</div>
+              <div class="bio-sub" id="garmin-resting-hr">מנוחה: -- bpm</div>
             </div>
 
             <div class="biometric-tile sleep" onclick="AppState.openGarminModal()" title="לחץ לעדכון שינה">
@@ -714,10 +714,10 @@
                 </div>
               </div>
               <div class="bio-value-row">
-                <span id="garmin-sleep-val" class="bio-main-val">82</span>
+                <span id="garmin-sleep-val" class="bio-main-val">--</span>
                 <span class="bio-unit">/100</span>
               </div>
-              <div class="bio-sub" id="garmin-sleep-hours">7.2 שעות שינה</div>
+              <div class="bio-sub" id="garmin-sleep-hours">-- שעות שינה</div>
             </div>
 
             <div class="biometric-tile stress" onclick="AppState.openGarminModal()" title="לחץ לעדכון סטרס">
@@ -729,10 +729,10 @@
                 <span id="garmin-stress-badge" class="bio-norm-badge" style="display:none;">מנורמל</span>
               </div>
               <div class="bio-value-row">
-                <span id="garmin-stress-val" class="bio-main-val">28</span>
+                <span id="garmin-stress-val" class="bio-main-val">--</span>
                 <span class="bio-unit">/100</span>
               </div>
-              <div class="bio-sub" id="garmin-stress-status">נמוך (מנוחה)</div>
+              <div class="bio-sub" id="garmin-stress-status">מדד סטרס</div>
             </div>
 
             <div class="biometric-tile battery" onclick="AppState.openGarminModal()" title="לחץ לעדכון סוללת גוף">
@@ -744,9 +744,9 @@
                 <span id="garmin-bb-badge" class="bio-norm-badge" style="display:none;">מוגן</span>
               </div>
               <div class="bio-value-row">
-                <span id="garmin-battery-val" class="bio-main-val">75%</span>
+                <span id="garmin-battery-val" class="bio-main-val">--%</span>
               </div>
-              <div class="bio-sub" id="garmin-battery-status">אנרגיה טעונה</div>
+              <div class="bio-sub" id="garmin-battery-status">סוללת גוף</div>
             </div>
           </div>
 
@@ -754,13 +754,13 @@
           <div class="garmin-footer-bar">
             <div class="garmin-footer-item">
               <span>👟</span>
-              <span id="garmin-steps-val">8,500</span>
+              <span id="garmin-steps-val">--</span>
               <span style="color:var(--text-secondary);">צעדים</span>
             </div>
             <div class="garmin-footer-separator">•</div>
             <div class="garmin-footer-item">
               <span>🔥</span>
-              <span id="garmin-active-cals-val">+450</span>
+              <span id="garmin-active-cals-val">+0</span>
               <span style="color:var(--text-secondary);">שריפה אקטיבית</span>
             </div>
             <div class="garmin-footer-separator">•</div>
@@ -2490,6 +2490,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=43"></script>
+  <script src="/app.js?v=45"></script>
 </body>
 </html>
