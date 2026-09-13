@@ -48,6 +48,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PUBLIC_DIR = os.path.join(BASE_DIR, "public")
 DB_PATH = os.path.join(BASE_DIR, "fitness_system.db")
 FOOD_DB_PATH = os.path.join(BASE_DIR, "food_database.json")
+_LAST_WEBHOOK_CALL = None
 
 def get_local_ip():
     try:
@@ -6837,10 +6838,13 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 today = get_hunter_shift_date(conn)
                 c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
                 row = c.fetchone()
+                c.execute("SELECT * FROM garmin_health_logs ORDER BY date DESC LIMIT 5")
+                all_rows = [dict(r) for r in c.fetchall()]
                 data = {
                     "last_webhook_call": _LAST_WEBHOOK_CALL,
-                    "db_today_row": dict(row) if row else None,
                     "today_shift_date": today,
+                    "db_today_row": dict(row) if row else None,
+                    "all_recent_rows": all_rows,
                     "server_time_israel": get_israel_now().strftime("%Y-%m-%d %H:%M:%S")
                 }
             self._set_headers()
