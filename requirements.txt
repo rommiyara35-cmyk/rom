@@ -1,2 +1,5 @@
 # Solo Leveling Fitness & Nutrition System
 # Powered by Python 3 Standard Library - Zero external dependencies required.
+# psycopg2-binary is needed ONLY when DATABASE_URL is set (production Postgres).
+# Local dev with SQLite doesn't need it.
+psycopg2-binary
