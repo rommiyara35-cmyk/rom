@@ -4,10 +4,10 @@
 
 :root {
   --bg-deep: #000000;
-  --bg-card: #0a0c10;
-  --bg-card-hover: #12151d;
-  --hud-cyan: #38bdf8;
-  --hud-blue: #2563eb;
+  --bg-card: #1C1C1E;
+  --bg-card-hover: #2C2C2E;
+  --hud-cyan: #0A84FF;
+  --hud-blue: #0A84FF;
   --hud-glow: transparent;
   --hud-border: rgba(255, 255, 255, 0.08);
   --neon-purple: #8b5cf6;
@@ -15,8 +15,8 @@
   --neon-green: #10b981;
   --neon-red: #ef4444;
   --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-dim: #64748b;
+  --text-secondary: #8E8E93;
+  --text-dim: #636366;
   --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --font-mono: "SF Mono", Menlo, Monaco, Consolas, monospace;
 }
@@ -477,7 +477,7 @@ body {
 }
 
 .macro-card.protein { border-top: 3px solid #f43f5e; }
-.macro-card.carbs   { border-top: 3px solid #38bdf8; }
+.macro-card.carbs   { border-top: 3px solid #0A84FF; }
 .macro-card.fats    { border-top: 3px solid #eab308; }
 
 .macro-card-header {
@@ -500,7 +500,7 @@ body {
 }
 
 .macro-card.protein .macro-badge { background: rgba(244, 63, 94, 0.15); color: #fb7185; }
-.macro-card.carbs .macro-badge   { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
+.macro-card.carbs .macro-badge   { background: rgba(10, 132, 255, 0.15); color: #0A84FF; }
 .macro-card.fats .macro-badge    { background: rgba(234, 179, 8, 0.15); color: #facc15; }
 
 .macro-gram-info {
@@ -530,7 +530,7 @@ body {
 }
 
 .macro-card.protein .macro-mini-fill { background: #f43f5e; box-shadow: none; }
-.macro-card.carbs .macro-mini-fill   { background: #38bdf8; box-shadow: none; }
+.macro-card.carbs .macro-mini-fill   { background: #0A84FF; box-shadow: none; }
 .macro-card.fats .macro-mini-fill    { background: #eab308; box-shadow: none; }
 
 /* Micronutrient Matrix */
@@ -568,7 +568,7 @@ body {
 
 .micro-item {
   background: rgba(6, 14, 28, 0.7);
-  border: 1px solid rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(10, 132, 255, 0.12);
   border-radius: 8px;
   padding: 8px 10px;
   display: flex;
@@ -579,7 +579,7 @@ body {
 
 .micro-item.micro-has-supp {
   border-color: rgba(192, 132, 252, 0.35);
-  background: linear-gradient(135deg, rgba(6, 14, 28, 0.75), rgba(147, 51, 234, 0.08));
+  background: transparent;
 }
 
 .micro-supp-tag {
@@ -632,7 +632,7 @@ body {
 .micro-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #0284c7, var(--hud-cyan));
+  background: #0A64CC;
   border-radius: 3px;
   transition: width 0.5s ease;
 }
@@ -644,13 +644,13 @@ body {
   background: var(--bg-card);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(56, 189, 248, 0.25);
+  border: 1px solid rgba(10, 132, 255, 0.25);
   border-radius: 14px;
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(56, 189, 248, 0.05);
+  box-shadow: none;
 }
 
 .water-undo-btn {
@@ -707,7 +707,7 @@ body {
   left: 0;
   width: 100%;
   height: 0%;
-  background: #0284c7;
+  background: #0A64CC;
   box-shadow: none;
   transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 0 0 10px 10px;
@@ -745,7 +745,7 @@ body {
 
 .water-unit {
   font-size: 11px;
-  color: #7dd3fc;
+  color: #5EA9FF;
 }
 
 .water-rem-label {
@@ -805,7 +805,7 @@ body {
 }
 
 .water-quick-btn:hover {
-  border-color: #38bdf8;
+  border-color: #0A84FF;
   background: #141926;
   box-shadow: none;
   transform: translateY(-1px);
@@ -851,7 +851,7 @@ body {
 }
 
 .water-custom-select:focus {
-  border-color: #38bdf8;
+  border-color: #0A84FF;
 }
 
 .water-custom-input {
@@ -867,12 +867,12 @@ body {
 }
 
 .water-custom-input:focus {
-  border-color: #38bdf8;
+  border-color: #0A84FF;
   box-shadow: none;
 }
 
 .water-custom-btn {
-  background: #0284c7;
+  background: #0A64CC;
   border: none;
   border-radius: 8px;
   color: #ffffff;
@@ -884,7 +884,7 @@ body {
 }
 
 .water-history-details {
-  border-top: 1px dashed rgba(56, 189, 248, 0.2);
+  border-top: 1px dashed rgba(10, 132, 255, 0.2);
   padding-top: 8px;
   margin-top: 4px;
 }
@@ -926,7 +926,7 @@ body {
 .water-toggle-link {
   background: transparent;
   border: none;
-  color: #38bdf8;
+  color: #0A84FF;
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
@@ -991,12 +991,12 @@ body {
 }
 
 .ai-goal-textarea:focus {
-  border-color: #38bdf8;
+  border-color: #0A84FF;
   box-shadow: none;
 }
 
 .ai-calc-goals-btn {
-  background: #0284c7;
+  background: #0A64CC;
   border: none;
   border-radius: 8px;
   color: #ffffff;
@@ -1203,7 +1203,7 @@ body {
 }
 
 .action-btn-primary {
-  background: #0284c7;
+  background: #0A64CC;
   border: none;
   color: #ffffff;
   font-weight: 700;
@@ -1339,7 +1339,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+  border-bottom: 1px solid rgba(10, 132, 255, 0.2);
   padding-bottom: 12px;
   background: #091326;
   z-index: 30;
@@ -1409,7 +1409,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .form-input:focus, .form-select:focus {
   border-color: var(--hud-cyan);
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+  box-shadow: none;
 }
 
 .form-grid-2 {
@@ -1456,7 +1456,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 /* Scientific Preview Box */
 .science-preview-box {
-  background: rgba(0, 240, 255, 0.06);
+  background: rgba(10, 132, 255, 0.06);
   border: 1px dashed var(--hud-cyan);
   border-radius: 10px;
   padding: 12px;
@@ -1518,7 +1518,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   font-size: 32px;
   font-weight: 900;
   color: var(--hud-cyan);
-  text-shadow: 0 0 20px var(--hud-cyan);
+  text-shadow: none;
   letter-spacing: 2px;
 }
 
@@ -1559,9 +1559,9 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   position: absolute;
   width: 75%;
   height: 65%;
-  border: 1px dashed rgba(0, 240, 255, 0.4);
+  border: 1px dashed rgba(10, 132, 255, 0.4);
   pointer-events: none;
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.15);
+  box-shadow: none;
 }
 
 .corner-bracket {
@@ -1597,10 +1597,10 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   font-size: 11px;
   color: var(--hud-cyan);
   text-align: center;
-  background: rgba(0, 240, 255, 0.08);
+  background: rgba(10, 132, 255, 0.08);
   padding: 6px 10px;
   border-radius: 6px;
-  border: 1px solid rgba(0, 240, 255, 0.15);
+  border: 1px solid rgba(10, 132, 255, 0.15);
 }
 
 .quick-barcode-tags {
@@ -1622,7 +1622,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .barcode-pill:active {
   border-color: var(--hud-cyan);
-  background: rgba(0, 240, 255, 0.2);
+  background: rgba(10, 132, 255, 0.2);
   opacity: 0.85;
 }
 
@@ -1631,7 +1631,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
    PROMINENT SHIFT WORKER & BARCODE HERO BANNERS
    ========================================================== */
 .shift-control-banner {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95));
+  background: transparent;
   border: 1.5px solid #3b82f6;
   box-shadow: 0 4px 20px rgba(59, 130, 246, 0.25), inset 0 0 15px rgba(59, 130, 246, 0.1);
   border-radius: 14px;
@@ -1652,7 +1652,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .shift-control-banner.night-active {
   border-color: #a855f7;
-  background: linear-gradient(135deg, rgba(26, 16, 48, 0.95), rgba(46, 16, 80, 0.95));
+  background: transparent;
   box-shadow: 0 4px 25px rgba(168, 85, 247, 0.4), inset 0 0 20px rgba(168, 85, 247, 0.15);
 }
 
@@ -1688,7 +1688,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .shift-toggle-action-btn {
-  background: linear-gradient(90deg, #2563eb, #00f0ff);
+  background: #0A84FF;
   border: none;
   color: #050811;
   font-weight: 800;
@@ -1697,11 +1697,11 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   border-radius: 8px;
   white-space: nowrap;
   pointer-events: none;
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+  box-shadow: none;
 }
 
 .shift-control-banner.night-active .shift-toggle-action-btn {
-  background: linear-gradient(90deg, #9333ea, #c084fc);
+  background: #9333ea;
   color: #ffffff;
   box-shadow: 0 0 12px rgba(168, 85, 247, 0.5);
 }
@@ -1725,7 +1725,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .barcode-big-hero-btn:hover {
   background: #141824;
-  border-color: #38bdf8;
+  border-color: #0A84FF;
 }
 
 .barcode-big-hero-btn:active {
@@ -1899,10 +1899,10 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   background: rgba(10, 18, 32, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(0, 240, 255, 0.35);
+  border: 1px solid rgba(10, 132, 255, 0.35);
   border-radius: 14px;
   padding: 14px 16px;
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.15);
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1918,7 +1918,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   left: 0;
   width: 100%;
   height: 2px;
-  background: linear-gradient(90deg, transparent, var(--hud-cyan), #3b82f6, transparent);
+  background: #3b82f6;
 }
 
 .garmin-hud-header {
@@ -1960,8 +1960,8 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .garmin-sync-btn {
-  background: rgba(0, 240, 255, 0.1);
-  border: 1px solid rgba(0, 240, 255, 0.4);
+  background: rgba(10, 132, 255, 0.1);
+  border: 1px solid rgba(10, 132, 255, 0.4);
   color: var(--hud-cyan);
   border-radius: 8px;
   padding: 4px 10px;
@@ -1975,8 +1975,8 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .garmin-sync-btn:hover {
-  background: rgba(0, 240, 255, 0.25);
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+  background: rgba(10, 132, 255, 0.25);
+  box-shadow: none;
 }
 
 /* 4 Core Biometrics Grid */
@@ -2076,7 +2076,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .biometric-tile.hr .bio-main-val { color: #f87171; }
 .biometric-tile.sleep .bio-main-val { color: #c084fc; }
-.biometric-tile.stress .bio-main-val { color: #67e8f9; }
+.biometric-tile.stress .bio-main-val { color: #0A84FF; }
 .biometric-tile.battery .bio-main-val { color: #6ee7b7; }
 
 .bio-unit {
@@ -2150,7 +2150,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   flex-wrap: wrap;
   gap: 8px;
   background: rgba(4, 9, 18, 0.7);
-  border: 1px solid rgba(0, 240, 255, 0.15);
+  border: 1px solid rgba(10, 132, 255, 0.15);
   border-radius: 8px;
   padding: 6px 10px;
 }
@@ -2165,7 +2165,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 .garmin-status-indicator {
   font-size: 10px;
   color: #10b981;
-  text-shadow: 0 0 8px #10b981;
+  text-shadow: none;
 }
 
 .garmin-status-indicator.offline {
@@ -2191,8 +2191,8 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 .garmin-source-badge {
   font-size: 9px;
   font-weight: 800;
-  background: rgba(0, 240, 255, 0.15);
-  border: 1px solid rgba(0, 240, 255, 0.4);
+  background: rgba(10, 132, 255, 0.15);
+  border: 1px solid rgba(10, 132, 255, 0.4);
   color: var(--hud-cyan);
   padding: 1px 5px;
   border-radius: 4px;
@@ -2222,21 +2222,21 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .garmin-strip-btn:hover {
-  background: rgba(0, 240, 255, 0.15);
+  background: rgba(10, 132, 255, 0.15);
   border-color: var(--hud-cyan);
   color: #ffffff;
 }
 
 .garmin-strip-btn.smart-btn {
-  background: rgba(0, 240, 255, 0.12);
-  border-color: rgba(0, 240, 255, 0.35);
+  background: rgba(10, 132, 255, 0.12);
+  border-color: rgba(10, 132, 255, 0.35);
   color: var(--hud-cyan);
   font-weight: 800;
 }
 
 .garmin-strip-btn.smart-btn:hover {
-  background: rgba(0, 240, 255, 0.25);
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+  background: rgba(10, 132, 255, 0.25);
+  box-shadow: none;
 }
 
 /* Garmin Modal Multi-Channel Tabs */
@@ -2265,15 +2265,15 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .garmin-tab-btn.active {
-  background: rgba(0, 240, 255, 0.18);
-  color: #00f0ff;
-  border: 1px solid rgba(0, 240, 255, 0.4);
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.15);
+  background: rgba(10, 132, 255, 0.18);
+  color: #0A84FF;
+  border: 1px solid rgba(10, 132, 255, 0.4);
+  box-shadow: none;
 }
 
 .garmin-smart-btn {
-  background: rgba(0, 240, 255, 0.12);
-  border: 1px solid rgba(0, 240, 255, 0.35);
+  background: rgba(10, 132, 255, 0.12);
+  border: 1px solid rgba(10, 132, 255, 0.35);
   color: var(--hud-cyan);
   font-size: 10px;
   font-weight: 800;
@@ -2284,7 +2284,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .garmin-smart-btn:hover {
-  background: rgba(0, 240, 255, 0.25);
+  background: rgba(10, 132, 255, 0.25);
 }
 
 /* Presets Grid */
@@ -2337,8 +2337,8 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 /* Dropzone */
 .garmin-dropzone {
-  border: 2px dashed rgba(0, 240, 255, 0.35);
-  background: rgba(0, 240, 255, 0.03);
+  border: 2px dashed rgba(10, 132, 255, 0.35);
+  background: rgba(10, 132, 255, 0.03);
   border-radius: 12px;
   padding: 24px 16px;
   text-align: center;
@@ -2348,9 +2348,9 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .garmin-dropzone:hover, .garmin-dropzone.dragover {
-  border-color: #00f0ff;
-  background: rgba(0, 240, 255, 0.1);
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
+  border-color: #0A84FF;
+  background: rgba(10, 132, 255, 0.1);
+  box-shadow: none;
 }
 
 .dropzone-icon {
@@ -2400,7 +2400,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .copy-url-btn {
-  background: rgba(0, 240, 255, 0.15);
+  background: rgba(10, 132, 255, 0.15);
   border: 1px solid var(--hud-cyan);
   color: var(--hud-cyan);
   border-radius: 6px;
@@ -2548,8 +2548,8 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   font-size: 11px;
   font-weight: 700;
   color: var(--hud-cyan);
-  background: rgba(0, 240, 255, 0.1);
-  border: 1px solid rgba(0, 240, 255, 0.3);
+  background: rgba(10, 132, 255, 0.1);
+  border: 1px solid rgba(10, 132, 255, 0.3);
   padding: 3px 8px;
   border-radius: 6px;
   margin-top: 4px;
@@ -2579,7 +2579,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .dose-pill-btn.selected {
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  background: #7c3aed;
   border-color: #d8b4fe;
   box-shadow: 0 0 15px rgba(168, 85, 247, 0.5);
   color: #ffffff;
@@ -2604,7 +2604,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent, #00f0ff, transparent);
+  background: #0A84FF;
 }
 
 .skills-hud-header {
@@ -2643,7 +2643,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .skill-log-workout-btn {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(239, 68, 68, 0.3));
+  background: transparent;
   border: 1px solid #f59e0b;
   color: #fef3c7;
   padding: 6px 12px;
@@ -2668,7 +2668,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .skill-card {
   background: rgba(10, 15, 29, 0.8);
-  border: 1px solid rgba(0, 240, 255, 0.2);
+  border: 1px solid rgba(10, 132, 255, 0.2);
   border-radius: 10px;
   padding: 10px;
   display: flex;
@@ -2680,7 +2680,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .skill-card:hover {
   border-color: var(--hud-cyan);
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+  box-shadow: none;
 }
 
 .skill-card-top {
@@ -2699,7 +2699,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .skill-lvl-badge {
-  background: rgba(0, 240, 255, 0.15);
+  background: rgba(10, 132, 255, 0.15);
   border: 1px solid var(--hud-cyan);
   color: var(--hud-cyan);
   font-family: var(--font-mono);
@@ -2732,7 +2732,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .skill-xp-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #0284c7, #00f0ff);
+  background: #0A64CC;
   transition: width 0.4s ease-out;
 }
 
@@ -2756,7 +2756,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .portion-unit-select {
   background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(0, 240, 255, 0.3);
+  border: 1px solid rgba(10, 132, 255, 0.3);
   color: #ffffff;
   padding: 8px 10px;
   border-radius: 8px;
@@ -2767,8 +2767,8 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .staging-calc-preview {
-  background: rgba(0, 240, 255, 0.06);
-  border: 1px dashed rgba(0, 240, 255, 0.3);
+  background: rgba(10, 132, 255, 0.06);
+  border: 1px dashed rgba(10, 132, 255, 0.3);
   border-radius: 8px;
   padding: 6px 10px;
   font-size: 11px;
@@ -2910,8 +2910,8 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
    DAILY HEALTH & RESEARCH DEBRIEF
    ============================================================ */
 .debrief-score-card {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.7));
-  border: 1px solid rgba(0, 240, 255, 0.3);
+  background: transparent;
+  border: 1px solid rgba(10, 132, 255, 0.3);
   border-radius: 12px;
   padding: 12px;
   display: flex;
@@ -2925,20 +2925,20 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   width: 58px;
   height: 58px;
   border-radius: 50%;
-  border: 3px solid #00f0ff;
+  border: 3px solid #0A84FF;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 240, 255, 0.1);
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+  background: rgba(10, 132, 255, 0.1);
+  box-shadow: none;
 }
 
 .debrief-score-num {
   font-size: 18px;
   font-weight: 900;
   font-family: var(--font-mono);
-  color: #00f0ff;
+  color: #0A84FF;
   line-height: 1;
 }
 
@@ -2970,7 +2970,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 .debrief-tab-btn {
   flex: 1;
   background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(0, 240, 255, 0.2);
+  border: 1px solid rgba(10, 132, 255, 0.2);
   color: #94a3b8;
   padding: 7px 6px;
   border-radius: 8px;
@@ -2982,10 +2982,10 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .debrief-tab-btn.active {
-  background: rgba(0, 240, 255, 0.15);
-  border-color: #00f0ff;
-  color: #00f0ff;
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+  background: rgba(10, 132, 255, 0.15);
+  border-color: #0A84FF;
+  color: #0A84FF;
+  box-shadow: none;
 }
 
 .debrief-tab-content {
@@ -3001,7 +3001,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  border-right: 3px solid #00f0ff;
+  border-right: 3px solid #0A84FF;
 }
 
 .debrief-item-card.maintain {
@@ -3195,7 +3195,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   font-weight: 900;
   color: var(--neon-green);
   font-family: var(--font-mono);
-  text-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+  text-shadow: none;
 }
 
 .norm-arrow {
@@ -3219,7 +3219,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .norm-science-box {
   background: rgba(15, 23, 42, 0.6);
-  border: 1px dashed rgba(56, 189, 248, 0.3);
+  border: 1px dashed rgba(10, 132, 255, 0.3);
   border-radius: 10px;
   padding: 10px 12px;
 }
@@ -3236,7 +3236,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
    DISASTER RECOVERY AUTO-BANNER STYLES
    ======================================================== */
 .disaster-banner {
-  background: linear-gradient(90deg, rgba(220, 38, 38, 0.25), rgba(245, 158, 11, 0.2));
+  background: transparent;
   border: 1px solid rgba(239, 68, 68, 0.6);
   border-radius: 12px;
   padding: 10px 14px;
@@ -3274,7 +3274,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .disaster-restore-btn {
-  background: linear-gradient(90deg, #10b981, #059669);
+  background: #10b981;
   color: #ffffff;
   border: 1px solid #34d399;
   border-radius: 8px;
@@ -3368,8 +3368,8 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   display: flex;
   align-items: center;
   gap: 14px;
-  background: linear-gradient(135deg, rgba(13, 22, 42, 0.8), rgba(20, 15, 38, 0.7));
-  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: transparent;
+  border: 1px solid rgba(10, 132, 255, 0.25);
   border-radius: 16px;
   padding: 12px 16px;
   margin-top: 6px;
@@ -3386,19 +3386,19 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: radial-gradient(circle, #1e293b 0%, #0f172a 100%);
-  border: 2px solid #38bdf8;
+  background: none;
+  border: 2px solid #0A84FF;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+  box-shadow: none;
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .hunter-avatar-wrap:hover .hunter-avatar-box {
   transform: scale(1.05);
-  box-shadow: 0 0 20px rgba(56, 189, 248, 0.7);
+  box-shadow: none;
 }
 
 .hunter-avatar-img {
@@ -3433,13 +3433,13 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   font-weight: 900;
   color: #ffffff;
   letter-spacing: 0.5px;
-  text-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
+  text-shadow: none;
 }
 
 .hunter-hero-handle {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: #38bdf8;
+  color: #0A84FF;
 }
 
 /* 4 Circular HUD Gauges Row (Image 1 & 3) */
@@ -3452,7 +3452,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .gauge-card {
   background: rgba(10, 18, 34, 0.75);
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  border: 1px solid rgba(10, 132, 255, 0.2);
   border-radius: 14px;
   padding: 10px 4px 8px;
   display: flex;
@@ -3466,15 +3466,15 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .gauge-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(56, 189, 248, 0.5);
-  box-shadow: 0 4px 15px rgba(56, 189, 248, 0.25);
+  border-color: rgba(10, 132, 255, 0.5);
+  box-shadow: none;
 }
 
 /* 1. Hexagon Rank Badge */
 .gauge-hex-outer {
   width: 44px;
   height: 48px;
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.4), rgba(168, 85, 247, 0.4));
+  background: transparent;
   clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
   display: flex;
   align-items: center;
@@ -3493,14 +3493,14 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   font-family: var(--font-display);
   font-size: 20px;
   font-weight: 900;
-  color: #38bdf8;
-  text-shadow: 0 0 10px #38bdf8;
+  color: #0A84FF;
+  text-shadow: none;
 }
 
 /* Dynamic Rank colors for hex */
 .gauge-hex-inner.rank-e { color: #94a3b8; }
 .gauge-hex-inner.rank-d { color: #34d399; }
-.gauge-hex-inner.rank-c { color: #38bdf8; }
+.gauge-hex-inner.rank-c { color: #0A84FF; }
 .gauge-hex-inner.rank-b { color: #60a5fa; }
 .gauge-hex-inner.rank-a { color: #c084fc; }
 .gauge-hex-inner.rank-s { color: #fbbf24; }
@@ -3520,11 +3520,11 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .gauge-circle-ring.cyan {
-  border: 2px solid #38bdf8;
+  border: 2px solid #0A84FF;
   box-shadow: none;
 }
 .gauge-circle-ring.cyan .gauge-val {
-  color: #38bdf8;
+  color: #0A84FF;
   text-shadow: none;
 }
 
@@ -3603,7 +3603,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .char-bio-val.highlight {
-  color: #38bdf8;
+  color: #0A84FF;
   font-weight: 700;
 }
 
@@ -3631,7 +3631,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 .copy-id-btn {
   background: #11141c;
   border: 1px solid #1e2433;
-  color: #38bdf8;
+  color: #0A84FF;
   border-radius: 6px;
   padding: 3px 7px;
   font-size: 11px;
@@ -3641,7 +3641,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .copy-id-btn:hover {
   background: #171c26;
-  border-color: #38bdf8;
+  border-color: #0A84FF;
 }
 
 /* Quick Action Hero Pills */
@@ -3672,7 +3672,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .hero-action-pill:hover {
   background: #141824;
-  border-color: #38bdf8;
+  border-color: #0A84FF;
   box-shadow: none;
   transform: translateY(-1px);
 }
@@ -3686,7 +3686,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 .hero-action-pill.nutrition:hover,
 .hero-action-pill.badges:hover,
 .hero-action-pill.rank:hover {
-  border-color: #38bdf8;
+  border-color: #0A84FF;
   box-shadow: none;
 }
 
@@ -3705,7 +3705,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
    ======================================================== */
 .rank-modal-content {
   max-width: 520px;
-  background: linear-gradient(180deg, #070d1a 0%, #03060c 100%);
+  background: #070d1a;
   border: 1px solid rgba(168, 85, 247, 0.4);
   box-shadow: 0 0 35px rgba(168, 85, 247, 0.25);
   padding: 18px 20px;
@@ -3744,7 +3744,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   align-items: center;
   gap: 18px;
   background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  border: 1px solid rgba(10, 132, 255, 0.3);
   border-radius: 16px;
   padding: 16px;
   margin-bottom: 20px;
@@ -3771,7 +3771,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   font-size: 36px;
   color: #ffffff;
   background: #0f172a;
-  border: 2px solid #38bdf8;
+  border: 2px solid #0A84FF;
   position: relative;
   z-index: 2;
   box-shadow: none;
@@ -3779,7 +3779,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .rank-hex-hero.rank-e { background: #11141c; border-color: #475569; color: #94a3b8; box-shadow: none; }
 .rank-hex-hero.rank-d { background: #0b1a13; border-color: #10b981; color: #34d399; box-shadow: none; }
-.rank-hex-hero.rank-c { background: #0c1a24; border-color: #38bdf8; color: #38bdf8; box-shadow: none; }
+.rank-hex-hero.rank-c { background: #0c1a24; border-color: #0A84FF; color: #0A84FF; box-shadow: none; }
 .rank-hex-hero.rank-b { background: #0c152b; border-color: #3b82f6; color: #60a5fa; box-shadow: none; }
 .rank-hex-hero.rank-a { background: #180f24; border-color: #8b5cf6; color: #c084fc; box-shadow: none; }
 .rank-hex-hero.rank-s { background: #1c1407; border-color: #f59e0b; color: #fbbf24; box-shadow: none; }
@@ -3807,7 +3807,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 .rank-hero-level-range {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: #38bdf8;
+  color: #0A84FF;
 }
 
 .rank-hero-progression-bar-box {
@@ -3832,7 +3832,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .rank-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  background: #0A84FF;
   border-radius: 3px;
   transition: width 0.3s;
 }
@@ -3872,9 +3872,9 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .rank-constellation-item.active {
-  border-color: #38bdf8;
-  background: rgba(56, 189, 248, 0.12);
-  box-shadow: 0 0 15px rgba(56, 189, 248, 0.35);
+  border-color: #0A84FF;
+  background: rgba(10, 132, 255, 0.12);
+  box-shadow: none;
   transform: translateY(-2px);
 }
 
@@ -3924,7 +3924,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .rank-constellation-item.active .rank-item-status-tag {
-  background: #38bdf8;
+  background: #0A84FF;
   color: #000000;
 }
 
@@ -3942,7 +3942,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 .arise-footer-banner {
   text-align: center;
   padding: 14px 10px;
-  background: radial-gradient(circle at center, rgba(168, 85, 247, 0.15) 0%, transparent 80%);
+  background: none;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
   flex-direction: column;
@@ -3956,7 +3956,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   font-weight: 900;
   letter-spacing: 8px;
   color: #ffffff;
-  text-shadow: 0 0 15px #a855f7, 0 0 30px #ec4899;
+  text-shadow: none;
 }
 
 .arise-subtext {
@@ -3969,7 +3969,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .share-rank-btn {
   margin-top: 8px;
-  background: linear-gradient(90deg, #7c3aed, #9333ea);
+  background: #7c3aed;
   color: #ffffff;
   border: 1px solid #c084fc;
   border-radius: 10px;
@@ -3991,7 +3991,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
    ======================================================== */
 .achievements-modal-content {
   max-width: 600px;
-  background: linear-gradient(180deg, #090e1c 0%, #03060d 100%);
+  background: #090e1c;
   border: 1px solid rgba(245, 158, 11, 0.4);
   box-shadow: 0 0 35px rgba(245, 158, 11, 0.2);
   padding: 16px 18px;
@@ -4035,7 +4035,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .ach-mini-prog-fill {
   height: 100%;
-  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+  background: #f59e0b;
   border-radius: 3px;
   transition: width 0.3s;
 }
@@ -4088,7 +4088,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .ach-hex-card.unlocked {
   border-color: rgba(245, 158, 11, 0.4);
-  background: linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, rgba(15, 23, 42, 0.65) 100%);
+  background: transparent;
 }
 
 .ach-hex-card.locked {
@@ -4109,22 +4109,22 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .ach-hex-badge.unlocked.gold {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
+  background: #f59e0b;
   box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
 }
 
 .ach-hex-badge.unlocked.purple {
-  background: linear-gradient(135deg, #a855f7, #7c3aed);
+  background: #a855f7;
   box-shadow: 0 0 15px rgba(168, 85, 247, 0.5);
 }
 
 .ach-hex-badge.unlocked.cyan {
-  background: linear-gradient(135deg, #06b6d4, #0284c7);
+  background: #06b6d4;
   box-shadow: 0 0 15px rgba(6, 182, 212, 0.5);
 }
 
 .ach-hex-badge.unlocked.crimson {
-  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  background: #ef4444;
   box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
 }
 
@@ -4181,7 +4181,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .achievement-banner {
   color: #fbbf24;
-  text-shadow: 0 0 15px rgba(251, 191, 36, 0.8);
+  text-shadow: none;
   font-size: 14px;
   letter-spacing: 1.5px;
 }
@@ -4220,7 +4220,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .ach-claim-btn {
   width: 100%;
-  background: linear-gradient(90deg, #f59e0b, #d97706);
+  background: #f59e0b;
   color: #ffffff;
   font-weight: 900;
   padding: 10px;
@@ -4240,7 +4240,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   background: rgba(6, 11, 22, 0.94);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(56, 189, 248, 0.22);
+  border-top: 1px solid rgba(10, 132, 255, 0.22);
   display: flex;
   justify-content: space-around;
   align-items: center;
@@ -4266,12 +4266,12 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .bottom-nav-item:hover, .bottom-nav-item.active {
-  color: #00f0ff;
+  color: #0A84FF;
 }
 
 .bottom-nav-item.active .nav-icon {
   transform: scale(1.15);
-  filter: drop-shadow(0 0 6px rgba(0, 240, 255, 0.6));
+  filter: none;
 }
 
 .nav-icon {
@@ -4338,7 +4338,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   background: rgba(7, 11, 20, 0.88);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  border: 1px solid rgba(10, 132, 255, 0.2);
   border-radius: 14px;
   margin-bottom: 12px;
   position: sticky;
@@ -4371,9 +4371,9 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .top-lvl-chip {
-  background: rgba(56, 189, 248, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.4);
-  color: #38bdf8;
+  background: rgba(10, 132, 255, 0.15);
+  border: 1px solid rgba(10, 132, 255, 0.4);
+  color: #0A84FF;
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 800;
@@ -4422,7 +4422,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .q-reward-item strong {
-  color: #38bdf8;
+  color: #0A84FF;
 }
 
 /* Badges Sub-Tabs Bar */
@@ -4455,10 +4455,10 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .badges-subtab-btn.active {
-  background: rgba(56, 189, 248, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.4);
-  color: #38bdf8;
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+  background: rgba(10, 132, 255, 0.15);
+  border: 1px solid rgba(10, 132, 255, 0.4);
+  color: #0A84FF;
+  box-shadow: none;
 }
 
 .ach-header-stats-box {
@@ -4511,7 +4511,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   background: #091326;
   border: 1.5px solid var(--hud-cyan);
   border-radius: 16px;
-  box-shadow: 0 0 35px rgba(0, 240, 255, 0.25);
+  box-shadow: none;
   max-height: 92vh;
   overflow-y: auto;
 }
@@ -4522,7 +4522,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   align-items: center;
   padding: 8px 12px;
   background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(0, 240, 255, 0.2);
+  border: 1px solid rgba(10, 132, 255, 0.2);
   border-radius: 10px;
 }
 
@@ -4534,8 +4534,8 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .cal-nav-btn {
-  background: rgba(0, 240, 255, 0.1);
-  border: 1px solid rgba(0, 240, 255, 0.3);
+  background: rgba(10, 132, 255, 0.1);
+  border: 1px solid rgba(10, 132, 255, 0.3);
   color: #e2e8f0;
   font-size: 11px;
   font-weight: 700;
@@ -4546,7 +4546,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .cal-nav-btn:hover {
-  background: rgba(0, 240, 255, 0.25);
+  background: rgba(10, 132, 255, 0.25);
   color: #ffffff;
 }
 
@@ -4596,7 +4596,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .cal-day-cell:hover {
-  border-color: rgba(0, 240, 255, 0.4);
+  border-color: rgba(10, 132, 255, 0.4);
   background: rgba(15, 23, 42, 0.85);
   transform: translateY(-1px);
 }
@@ -4610,7 +4610,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 
 .cal-day-cell.is-today {
   border: 1.5px solid var(--hud-cyan);
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.35);
+  box-shadow: none;
 }
 
 .cal-day-cell.is-selected {
@@ -4658,7 +4658,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 .calendar-day-detail-wrap {
   margin-top: 10px;
   background: rgba(10, 18, 36, 0.85);
-  border: 1px solid rgba(0, 240, 255, 0.25);
+  border: 1px solid rgba(10, 132, 255, 0.25);
   border-radius: 12px;
   padding: 12px;
 }
@@ -4683,9 +4683,9 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 4px;
-  background: rgba(0, 240, 255, 0.15);
+  background: rgba(10, 132, 255, 0.15);
   color: var(--hud-cyan);
-  border: 1px solid rgba(0, 240, 255, 0.3);
+  border: 1px solid rgba(10, 132, 255, 0.3);
 }
 
 .cal-detail-grid {
@@ -4729,7 +4729,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
    ============================================================= */
 .long-term-science-section {
   background: rgba(11, 20, 38, 0.75);
-  border: 1px solid rgba(0, 240, 255, 0.22);
+  border: 1px solid rgba(10, 132, 255, 0.22);
   border-radius: 16px;
   padding: 16px;
   margin-top: 14px;
@@ -4793,16 +4793,16 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .lt-toggle-btn.active {
-  background: rgba(0, 240, 255, 0.2);
+  background: rgba(10, 132, 255, 0.2);
   color: var(--hud-cyan);
-  border: 1px solid rgba(0, 240, 255, 0.4);
+  border: 1px solid rgba(10, 132, 255, 0.4);
 }
 
 .lt-composite-card {
   display: flex;
   align-items: center;
   gap: 14px;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 27, 75, 0.4) 100%);
+  background: transparent;
   border: 1px solid rgba(168, 85, 247, 0.3);
   border-radius: 12px;
   padding: 12px 16px;
@@ -4870,7 +4870,7 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .lt-pillar-card:hover {
-  border-color: rgba(0, 240, 255, 0.3);
+  border-color: rgba(10, 132, 255, 0.3);
 }
 
 .lt-pillar-top {
@@ -4923,9 +4923,9 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .lt-pillar-badge.info {
-  background: rgba(0, 240, 255, 0.15);
+  background: rgba(10, 132, 255, 0.15);
   color: var(--hud-cyan);
-  border: 1px solid rgba(0, 240, 255, 0.35);
+  border: 1px solid rgba(10, 132, 255, 0.35);
 }
 
 .lt-pillar-stats-row {
@@ -4956,12 +4956,12 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
 }
 
 .lt-pillar-evidence-box {
-  background: rgba(0, 240, 255, 0.04);
+  background: rgba(10, 132, 255, 0.04);
   border-left: 2px solid var(--hud-cyan);
   padding: 6px 8px;
   border-radius: 0 6px 6px 0;
   font-size: 9.5px;
-  color: #7dd3fc;
+  color: #5EA9FF;
   font-style: italic;
 }
 
@@ -5033,7 +5033,7 @@ textarea {
 }
 
 .bottom-nav-item.active {
-  color: #38bdf8;
+  color: #0A84FF;
 }
 
 .bottom-nav-item.active .nav-icon {
@@ -5108,7 +5108,7 @@ textarea {
 }
 
 .hud-btn-icon:active {
-  background: rgba(56, 189, 248, 0.2);
+  background: rgba(10, 132, 255, 0.2);
   opacity: 0.85;
 }
 
@@ -5291,9 +5291,9 @@ textarea {
 }
 
 .awakening-card.ai-highlight-card {
-  border-color: rgba(0, 240, 255, 0.45);
-  background: linear-gradient(180deg, rgba(8, 28, 48, 0.9) 0%, rgba(15, 23, 42, 0.9) 100%);
-  box-shadow: 0 0 30px rgba(0, 240, 255, 0.15), 0 10px 30px rgba(0, 0, 0, 0.7);
+  border-color: rgba(10, 132, 255, 0.45);
+  background: transparent;
+  box-shadow: none;
 }
 
 .awakening-card-header {
@@ -5309,15 +5309,15 @@ textarea {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: rgba(56, 189, 248, 0.12);
-  border: 1.5px solid #38bdf8;
+  background: rgba(10, 132, 255, 0.12);
+  border: 1.5px solid #0A84FF;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-mono, monospace);
   font-weight: 800;
   font-size: 14px;
-  color: #38bdf8;
+  color: #0A84FF;
   flex-shrink: 0;
 }
 
@@ -5362,8 +5362,8 @@ textarea {
 }
 
 .blueprint-stat-chip.highlight-cals {
-  border-color: rgba(0, 240, 255, 0.4);
-  background: rgba(0, 240, 255, 0.06);
+  border-color: rgba(10, 132, 255, 0.4);
+  background: rgba(10, 132, 255, 0.06);
 }
 
 .blueprint-stat-chip.highlight-prot {
@@ -5372,8 +5372,8 @@ textarea {
 }
 
 .blueprint-stat-chip.highlight-water {
-  border-color: rgba(56, 189, 248, 0.4);
-  background: rgba(56, 189, 248, 0.06);
+  border-color: rgba(10, 132, 255, 0.4);
+  background: rgba(10, 132, 255, 0.06);
 }
 
 .bp-label {
@@ -5389,9 +5389,9 @@ textarea {
   color: #f8fafc;
 }
 
-.bp-val.cals-glow { color: #00f0ff; text-shadow: 0 0 10px rgba(0, 240, 255, 0.5); }
-.bp-val.prot-glow { color: #10b981; text-shadow: 0 0 10px rgba(16, 185, 129, 0.5); }
-.bp-val.water-glow { color: #38bdf8; text-shadow: 0 0 10px rgba(56, 189, 248, 0.5); }
+.bp-val.cals-glow { color: #0A84FF; text-shadow: none; }
+.bp-val.prot-glow { color: #10b981; text-shadow: none; }
+.bp-val.water-glow { color: #0A84FF; text-shadow: none; }
 
 .awakening-screen-footer {
   margin-top: 10px;
@@ -5405,7 +5405,7 @@ textarea {
   font-family: var(--font-display);
   font-size: 16px;
   font-weight: 900;
-  background: linear-gradient(135deg, #0284c7 0%, #00f0ff 100%);
+  background: #0A64CC;
   color: #030712;
   border: none;
   cursor: pointer;
@@ -5413,7 +5413,7 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  box-shadow: 0 0 35px rgba(0, 240, 255, 0.5), 0 4px 15px rgba(0, 0, 0, 0.5);
+  box-shadow: none;
   transition: opacity 0.15s, box-shadow 0.2s;
   -webkit-tap-highlight-color: transparent;
 }
@@ -5441,9 +5441,9 @@ textarea {
 }
 
 .re-awaken-bio-btn {
-  background: rgba(0, 240, 255, 0.12);
-  border: 1px solid #00f0ff;
-  color: #00f0ff;
+  background: rgba(10, 132, 255, 0.12);
+  border: 1px solid #0A84FF;
+  color: #0A84FF;
   border-radius: 8px;
   padding: 4px 10px;
   font-size: 11px;
@@ -5453,7 +5453,7 @@ textarea {
 }
 
 .re-awaken-bio-btn:active {
-  background: rgba(0, 240, 255, 0.25);
+  background: rgba(10, 132, 255, 0.25);
   opacity: 0.85;
 }
 
@@ -5466,13 +5466,13 @@ textarea {
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: rgba(0, 240, 255, 0.15);
-  border: 1px solid #00f0ff;
+  background: rgba(10, 132, 255, 0.15);
+  border: 1px solid #0A84FF;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 20px;
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+  box-shadow: none;
   flex-shrink: 0;
 }
 
@@ -5504,9 +5504,9 @@ textarea {
 
 /* AI Chat Main Card */
 .ai-chat-main-card {
-  border-color: rgba(0, 240, 255, 0.4);
-  background: linear-gradient(180deg, rgba(10, 24, 46, 0.95) 0%, rgba(8, 15, 30, 0.95) 100%);
-  box-shadow: 0 0 25px rgba(0, 240, 255, 0.15), 0 12px 36px rgba(0, 0, 0, 0.7);
+  border-color: rgba(10, 132, 255, 0.4);
+  background: transparent;
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -5535,7 +5535,7 @@ textarea {
   border-radius: 4px;
 }
 .awakening-chat-stream::-webkit-scrollbar-thumb {
-  background: rgba(0, 240, 255, 0.4);
+  background: rgba(10, 132, 255, 0.4);
   border-radius: 4px;
 }
 
@@ -5560,8 +5560,8 @@ textarea {
 .chat-bubble.user-msg {
   align-self: flex-start;
   max-width: 88%;
-  background: linear-gradient(135deg, rgba(2, 132, 199, 0.25) 0%, rgba(37, 99, 235, 0.2) 100%);
-  border: 1px solid rgba(56, 189, 248, 0.45);
+  background: transparent;
+  border: 1px solid rgba(10, 132, 255, 0.45);
   border-bottom-right-radius: 4px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
@@ -5569,30 +5569,30 @@ textarea {
 .chat-bubble.ai-msg {
   align-self: stretch;
   background: rgba(15, 23, 42, 0.75);
-  border: 1px solid rgba(0, 240, 255, 0.3);
+  border: 1px solid rgba(10, 132, 255, 0.3);
   border-bottom-left-radius: 4px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 0 12px rgba(0, 240, 255, 0.05);
+  box-shadow: none;
 }
 
 .chat-bubble.ai-thinking-bubble {
-  border-color: rgba(0, 240, 255, 0.5);
+  border-color: rgba(10, 132, 255, 0.5);
   background: rgba(8, 20, 38, 0.85);
-  color: #38bdf8;
+  color: #0A84FF;
   font-weight: 600;
   animation: pulseThinking 1.8s infinite ease-in-out;
 }
 
 @keyframes pulseThinking {
-  0% { box-shadow: 0 0 10px rgba(0, 240, 255, 0.2); }
-  50% { box-shadow: 0 0 22px rgba(0, 240, 255, 0.5); }
-  100% { box-shadow: 0 0 10px rgba(0, 240, 255, 0.2); }
+  0% { box-shadow: none; }
+  50% { box-shadow: none; }
+  100% { box-shadow: none; }
 }
 
 .thinking-spinner {
   display: inline-block;
   animation: spinRune 1.2s infinite linear;
   margin-left: 4px;
-  color: #00f0ff;
+  color: #0A84FF;
 }
 
 @keyframes spinRune {
@@ -5611,7 +5611,7 @@ textarea {
 
 .chat-sender-name {
   font-weight: 800;
-  color: #38bdf8;
+  color: #0A84FF;
   letter-spacing: 0.5px;
 }
 
@@ -5632,9 +5632,9 @@ textarea {
 .ai-msg-headline {
   font-weight: 800;
   font-size: 14px;
-  color: #00f0ff;
+  color: #0A84FF;
   margin-bottom: 4px;
-  text-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+  text-shadow: none;
 }
 
 .ai-msg-text {
@@ -5649,7 +5649,7 @@ textarea {
   grid-template-columns: repeat(3, 1fr);
   gap: 6px;
   background: rgba(3, 7, 18, 0.6);
-  border: 1px solid rgba(0, 240, 255, 0.25);
+  border: 1px solid rgba(10, 132, 255, 0.25);
   border-radius: 10px;
   padding: 8px 10px;
   margin: 8px 0;
@@ -5709,7 +5709,7 @@ textarea {
 
 .ai-prompt-chip {
   background: rgba(30, 41, 59, 0.7);
-  border: 1px solid rgba(56, 189, 248, 0.28);
+  border: 1px solid rgba(10, 132, 255, 0.28);
   color: #e2e8f0;
   border-radius: 20px;
   padding: 5px 11px;
@@ -5720,14 +5720,14 @@ textarea {
 }
 
 .ai-prompt-chip:hover {
-  background: rgba(56, 189, 248, 0.18);
-  border-color: #38bdf8;
+  background: rgba(10, 132, 255, 0.18);
+  border-color: #0A84FF;
   color: #ffffff;
 }
 
 .ai-prompt-chip:active {
-  background: rgba(0, 240, 255, 0.3);
-  border-color: #00f0ff;
+  background: rgba(10, 132, 255, 0.3);
+  border-color: #0A84FF;
   opacity: 0.85;
 }
 
@@ -5737,7 +5737,7 @@ textarea {
   gap: 8px;
   align-items: flex-end;
   background: rgba(3, 7, 18, 0.75);
-  border: 1px solid rgba(0, 240, 255, 0.35);
+  border: 1px solid rgba(10, 132, 255, 0.35);
   border-radius: 14px;
   padding: 6px 8px;
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
@@ -5745,8 +5745,8 @@ textarea {
 }
 
 .awakening-chat-input-row:focus-within {
-  border-color: #00f0ff;
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.3), inset 0 2px 8px rgba(0, 0, 0, 0.5);
+  border-color: #0A84FF;
+  box-shadow: none;
 }
 
 .awakening-chat-textarea {
@@ -5776,7 +5776,7 @@ textarea {
 }
 
 .awakening-chat-send-btn {
-  background: linear-gradient(135deg, #0284c7 0%, #00f0ff 100%);
+  background: #0A64CC;
   border: none;
   border-radius: 10px;
   color: #030712;
@@ -5789,7 +5789,7 @@ textarea {
   gap: 4px;
   transition: opacity 0.15s;
   flex-shrink: 0;
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
+  box-shadow: none;
 }
 
 .awakening-chat-send-btn:active {
@@ -5813,7 +5813,7 @@ textarea {
 }
 
 .awakening-details-drawer[open] {
-  border-color: rgba(56, 189, 248, 0.3);
+  border-color: rgba(10, 132, 255, 0.3);
 }
 
 .drawer-summary {
@@ -5834,7 +5834,7 @@ textarea {
 }
 
 .drawer-summary:hover {
-  color: #38bdf8;
+  color: #0A84FF;
 }
 
 .drawer-arrow {
@@ -5845,7 +5845,7 @@ textarea {
 
 .awakening-details-drawer[open] .drawer-arrow {
   transform: rotate(180deg);
-  color: #38bdf8;
+  color: #0A84FF;
 }
 
 .drawer-content {
@@ -5910,8 +5910,8 @@ textarea {
 }
 
 .ai-goal-edit-btn:hover {
-  background: rgba(56, 189, 248, 0.2);
-  border-color: #38bdf8;
+  background: rgba(10, 132, 255, 0.2);
+  border-color: #0A84FF;
   color: #fff;
 }
 
@@ -5927,7 +5927,7 @@ textarea {
 
 .ai-goal-user-prompt {
   background: rgba(2, 6, 23, 0.5);
-  border: 1px dashed rgba(56, 189, 248, 0.25);
+  border: 1px dashed rgba(10, 132, 255, 0.25);
   border-radius: 8px;
   padding: 8px 12px;
   margin-bottom: 10px;
@@ -5991,7 +5991,7 @@ textarea {
 }
 
 .ai-gt-val.highlight {
-  color: #38bdf8;
+  color: #0A84FF;
 }
 
 .ai-goal-tip-box {
@@ -6006,8 +6006,8 @@ textarea {
 
 /* NUTRITION ACTIVE AI GOAL BANNER */
 .nutrition-ai-goal-banner {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.8));
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: transparent;
+  border: 1px solid rgba(10, 132, 255, 0.3);
   border-radius: 12px;
   padding: 10px 14px;
   margin-bottom: 14px;
@@ -6018,7 +6018,7 @@ textarea {
 
 .nut-ai-icon {
   font-size: 20px;
-  color: #38bdf8;
+  color: #0A84FF;
   flex-shrink: 0;
 }
 
@@ -6045,9 +6045,9 @@ textarea {
 }
 
 .nut-ai-btn {
-  background: rgba(56, 189, 248, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.4);
-  color: #38bdf8;
+  background: rgba(10, 132, 255, 0.15);
+  border: 1px solid rgba(10, 132, 255, 0.4);
+  color: #0A84FF;
   border-radius: 6px;
   padding: 5px 10px;
   font-size: 11px;
@@ -6058,7 +6058,7 @@ textarea {
 }
 
 .nut-ai-btn:hover {
-  background: rgba(56, 189, 248, 0.3);
+  background: rgba(10, 132, 255, 0.3);
   color: #fff;
 }
 
@@ -6066,9 +6066,9 @@ textarea {
    LONG-TERM SCIENCE ENGINE: BEGINNER ONBOARDING CARD
    ============================================================ */
 .lt-beginner-onboarding-card {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.85));
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  box-shadow: 0 0 25px rgba(56, 189, 248, 0.08);
+  background: transparent;
+  border: 1px solid rgba(10, 132, 255, 0.3);
+  box-shadow: none;
   border-radius: 14px;
   padding: 18px;
   grid-column: 1 / -1;
@@ -6129,7 +6129,7 @@ textarea {
 
 .lt-beg-fill {
   height: 100%;
-  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  background: #0A84FF;
   border-radius: 4px;
   transition: width 0.4s ease;
 }
@@ -6143,7 +6143,7 @@ textarea {
 
 .lt-beg-unlock-box {
   background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(10, 132, 255, 0.15);
   border-radius: 10px;
   padding: 12px;
   margin-bottom: 14px;
@@ -6152,7 +6152,7 @@ textarea {
 .lt-beg-unlock-title {
   font-size: 12px;
   font-weight: 700;
-  color: #38bdf8;
+  color: #0A84FF;
   margin-bottom: 8px;
 }
 
@@ -6174,13 +6174,13 @@ textarea {
 }
 
 .lt-beg-check {
-  color: #38bdf8;
+  color: #0A84FF;
   font-size: 12px;
 }
 
 .lt-beg-action-box {
-  background: rgba(56, 189, 248, 0.08);
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  background: rgba(10, 132, 255, 0.08);
+  border: 1px solid rgba(10, 132, 255, 0.2);
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 11px;
@@ -6219,7 +6219,7 @@ textarea {
 .floating-ai-consult-btn:hover {
   transform: translateY(-2px);
   background: #141824;
-  border-color: #38bdf8;
+  border-color: #0A84FF;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.8);
 }
 
@@ -6227,7 +6227,7 @@ textarea {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #38bdf8;
+  background: #0A84FF;
   box-shadow: none;
 }
 
@@ -6313,7 +6313,7 @@ textarea {
 
 .ai-consult-subtitle {
   font-size: 11px;
-  color: #38bdf8;
+  color: #0A84FF;
   font-family: var(--font-mono);
 }
 
@@ -6349,13 +6349,13 @@ textarea {
   padding: 8px 12px;
   background: rgba(0, 0, 0, 0.35);
   border-radius: 10px;
-  border: 1px solid rgba(0, 240, 255, 0.15);
+  border: 1px solid rgba(10, 132, 255, 0.15);
   font-size: 11px;
   color: #94a3b8;
 }
 
 .ai-consult-hunter-strip strong {
-  color: #00f0ff;
+  color: #0A84FF;
 }
 
 .ai-consult-stream {
@@ -6367,7 +6367,7 @@ textarea {
   gap: 14px;
   min-height: 280px;
   max-height: 48vh;
-  background: radial-gradient(circle at 50% 10%, rgba(0, 240, 255, 0.03), transparent 70%);
+  background: none;
 }
 
 .ai-consult-recs-wrap {
@@ -6375,7 +6375,7 @@ textarea {
   padding: 10px 12px;
   background: rgba(15, 23, 42, 0.7);
   border-radius: 10px;
-  border: 1px solid rgba(0, 240, 255, 0.2);
+  border: 1px solid rgba(10, 132, 255, 0.2);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -6384,7 +6384,7 @@ textarea {
 .ai-consult-recs-title {
   font-size: 11px;
   font-weight: 700;
-  color: #38bdf8;
+  color: #0A84FF;
   font-family: var(--font-mono);
 }
 
@@ -6395,7 +6395,7 @@ textarea {
   background: rgba(255, 255, 255, 0.03);
   padding: 6px 8px;
   border-radius: 6px;
-  border-right: 3px solid #00f0ff;
+  border-right: 3px solid #0A84FF;
 }
 
 .rec-chip-cat {
@@ -6430,14 +6430,14 @@ textarea {
 }
 
 .astc-grid strong {
-  color: #38bdf8;
+  color: #0A84FF;
 }
 
 .ai-apply-targets-btn {
   width: 100%;
   padding: 9px;
-  background: linear-gradient(135deg, #0284c7, #0369a1);
-  border: 1px solid #38bdf8;
+  background: #0A64CC;
+  border: 1px solid #0A84FF;
   border-radius: 8px;
   color: #ffffff;
   font-family: var(--font-display);
@@ -6452,8 +6452,8 @@ textarea {
 }
 
 .ai-apply-targets-btn:hover {
-  background: linear-gradient(135deg, #0369a1, #075985);
-  box-shadow: 0 0 14px rgba(56, 189, 248, 0.4);
+  background: #0369a1;
+  box-shadow: none;
 }
 
 .ai-consult-chips-wrap {
@@ -6469,7 +6469,7 @@ textarea {
 
 .consult-chip-btn {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(56, 189, 248, 0.25);
+  border: 1px solid rgba(10, 132, 255, 0.25);
   border-radius: 9999px;
   color: #bae6fd;
   font-size: 11px;
@@ -6480,8 +6480,8 @@ textarea {
 }
 
 .consult-chip-btn:hover {
-  background: rgba(56, 189, 248, 0.15);
-  border-color: #00f0ff;
+  background: rgba(10, 132, 255, 0.15);
+  border-color: #0A84FF;
   color: #ffffff;
   transform: translateY(-1px);
 }
@@ -6509,12 +6509,12 @@ textarea {
 }
 
 .ai-consult-input:focus {
-  border-color: #00f0ff;
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.25);
+  border-color: #0A84FF;
+  box-shadow: none;
 }
 
 .ai-consult-send-btn {
-  background: linear-gradient(135deg, #00f0ff, #0284c7);
+  background: #0A84FF;
   border: none;
   border-radius: 12px;
   color: #040810;
@@ -6531,7 +6531,7 @@ textarea {
 }
 
 .ai-consult-send-btn:hover {
-  box-shadow: 0 0 16px rgba(0, 240, 255, 0.5);
+  box-shadow: none;
   transform: scale(1.02);
 }
 
@@ -6545,7 +6545,7 @@ textarea {
 .ai-recs-panel-box {
   margin-top: 14px;
   background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(0, 240, 255, 0.25);
+  border: 1px solid rgba(10, 132, 255, 0.25);
   border-radius: 14px;
   padding: 14px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
@@ -6565,9 +6565,9 @@ textarea {
 }
 
 .ai-recs-glow-dot {
-  color: #00f0ff;
+  color: #0A84FF;
   font-size: 14px;
-  text-shadow: 0 0 8px #00f0ff;
+  text-shadow: none;
 }
 
 .ai-recs-section-title {
@@ -6579,9 +6579,9 @@ textarea {
 }
 
 .ai-recs-consult-btn {
-  background: rgba(0, 240, 255, 0.12);
-  border: 1px solid rgba(0, 240, 255, 0.4);
-  color: #00f0ff;
+  background: rgba(10, 132, 255, 0.12);
+  border: 1px solid rgba(10, 132, 255, 0.4);
+  color: #0A84FF;
   font-family: var(--font-display);
   font-size: 11px;
   font-weight: 700;
@@ -6592,8 +6592,8 @@ textarea {
 }
 
 .ai-recs-consult-btn:hover {
-  background: rgba(0, 240, 255, 0.25);
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+  background: rgba(10, 132, 255, 0.25);
+  box-shadow: none;
 }
 
 .ai-recs-cards-list {
@@ -6605,7 +6605,7 @@ textarea {
 .ai-rec-item-card {
   background: rgba(10, 16, 30, 0.75);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-right: 3px solid #00f0ff;
+  border-right: 3px solid #0A84FF;
   border-radius: 10px;
   padding: 10px 12px;
   transition: all 0.2s;
@@ -6641,8 +6641,8 @@ textarea {
 
 .ai-rec-category-tag {
   font-size: 10px;
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.1);
+  color: #0A84FF;
+  background: rgba(10, 132, 255, 0.1);
   padding: 1px 6px;
   border-radius: 4px;
   font-family: var(--font-mono);
@@ -6666,9 +6666,9 @@ textarea {
 }
 
 .ai-rec-toggle-btn:hover {
-  background: rgba(56, 189, 248, 0.2);
-  color: #38bdf8;
-  border-color: #38bdf8;
+  background: rgba(10, 132, 255, 0.2);
+  color: #0A84FF;
+  border-color: #0A84FF;
 }
 
 .ai-rec-del-btn {
@@ -6706,8 +6706,8 @@ textarea {
 }
 
 .ai-rec-consult-now-btn {
-  background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(168, 85, 247, 0.3));
-  border: 1px solid #00f0ff;
+  background: transparent;
+  border: 1px solid #0A84FF;
   color: #ffffff;
   padding: 8px 16px;
   border-radius: 8px;
@@ -6726,7 +6726,7 @@ textarea {
 
 .editable-bio-item:hover {
   background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(56, 189, 248, 0.4);
+  border-color: rgba(10, 132, 255, 0.4);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
@@ -6767,8 +6767,8 @@ textarea {
 
 .quick-step-btn:hover {
   background: #171c28;
-  border-color: #38bdf8;
-  color: #38bdf8;
+  border-color: #0A84FF;
+  color: #0A84FF;
 }
 
 /* ============================================================
@@ -6778,7 +6778,7 @@ textarea {
 
 /* Global text-shadow & glow wipeout */
 *, *::before, *::after {
-  text-shadow: none !important;
+  text-shadow: none;
 }
 
 /* Modals backdrop */
@@ -6832,7 +6832,7 @@ textarea {
 .buff-log-dose-btn,
 .ai-generate-goal-btn {
   box-shadow: none !important;
-  text-shadow: none !important;
+  text-shadow: none;
 }
 
 /* Inputs - clean dark slate */
@@ -6850,8 +6850,8 @@ textarea {
 
 input:focus, select:focus, textarea:focus {
   outline: none !important;
-  border-color: #38bdf8 !important;
-  box-shadow: 0 0 0 1px #38bdf8 !important;
+  border-color: #0A84FF !important;
+  box-shadow: none;
 }
 
 /* Eliminate scanlines and glowing pulse animations */
@@ -6926,12 +6926,12 @@ input:focus, select:focus, textarea:focus {
 
 .offline-status-badge.is-syncing {
   background: #0c1524;
-  border-color: #0284c7;
-  color: #7dd3fc;
+  border-color: #0A64CC;
+  color: #5EA9FF;
 }
 
 .offline-status-badge.is-syncing .offline-dot {
-  background: #38bdf8;
+  background: #0A84FF;
   animation: pulse 1.2s infinite;
 }
 
@@ -6976,7 +6976,7 @@ input:focus, select:focus, textarea:focus {
 
 .weekly-kpi-card .kpi-sub {
   font-size: 10px;
-  color: #38bdf8;
+  color: #0A84FF;
   font-weight: 700;
   margin-top: 4px;
 }
@@ -7065,7 +7065,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .adaptive-meal-card:hover {
-  border-color: rgba(56, 189, 248, 0.4);
+  border-color: rgba(10, 132, 255, 0.4);
 }
 
 .adaptive-meal-header {
@@ -7084,9 +7084,9 @@ input:focus, select:focus, textarea:focus {
 }
 
 .adaptive-meal-tag.protein {
-  background: rgba(56, 189, 248, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  color: #38bdf8;
+  background: rgba(10, 132, 255, 0.12);
+  border: 1px solid rgba(10, 132, 255, 0.35);
+  color: #0A84FF;
 }
 
 .adaptive-meal-tag.quick {
@@ -7148,9 +7148,9 @@ input:focus, select:focus, textarea:focus {
 }
 
 .rec-macro.carb {
-  background: rgba(56, 189, 248, 0.15);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: rgba(10, 132, 255, 0.15);
+  color: #0A84FF;
+  border: 1px solid rgba(10, 132, 255, 0.25);
 }
 
 .rec-macro.fat {
@@ -7212,8 +7212,8 @@ input:focus, select:focus, textarea:focus {
 
 .log-recommended-meal-btn:hover {
   background: #1e293b;
-  border-color: #38bdf8;
-  color: #38bdf8;
+  border-color: #0A84FF;
+  color: #0A84FF;
 }
 
 /* ============================================================
@@ -7321,7 +7321,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .penalty-banner-redeem-btn {
-  background: linear-gradient(135deg, #dc2626, #991b1b);
+  background: #dc2626;
   border: 1px solid #ef4444;
   color: #ffffff;
   border-radius: 8px;
@@ -7495,7 +7495,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .penalty-redeem-btn {
-  background: linear-gradient(135deg, #dc2626, #991b1b);
+  background: #dc2626;
   border: 1px solid #ef4444;
   color: #ffffff;
   border-radius: 10px;
@@ -7518,3 +7518,55 @@ input:focus, select:focus, textarea:focus {
 
 
 
+
+/* ==========================================================
+   iOS REDESIGN LAYER — 2026-10-21
+   Clean native iOS dark visual language. Loaded last, wins ties.
+   No selectors renamed; functionality untouched.
+   ========================================================== */
+:root {
+  --font-display: var(--font-system);
+  --border-glow: rgba(10, 132, 255, 0.35);
+  --ios-blue: #0A84FF;
+  --ios-card: #1C1C1E;
+  --ios-card-2: #2C2C2E;
+  --ios-hairline: rgba(255, 255, 255, 0.08);
+  --ios-label: #FFFFFF;
+  --ios-label-2: #8E8E93;
+  --ios-label-3: #636366;
+}
+
+/* Native iOS tab bar */
+.bottom-nav-bar {
+  background: rgba(28, 28, 30, 0.92);
+  border-top: 1px solid var(--ios-hairline);
+  box-shadow: none;
+  height: calc(62px + env(safe-area-inset-bottom, 0px));
+}
+.bottom-nav-item { color: var(--ios-label-2); }
+.bottom-nav-item.active { color: var(--ios-blue); }
+.bottom-nav-item.active .nav-icon { transform: none; }
+
+/* Grouped-section headers, iOS style */
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--ios-label-2);
+  text-transform: uppercase;
+}
+
+/* Rank identity stays, but quiet: badges only, no glow */
+.rank-badge, .gauge-hex-inner, #rank-badge {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+/* Touch targets: comfortable minimums */
+.bottom-nav-item, .hud-btn-icon {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Links use the single accent */
+a { color: var(--ios-blue); }

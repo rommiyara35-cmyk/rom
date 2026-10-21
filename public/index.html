@@ -23,8 +23,8 @@
   <svg width="0" height="0" style="position: absolute;">
     <defs>
       <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#00f0ff" />
-        <stop offset="100%" stop-color="#2563eb" />
+        <stop offset="0%" stop-color="#0A84FF" />
+        <stop offset="100%" stop-color="#0A84FF" />
       </linearGradient>
     </defs>
   </svg>
@@ -51,8 +51,8 @@
           <span id="offline-badge-text">אופליין (<span id="offline-queue-count">0</span>)</span>
         </div>
         <button id="shift-toggle-btn" class="hud-btn-icon" onclick="AppState.toggleShiftMode()" title="החלף בין משמרת יום למשמרת לילה">☀️</button>
-        <button id="calendar-toggle-btn" class="hud-btn-icon" onclick="AppState.openCalendarModal()" title="לוח שנה ומעקב היסטורי כרוני" style="border-color:rgba(56,189,248,0.4); color:#38bdf8;">📅</button>
-        <button id="awakening-hud-btn" class="hud-btn-icon" onclick="AppState.openFirstTimeAwakening(true)" title="מבדק התעוררות וצ'אט יעדים עם AI" style="border-color:rgba(0,240,255,0.5); color:#00f0ff;">⚡</button>
+        <button id="calendar-toggle-btn" class="hud-btn-icon" onclick="AppState.openCalendarModal()" title="לוח שנה ומעקב היסטורי כרוני" style="border-color:rgba(10, 132, 255,0.4); color:#0A84FF;">📅</button>
+        <button id="awakening-hud-btn" class="hud-btn-icon" onclick="AppState.openFirstTimeAwakening(true)" title="מבדק התעוררות וצ'אט יעדים עם AI" style="border-color:rgba(10, 132, 255,0.5); color:#0A84FF;">⚡</button>
         <button id="settings-hud-btn" class="hud-btn-icon" onclick="AppState.openModal('settings-modal')" title="הגדרות, סנכרון וגיבוי">⚙️</button>
       </div>
     </header>
@@ -403,8 +403,8 @@
         <section class="water-hud-section" id="water-hud-section">
           <div class="section-title-wrap">
             <div style="display:flex; align-items:center; gap:6px;">
-              <span class="section-title" style="color:#38bdf8;">💧 מעקב מים והידרציית צייד (Hydration HUD)</span>
-              <span id="water-pct-badge" class="quest-tag" style="background:rgba(56,189,248,0.15); border-color:#38bdf8; color:#38bdf8; font-size:10px;">0%</span>
+              <span class="section-title" style="color:#0A84FF;">מעקב מים והידרציית צייד (Hydration HUD)</span>
+              <span id="water-pct-badge" class="quest-tag" style="background:rgba(10, 132, 255,0.15); border-color:#0A84FF; color:#0A84FF; font-size:10px;">0%</span>
             </div>
             <button class="water-undo-btn" onclick="AppState.undoWater()" title="בטל רישום מים אחרון">↩️ בטל אחרון</button>
           </div>
@@ -492,7 +492,7 @@
         <section class="adaptive-meals-section" id="adaptive-meals-section">
           <div class="section-title-wrap">
             <div style="display:flex; align-items:center; gap:8px;">
-              <span class="section-title" style="color:var(--hud-cyan);">🎯 הצעות ארוחה מותאמות אישית (Adaptive Meals)</span>
+              <span class="section-title" style="color:var(--hud-cyan);">הצעות ארוחה מותאמות אישית (Adaptive Meals)</span>
               <span id="meal-learning-badge" class="quest-tag" style="background:rgba(124,58,237,0.15); border-color:#8b5cf6; color:#c084fc; font-size:10px;">טוען...</span>
             </div>
             <button type="button" class="water-undo-btn" onclick="AppState.loadMealRecommendations(true)" title="רענן הצעות">🔄 רענן</button>
@@ -506,7 +506,7 @@
         <!-- MEAL LOGGER & SEARCH -->
         <section class="log-section">
           <div class="section-title-wrap">
-            <span class="section-title">⚔️ רישום ארוחות ומאגר מזונות</span>
+            <span class="section-title">רישום ארוחות ומאגר מזונות</span>
           </div>
 
           <!-- Prominent Barcode Hero Button -->
@@ -526,7 +526,7 @@
             </div>
             <!-- Camera / AI recognition button -->
             <button id="food-camera-btn" onclick="AppState.openFoodCamera()" title="זיהוי מזון מתמונה" style="
-              background: linear-gradient(135deg, #7c3aed, #4f46e5);
+              background: #7c3aed;
               border: 1px solid #7c3aed;
               border-radius: 10px;
               color: #fff;
@@ -557,7 +557,7 @@
               >
             </div>
             <button onclick="AppState.sendFoodChat()" title="שלח לניתוח AI" style="
-              background: linear-gradient(135deg, #7c3aed, #6d28d9);
+              background: #7c3aed;
               border: none; border-radius: 12px; color: #fff;
               font-size: 18px; width: 44px; height: 44px;
               display: flex; align-items: center; justify-content: center;
@@ -629,7 +629,7 @@
         <!-- MICRONUTRIENT MATRIX -->
         <section class="micro-section">
           <div class="section-title-wrap">
-            <span class="section-title">🛡️ מטריצת מיקרו-נוטריאנטים (Vitality Matrix)</span>
+            <span class="section-title">מטריצת מיקרו-נוטריאנטים (Vitality Matrix)</span>
             <span style="font-size:11px; color:var(--hud-cyan); font-family:var(--font-mono);">RDA STANDARDS</span>
           </div>
           <div id="micro-grid" class="micro-grid">
@@ -1047,7 +1047,7 @@
           <span>הוצאה אנרגטית יומית (TDEE):</span>
           <span id="prev-tdee">2728 kcal</span>
         </div>
-        <div class="science-preview-row" style="border-top:1px dashed rgba(0,240,255,0.2); padding-top:4px;">
+        <div class="science-preview-row" style="border-top:1px dashed rgba(10, 132, 255,0.2); padding-top:4px;">
           <span style="font-weight:700; color:var(--hud-cyan);">יעד קלורי מותאם אישית:</span>
           <span id="prev-target-cals" style="font-weight:700; color:var(--hud-cyan);">2182 kcal</span>
         </div>
@@ -1096,7 +1096,7 @@
       <div class="form-group" style="margin-top:8px;">
         <label class="form-label">שעון Garmin Venu 4</label>
         <div style="display:flex; flex-direction:column; gap:8px;">
-          <button class="action-btn-primary" onclick="AppState.openWatchSimulator()" style="background:linear-gradient(90deg, #0284c7, #0369a1);">
+          <button class="action-btn-primary" onclick="AppState.openWatchSimulator()" style="background:#0A64CC;">
             ⌚ פתח סימולטור שעון גרמין Venu 4
           </button>
           <div style="font-size:11px; color:var(--text-secondary);">
@@ -1106,7 +1106,7 @@
       </div>
 
       <!-- Shift Worker Configuration -->
-      <div class="form-group" style="margin-top:8px; border-top:1px solid rgba(0,240,255,0.15); padding-top:10px;">
+      <div class="form-group" style="margin-top:8px; border-top:1px solid rgba(10, 132, 255,0.15); padding-top:10px;">
         <label class="form-label">🕒 מצב עובד משמרות (Shift Worker Schedule)</label>
         <div style="display:flex; gap:8px;">
           <select id="settings-shift-mode" class="form-select" style="flex:1;" onchange="AppState.handleSettingsShiftChange()">
@@ -1122,10 +1122,10 @@
       </div>
 
       <!-- Quick System Controls (Audio, Weekly Report) -->
-      <div class="form-group" style="margin-top:6px; border-bottom:1px solid rgba(0,240,255,0.15); padding-bottom:12px;">
+      <div class="form-group" style="margin-top:6px; border-bottom:1px solid rgba(10, 132, 255,0.15); padding-bottom:12px;">
         <label class="form-label">🎛️ כלים מהירים ומערכת</label>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-          <button type="button" class="action-btn-primary" onclick="AppState.closeModal('settings-modal'); AppState.openWeeklyReport();" style="background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:#38bdf8; font-size:11.5px; padding:10px 6px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:5px;">
+          <button type="button" class="action-btn-primary" onclick="AppState.closeModal('settings-modal'); AppState.openWeeklyReport();" style="background:rgba(10, 132, 255,0.15); border:1px solid rgba(10, 132, 255,0.4); color:#0A84FF; font-size:11.5px; padding:10px 6px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:5px;">
             <span>📊</span>
             <span>דוח שבועי ו-WhatsApp</span>
           </button>
@@ -1137,7 +1137,7 @@
       </div>
 
       <!-- System Backup, Persistence & Restore -->
-      <div class="form-group" style="margin-top:8px; border-top:1px solid rgba(0,240,255,0.15); padding-top:12px;">
+      <div class="form-group" style="margin-top:8px; border-top:1px solid rgba(10, 132, 255,0.15); padding-top:12px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
           <label class="form-label" style="margin:0;">🛡️ גיבוי, סנכרון ושמירת נתונים</label>
           <span id="backup-sync-status-badge" style="font-size:10px; color:#34d399; font-family:var(--font-mono); background:rgba(16,185,129,0.15); padding:2px 6px; border-radius:4px; border:1px solid #10b981;">
@@ -1147,10 +1147,10 @@
 
         <div style="display:flex; flex-direction:column; gap:8px;">
           <div style="display:flex; gap:8px;">
-            <button class="action-btn-primary" onclick="AppState.exportBackup()" style="flex:1; background:linear-gradient(90deg, #059669, #10b981); font-size:12px; padding:9px;">
+            <button class="action-btn-primary" onclick="AppState.exportBackup()" style="flex:1; background:#059669; font-size:12px; padding:9px;">
               💾 הורד גיבוי (JSON)
             </button>
-            <button class="action-btn-primary" onclick="document.getElementById('backup-file-input').click()" style="flex:1; background:linear-gradient(90deg, #0284c7, #38bdf8); font-size:12px; padding:9px; color:#030712; font-weight:800;">
+            <button class="action-btn-primary" onclick="document.getElementById('backup-file-input').click()" style="flex:1; background:#0A64CC; font-size:12px; padding:9px; color:#030712; font-weight:800;">
               📥 שחזר מקובץ
             </button>
             <input type="file" id="backup-file-input" accept=".json" style="display:none;" onchange="AppState.importBackupFile(event)">
@@ -1159,7 +1159,7 @@
           <button type="button" class="action-btn-primary" onclick="AppState.restoreFromLocalSnapshot()" style="background:rgba(168,85,247,0.2); border:1px solid #a855f7; color:#e9d5ff; font-size:11px; padding:8px;">
             ⚡ שחזר מגיבוי אוטומטי של הדפדפן (LocalStorage Snapshot)
           </button>
-          <button type="button" class="action-btn-primary" onclick="AppState.forceClearCacheAndReload()" style="background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8; font-size:11.5px; padding:9px; margin-top:4px; font-weight:700;">
+          <button type="button" class="action-btn-primary" onclick="AppState.forceClearCacheAndReload()" style="background:rgba(10, 132, 255,0.15); border:1px solid #0A84FF; color:#0A84FF; font-size:11.5px; padding:9px; margin-top:4px; font-weight:700;">
             🔄 גרסה v43 — נקה מטמון ורענן גרסה (Force Reload)
           </button>
         </div>
@@ -1214,7 +1214,7 @@
       <input type="file" id="barcode-camera-input" accept="image/*" capture="environment" style="display:none;" onchange="AppState.handleCameraPhoto(this)">
 
       <!-- Direct iPhone Camera Trigger Button -->
-      <button type="button" id="iphone-camera-direct-btn" class="action-btn-primary" onclick="document.getElementById('barcode-camera-input').click()" style="width:100%; margin:8px 0; background:linear-gradient(90deg, #0284c7, #00f0ff); color:#030712; font-weight:900; font-size:14px; padding:12px; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 0 15px rgba(0,240,255,0.4);">
+      <button type="button" id="iphone-camera-direct-btn" class="action-btn-primary" onclick="document.getElementById('barcode-camera-input').click()" style="width:100%; margin:8px 0; background:#0A64CC; color:#030712; font-weight:900; font-size:14px; padding:12px; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 0 15px rgba(10, 132, 255,0.4);">
         📸 פתח מצלמת אייפון לצילום ברקוד
       </button>
 
@@ -1224,11 +1224,11 @@
 
       <div id="https-live-video-hint" style="font-size:10px; color:#94a3b8; text-align:center; margin-bottom:8px; line-height:1.4;">
         💡 באייפון ניתן לצלם כל מוצר ישירות בלחיצה על הכפתור הכחול. <br>
-        לסריקת וידאו חיה רציפה: <a id="https-link" href="#" onclick="window.location.href='https://' + window.location.hostname + ':8443'; return false;" style="color:#00f0ff; text-decoration:underline;">הפעל חיבור מאובטח (HTTPS:8443)</a>
+        לסריקת וידאו חיה רציפה: <a id="https-link" href="#" onclick="window.location.href='https://' + window.location.hostname + ':8443'; return false;" style="color:#0A84FF; text-decoration:underline;">הפעל חיבור מאובטח (HTTPS:8443)</a>
       </div>
 
       <!-- Manual Barcode Input & Test Pills -->
-      <div style="display:flex; flex-direction:column; gap:8px; border-top:1px solid rgba(0,240,255,0.15); padding-top:10px;">
+      <div style="display:flex; flex-direction:column; gap:8px; border-top:1px solid rgba(10, 132, 255,0.15); padding-top:10px;">
         <span style="font-size:11px; color:var(--text-secondary);">או הזן מספר ברקוד ידנית:</span>
         <div style="display:flex; gap:6px;">
           <input type="text" id="manual-barcode-input" class="form-input" style="flex:1; padding:8px 10px; font-family:var(--font-mono); font-size:13px;" placeholder="לדוגמה: 7290000045579">
@@ -1247,7 +1247,7 @@
 
         <!-- Dynamic button if barcode is unknown -->
         <div id="unknown-barcode-section" style="display:none; margin-top:6px;">
-          <button class="action-btn-primary" onclick="AppState.openNewProductModal()" style="width:100%; background:linear-gradient(90deg, #10b981, #059669); font-size:12px; padding:10px;">
+          <button class="action-btn-primary" onclick="AppState.openNewProductModal()" style="width:100%; background:#10b981; font-size:12px; padding:10px;">
             ⚡ הגדר מוצר זה ושמור אותו לתמיד במערכת
           </button>
         </div>
@@ -1298,7 +1298,7 @@
         </div>
       </div>
 
-      <button class="action-btn-primary" onclick="AppState.saveNewScannedProduct()" style="background:linear-gradient(90deg, #10b981, #059669);">
+      <button class="action-btn-primary" onclick="AppState.saveNewScannedProduct()" style="background:#10b981;">
         ✓ שמור מוצר והכנס ליומן
       </button>
     </div>
@@ -1330,7 +1330,7 @@
 
       <!-- TAB 1: QUICK & SMART SYNC -->
       <div id="garmin-pane-quick" class="garmin-pane active">
-        <div style="font-size:12px; color:#38bdf8; margin-bottom:12px; line-height:1.4; background:rgba(56,189,248,0.1); padding:10px 14px; border-radius:10px; border-right:3px solid #38bdf8;">
+        <div style="font-size:12px; color:#0A84FF; margin-bottom:12px; line-height:1.4; background:rgba(10, 132, 255,0.1); padding:10px 14px; border-radius:10px; border-right:3px solid #0A84FF;">
           📌 <strong>הזן את המדדים המופיעים כעת בשעון שלך או באפליקציית 'בריאות' (Apple Health / Garmin):</strong><br>
           <span style="font-size:11px; color:#cbd5e1;">המערכת תעדכן מיד את תקציב הקלוריות, עייפות הצייד ופילטר האטנט לפי הנתונים האמיתיים שלך.</span>
         </div>
@@ -1401,7 +1401,7 @@
           </div>
         </div>
 
-        <button class="action-btn-primary" onclick="AppState.saveGarminHealth()" style="background:linear-gradient(90deg, #0284c7, #00f0ff); color:#030712; font-weight:900; margin-top:8px;">
+        <button class="action-btn-primary" onclick="AppState.saveGarminHealth()" style="background:#0A64CC; color:#030712; font-weight:900; margin-top:8px;">
           ✅ שמור מדדים מהשעון / אפליקציית הבריאות
         </button>
       </div>
@@ -1412,7 +1412,7 @@
           חיבור ישיר אלחוטי בין השעון למערכת באמצעות Web Bluetooth. השעון משדר דופק חי בזמן אמת ישירות למסך!
         </p>
 
-        <div style="background:rgba(0, 240, 255, 0.05); border:1px solid rgba(0, 240, 255, 0.2); border-radius:12px; padding:16px; text-align:center; margin-bottom:14px;">
+        <div style="background:rgba(10, 132, 255, 0.05); border:1px solid rgba(10, 132, 255, 0.2); border-radius:12px; padding:16px; text-align:center; margin-bottom:14px;">
           <div style="font-size:32px; margin-bottom:8px;">📡</div>
           <div id="garmin-bt-live-status" style="font-size:13px; font-weight:600; color:var(--text-primary); margin-bottom:6px;">
             השעון אינו מחובר ב-Bluetooth כעת
@@ -1421,7 +1421,7 @@
             -- bpm
           </div>
           <div style="margin-top:12px; display:flex; justify-content:center; gap:10px;">
-            <button type="button" class="action-btn-primary" onclick="AppState.connectBluetoothGarmin()" style="background:linear-gradient(90deg, #0284c7, #00f0ff); color:#030712; font-weight:800; font-size:13px; padding:10px 18px;">
+            <button type="button" class="action-btn-primary" onclick="AppState.connectBluetoothGarmin()" style="background:#0A64CC; color:#030712; font-weight:800; font-size:13px; padding:10px 18px;">
               📡 חבר שעון Garmin עכשיו
             </button>
             <button type="button" onclick="AppState.disconnectBluetoothGarmin()" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.2); border-radius:10px; color:var(--text-secondary); padding:10px 14px; cursor:pointer;">
@@ -1483,28 +1483,28 @@
           <a href="shortcuts://" class="action-btn-primary" style="background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#10b981; font-size:13px; padding:10px 14px; text-align:center; text-decoration:none; border-radius:8px; display:flex; align-items:center; justify-content:center; gap:8px; font-weight:600;">
             📲 פתח את אפליקציית 'קיצורי דרך' להפעלת הסנכרון
           </a>
-          <button type="button" class="action-btn-secondary" onclick="AppState.refreshGarminHealthQuietly(); AppState.closeModal('garmin-modal'); AppState.showToast('🔄 המדדים העדכניים נמשכו מהשרת!');" style="background:rgba(0,240,255,0.08); border:1px solid rgba(0,240,255,0.3); color:var(--hud-cyan); font-size:12px; padding:8px 14px; border-radius:8px;">
+          <button type="button" class="action-btn-secondary" onclick="AppState.refreshGarminHealthQuietly(); AppState.closeModal('garmin-modal'); AppState.showToast('🔄 המדדים העדכניים נמשכו מהשרת!');" style="background:rgba(10, 132, 255,0.08); border:1px solid rgba(10, 132, 255,0.3); color:var(--hud-cyan); font-size:12px; padding:8px 14px; border-radius:8px;">
             🔄 רענן ומשוך מדדים עדכניים מהשרת
           </button>
         </div>
 
-        <div class="garmin-export-tips" style="margin-top:14px; background: rgba(0,240,255,0.04); border:1px solid rgba(0,240,255,0.2); border-radius:10px; padding:14px;">
-          <div class="tip-title" style="color:#00f0ff; font-weight:700; font-size:13px; display:flex; align-items:center; gap:6px;">
+        <div class="garmin-export-tips" style="margin-top:14px; background: rgba(10, 132, 255,0.04); border:1px solid rgba(10, 132, 255,0.2); border-radius:10px; padding:14px;">
+          <div class="tip-title" style="color:#0A84FF; font-weight:700; font-size:13px; display:flex; align-items:center; gap:6px;">
             <span>📱</span> מדריך מדויק לקיצור הדרך באייפון (Apple Health / Garmin):
           </div>
           <div style="font-size:12px; color:var(--text-dim); line-height:1.7; margin-top:8px;">
             <p style="margin:0 0 8px 0;">באפליקציית <strong>'קיצורי דרך' (Shortcuts)</strong> צור 3 פעולות לפי הסדר:</p>
             <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:10px; margin-bottom:8px;">
-              <strong style="color:#38bdf8;">פעולה 1:</strong> <code>מצא דגימות בריאות</code> -> סוג: <strong>צעדים</strong>, תאריך התחלה: <strong>היום</strong>.
+              <strong style="color:#0A84FF;">פעולה 1:</strong> <code>מצא דגימות בריאות</code> -> סוג: <strong>צעדים</strong>, תאריך התחלה: <strong>היום</strong>.
             </div>
             <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:10px; margin-bottom:8px;">
-              <strong style="color:#38bdf8;">פעולה 2:</strong> <code>מצא דגימות בריאות</code> -> סוג: <strong>דופק</strong>, הגבלה: <strong>1 דגימה</strong>, סדר: <strong>החדש ביותר תחילה</strong>.<br>
+              <strong style="color:#0A84FF;">פעולה 2:</strong> <code>מצא דגימות בריאות</code> -> סוג: <strong>דופק</strong>, הגבלה: <strong>1 דגימה</strong>, סדר: <strong>החדש ביותר תחילה</strong>.<br>
               <span style="color:#f59e0b; font-size:11px;">⚠️ שים לב: אם כתוב "סנן דגימות בריאות" מפעולה 1, לחץ על הבועה ונקה אותה כדי שזה יחפש דופק ישירות מ-Health!</span>
             </div>
             <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:10px;">
-              <strong style="color:#38bdf8;">פעולה 3:</strong> <code>קבל תוכן מכתובת URL</code>:<br>
+              <strong style="color:#0A84FF;">פעולה 3:</strong> <code>קבל תוכן מכתובת URL</code>:<br>
               הדבק את כתובת ה-Webhook ולחץ בסופה להוספת המשתנים:<br>
-              <code style="background:#030712; color:#00f0ff; padding:6px 10px; border-radius:6px; font-size:11px; word-break:break-all; display:block; margin-top:6px;" id="shortcut-example-code">.../api/garmin/webhook?steps=[דגימות בריאות]&hr=[דגימות בריאות]</code>
+              <code style="background:#030712; color:#0A84FF; padding:6px 10px; border-radius:6px; font-size:11px; word-break:break-all; display:block; margin-top:6px;" id="shortcut-example-code">.../api/garmin/webhook?steps=[דגימות בריאות]&hr=[דגימות בריאות]</code>
               <div style="margin-top:6px; font-size:11px; color:#10b981;">
                 ✅ תומך גם ב-POST: אם פותחים את החץ הכחול (>) ובוחרים ב-POST, ניתן להעביר את השדות ב-Form או ב-JSON!
               </div>
@@ -1537,7 +1537,7 @@
         <div id="vision-totals" style="margin-top:16px; padding:12px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:10px;"></div>
         <div style="display:flex; gap:10px; margin-top:16px;">
           <button onclick="AppState.addAllVisionItems()" style="
-            flex:1; background:linear-gradient(135deg,#10b981,#059669);
+            flex:1; background:#10b981;
             border:none; border-radius:10px; color:#fff; font-weight:700;
             padding:13px; cursor:pointer; font-size:14px;">
             ✅ הוסף הכל לביומן
@@ -1630,7 +1630,7 @@
           </div>
         </div>
 
-        <button id="attent-submit-btn" class="action-btn-primary" onclick="AppState.saveAttentLog()" style="background:linear-gradient(90deg, #7c3aed, #a855f7); color:#ffffff; font-weight:900; margin-top:8px;">
+        <button id="attent-submit-btn" class="action-btn-primary" onclick="AppState.saveAttentLog()" style="background:#7c3aed; color:#ffffff; font-weight:900; margin-top:8px;">
           ✨ רשום מנה זו (+35 EXP)
         </button>
       </div>
@@ -1685,7 +1685,7 @@
         <input type="text" id="workout-notes-input" class="form-input" placeholder="לדוגמה: 4 סטים סקווט, 4 סטים בנץ'">
       </div>
 
-      <button class="action-btn-primary" onclick="AppState.saveWorkoutLog()" style="background:linear-gradient(90deg, #f59e0b, #ef4444); color:#ffffff; font-weight:900;">
+      <button class="action-btn-primary" onclick="AppState.saveWorkoutLog()" style="background:#f59e0b; color:#ffffff; font-weight:900;">
         ⚡ שמור אימון, צבור XP ושדרג יכולות
       </button>
     </div>
@@ -1717,7 +1717,7 @@
           </select>
         </div>
       </div>
-      <button class="action-btn-primary" onclick="AppState.saveCustomSupplement()" style="background:linear-gradient(90deg, #10b981, #059669); color:#ffffff; font-weight:900;">
+      <button class="action-btn-primary" onclick="AppState.saveCustomSupplement()" style="background:#10b981; color:#ffffff; font-weight:900;">
         ✓ הוסף תוסף להיום וצבור EXP
       </button>
     </div>
@@ -1763,7 +1763,7 @@
         </div>
 
         <div class="norm-science-box">
-          <div style="font-weight:700; color:#38bdf8; margin-bottom:4px;">🔬 מדוע השעון מזייף כשלוקחים אטנט?</div>
+          <div style="font-weight:700; color:#0A84FF; margin-bottom:4px;">🔬 מדוע השעון מזייף כשלוקחים אטנט?</div>
           <p style="font-size:11px; color:#94a3b8; line-height:1.6; margin:0;">
             שעוני Garmin מודדים סטרס באמצעות אלגוריתם <strong>Firstbeat Analytics</strong> המבוסס על שונות פעימות הלב (HRV / RMSSD). 
             אטנט (Amphetamine Salts) מפעיל קולטנים אדרנרגיים פריפריאליים ($\alpha_1, \beta_1$), מה שמוריד את ה-HRV ומעלה את הדופק באופן צפוי. 
@@ -1799,28 +1799,28 @@
         <ul class="reset-card-list">
           <li>✓ מנקה את כל הארוחות ושתיית המים שנרשמו היום</li>
           <li>✓ מנקה את האימונים, התוספים ורישום האטנט של היום הנוכחי</li>
-          <li style="color:#38bdf8;">🛡️ <strong>שומר במלואם:</strong> דרגת הצייד (Level), נקודות תכונה (Stats), כל 5 הסקילים והיסטוריית ימים קודמים!</li>
+          <li style="color:#0A84FF;">🛡️ <strong>שומר במלואם:</strong> דרגת הצייד (Level), נקודות תכונה (Stats), כל 5 הסקילים והיסטוריית ימים קודמים!</li>
         </ul>
-        <button class="action-btn-primary" onclick="AppState.confirmResetToday()" style="background:linear-gradient(90deg, #d97706, #f59e0b); color:#ffffff; font-weight:800; font-size:12px; padding:10px;">
+        <button class="action-btn-primary" onclick="AppState.confirmResetToday()" style="background:#d97706; color:#ffffff; font-weight:800; font-size:12px; padding:10px;">
           🔄 אפס את נתוני היום הנוכחי
         </button>
       </div>
 
       <!-- Option B: Direct AI Re-Awakening (No data wipe) -->
-      <div class="reset-option-card" style="border: 1px solid rgba(0, 240, 255, 0.35); background: rgba(6, 20, 36, 0.75);">
+      <div class="reset-option-card" style="border: 1px solid rgba(10, 132, 255, 0.35); background: rgba(6, 20, 36, 0.75);">
         <div class="reset-card-header">
           <span class="reset-card-icon" style="font-size: 22px;">⚡</span>
           <div>
-            <div class="reset-card-title" style="color:#00f0ff;">טקס התעוררות ועריכת יעדים עם ה-AI</div>
+            <div class="reset-card-title" style="color:#0A84FF;">טקס התעוררות ועריכת יעדים עם ה-AI</div>
             <div class="reset-card-sub">פתיחת צ'אט ה-AI והגדרת יעדים מדעיים מבלי למחוק נתונים</div>
           </div>
         </div>
         <ul class="reset-card-list">
           <li>✓ פותח מיד את מסך טקס ההתעוררות המלא וצ'אט המערכת של Gemini Flash</li>
           <li>✓ מאפשר לחשב מחדש קלוריות, חלבון, מים ושעות משמרת לפי המצב הנוכחי</li>
-          <li style="color:#38bdf8;">🛡️ <strong>בטוח לחלוטין:</strong> שומר על כל ההיסטוריה, הרמות, האימונים והארוחות!</li>
+          <li style="color:#0A84FF;">🛡️ <strong>בטוח לחלוטין:</strong> שומר על כל ההיסטוריה, הרמות, האימונים והארוחות!</li>
         </ul>
-        <button class="action-btn-primary" onclick="AppState.closeModal('reset-modal'); AppState.openFirstTimeAwakening(true);" style="background:linear-gradient(90deg, #0284c7, #00f0ff); color:#000000; font-weight:900; font-size:12px; padding:10px;">
+        <button class="action-btn-primary" onclick="AppState.closeModal('reset-modal'); AppState.openFirstTimeAwakening(true);" style="background:#0A64CC; color:#000000; font-weight:900; font-size:12px; padding:10px;">
           ⚡ פתח את טקס ההתעוררות וצ'אט ה-AI עכשיו
         </button>
       </div>
@@ -1846,7 +1846,7 @@
           <input type="text" id="rebirth-confirm-input" class="form-input" placeholder="הקלד אישור כאן" style="text-align:center; font-weight:700; border-color:rgba(239,68,68,0.5);">
         </div>
 
-        <button class="action-btn-primary" onclick="AppState.confirmFullRebirth()" style="background:linear-gradient(90deg, #b91c1c, #ef4444); color:#ffffff; font-weight:900; font-size:13px; padding:11px;">
+        <button class="action-btn-primary" onclick="AppState.confirmFullRebirth()" style="background:#b91c1c; color:#ffffff; font-weight:900; font-size:13px; padding:11px;">
           💀 בצע לידה מחדש מלאה (איפוס מוחלט לרמה 1)
         </button>
       </div>
@@ -2048,7 +2048,7 @@
       <!-- SHIFT & ACTIVITY STATUS CHIP -->
       <div style="display:flex; justify-content:space-between; align-items:center; background:#10141f; padding:8px 12px; border-radius:10px; margin: 14px 0; border:1px solid rgba(255,255,255,0.06);">
         <span style="font-size:12px; color:var(--text-secondary);">מצב פעילות עיקרי:</span>
-        <span id="weekly-shift-badge" style="font-size:11px; font-weight:700; color:#38bdf8; background:rgba(56,189,248,0.12); padding:3px 10px; border-radius:20px; border:1px solid rgba(56,189,248,0.25);">סדר יום רגיל</span>
+        <span id="weekly-shift-badge" style="font-size:11px; font-weight:700; color:#0A84FF; background:rgba(10, 132, 255,0.12); padding:3px 10px; border-radius:20px; border:1px solid rgba(10, 132, 255,0.25);">סדר יום רגיל</span>
       </div>
 
       <!-- KPI CARDS GRID -->
@@ -2080,10 +2080,10 @@
       </div>
 
       <!-- AI TAKEAWAY BOX -->
-      <div class="weekly-ai-card" style="background:#0e131f; border:1px solid rgba(56,189,248,0.2); border-radius:12px; padding:14px; margin: 14px 0;">
+      <div class="weekly-ai-card" style="background:#0e131f; border:1px solid rgba(10, 132, 255,0.2); border-radius:12px; padding:14px; margin: 14px 0;">
         <div class="weekly-ai-hdr" style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
           <span style="font-size:16px;">💡</span>
-          <span style="font-weight:700; font-size:12px; color:#38bdf8;">תובנת AI ומדע לשבוע הבא</span>
+          <span style="font-weight:700; font-size:12px; color:#0A84FF;">תובנת AI ומדע לשבוע הבא</span>
         </div>
         <p id="weekly-ai-text" style="font-size:12px; color:#e2e8f0; line-height:1.6; margin:0;">טוען ניתוח שבועי...</p>
       </div>
@@ -2262,7 +2262,7 @@
 
       <div style="padding:20px; display:flex; flex-direction:column; gap:16px;">
         <div id="quick-bio-single-field-wrap">
-          <label id="quick-bio-input-label" class="form-label" style="margin-bottom:6px; color:#38bdf8;">גובה בס״מ</label>
+          <label id="quick-bio-input-label" class="form-label" style="margin-bottom:6px; color:#0A84FF;">גובה בס״מ</label>
           <div style="display:flex; gap:8px; align-items:center;">
             <button type="button" class="quick-step-btn" onclick="AppState.stepBioInput(-1)">-1</button>
             <input type="number" id="quick-bio-input-val" class="form-input" style="font-size:20px; font-weight:800; text-align:center; flex:1;" step="any">
@@ -2308,11 +2308,11 @@
           <div style="display:flex; align-items:center; gap:10px;">
             <div class="ai-avatar-glow">🤖</div>
             <div class="awakening-step-info">
-              <span class="awakening-step-title" style="color:#00f0ff;">SYSTEM AI ARCHITECT (צ'אט המערכת)</span>
-              <span class="awakening-step-sub" style="color:#38bdf8;">● מחובר ל-Gemini Flash AI בזמן אמת</span>
+              <span class="awakening-step-title" style="color:#0A84FF;">SYSTEM AI ARCHITECT (צ'אט המערכת)</span>
+              <span class="awakening-step-sub" style="color:#0A84FF;">● מחובר ל-Gemini Flash AI בזמן אמת</span>
             </div>
           </div>
-          <span class="quest-tag" style="background:rgba(0,240,255,0.15); border-color:#00f0ff; color:#00f0ff; font-size:10px;">LIVE CHAT</span>
+          <span class="quest-tag" style="background:rgba(10, 132, 255,0.15); border-color:#0A84FF; color:#0A84FF; font-size:10px;">LIVE CHAT</span>
         </div>
 
         <!-- Chat messages stream container -->

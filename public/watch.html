@@ -7,7 +7,7 @@
   <style>
     :root {
       --watch-bg: #000000;
-      --cyan: #00f0ff;
+      --cyan: #0A84FF;
       --blue: #3b82f6;
       --red: #ef4444;
       --yellow: #f59e0b;
@@ -38,7 +38,7 @@
     .watch-case {
       width: 440px;
       height: 440px;
-      background: radial-gradient(circle, #2d3748 0%, #1a202c 70%, #0d1117 100%);
+      background: none;
       border-radius: 50%;
       display: flex;
       align-items: center;
@@ -102,7 +102,7 @@
     }
 
     .watch-rank-badge {
-      background: rgba(0, 240, 255, 0.2);
+      background: rgba(10, 132, 255, 0.2);
       border: 1px solid var(--cyan);
       color: var(--cyan);
       font-size: 11px;
@@ -164,7 +164,7 @@
     /* Water Quick Add Button on Watch */
     .watch-water-btn {
       margin-top: 10px;
-      background: rgba(0, 240, 255, 0.15);
+      background: rgba(10, 132, 255, 0.15);
       border: 1px solid var(--cyan);
       color: #ffffff;
       padding: 6px 16px;
@@ -180,7 +180,7 @@
 
     .watch-water-btn:active {
       transform: scale(0.92);
-      background: rgba(0, 240, 255, 0.35);
+      background: rgba(10, 132, 255, 0.35);
     }
 
     .watch-footer-info {
@@ -246,7 +246,7 @@
     </div>
 
     <!-- Interactive Sensor Controls -->
-    <div style="width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(0,240,255,0.2); border-radius:12px; padding:12px; display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:11px;">
+    <div style="width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(10, 132, 255,0.2); border-radius:12px; padding:12px; display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:11px;">
       <div>
         <label style="color:#f87171; font-weight:700; display:block; margin-bottom:3px;">❤️ דופק (HR):</label>
         <input type="number" id="sim-hr" value="74" min="40" max="200" style="width:100%; background:#091326; border:1px solid #f87171; color:#fff; border-radius:6px; padding:5px 8px; font-family:monospace;">
@@ -266,7 +266,7 @@
     </div>
 
     <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
-      <button onclick="syncSimulatedBiometrics()" style="background:rgba(0,240,255,0.25); border:1px solid #00f0ff; color:#00f0ff; padding:7px 14px; border-radius:8px; cursor:pointer; font-weight:800; font-size:12px;">
+      <button onclick="syncSimulatedBiometrics()" style="background:rgba(10, 132, 255,0.25); border:1px solid #0A84FF; color:#0A84FF; padding:7px 14px; border-radius:8px; cursor:pointer; font-weight:800; font-size:12px;">
         ⚡ שלח מדדי סימולטור לשרת
       </button>
       <button onclick="syncWatchBiometrics()" style="background:rgba(168,85,247,0.25); border:1px solid #c084fc; color:#f3e8ff; padding:7px 14px; border-radius:8px; cursor:pointer; font-weight:800; font-size:12px;">

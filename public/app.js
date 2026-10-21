@@ -693,7 +693,7 @@ const AppState = {
     if (remEl) {
       if (curWater >= tgtWater) {
         remEl.innerText = '🏆 יעד המים היומי הושלם בהצלחה!';
-        remEl.style.color = '#38bdf8';
+        remEl.style.color = '#0A84FF';
       } else {
         const remaining = tgtWater - curWater;
         remEl.innerText = `נותרו ${remaining.toLocaleString()} מ״ל ליעד`;
@@ -782,7 +782,7 @@ const AppState = {
           </div>
         </div>
         <div class="micro-track">
-          <div class="micro-fill" style="width: ${pct}%; ${m.suppBonus > 0 ? 'background: linear-gradient(90deg, #8b5cf6, #00f0ff);' : ''}"></div>
+          <div class="micro-fill" style="width: ${pct}%; ${m.suppBonus > 0 ? 'background: #8b5cf6;' : ''}"></div>
         </div>
       `;
       gridEl.appendChild(item);
@@ -1535,7 +1535,7 @@ const AppState = {
 
     const previewEl = document.getElementById('staging-calc-preview');
     if (previewEl) {
-      previewEl.innerHTML = `סה"כ: <strong>${totalGrams} גרם</strong> (${amount} ${unitLabel}) • <span style="color:#00f0ff;">${calcCal} קק"ל</span> | חלבון: <span style="color:#10b981;">${calcP}g</span> | פחמימה: ${calcC}g | שומן: ${calcF}g`;
+      previewEl.innerHTML = `סה"כ: <strong>${totalGrams} גרם</strong> (${amount} ${unitLabel}) • <span style="color:#0A84FF;">${calcCal} קק"ל</span> | חלבון: <span style="color:#10b981;">${calcP}g</span> | פחמימה: ${calcC}g | שומן: ${calcF}g`;
     }
   },
 
@@ -3162,7 +3162,7 @@ const AppState = {
 
     const toast = document.createElement('div');
     toast.className = `system-toast ${type}`;
-    toast.style.cssText = 'background:rgba(9,19,38,0.95); border:1.5px solid var(--hud-cyan); border-radius:10px; padding:10px 16px; color:#ffffff; font-size:12px; font-weight:800; box-shadow:0 0 20px rgba(0,240,255,0.4); text-align:center; backdrop-filter:blur(8px); transition:all 0.3s ease; opacity:0; transform:translateY(10px); pointer-events:auto;';
+    toast.style.cssText = 'background:rgba(9,19,38,0.95); border:1.5px solid var(--hud-cyan); border-radius:10px; padding:10px 16px; color:#ffffff; font-size:12px; font-weight:800; box-shadow:0 0 20px rgba(10, 132, 255,0.4); text-align:center; backdrop-filter:blur(8px); transition:all 0.3s ease; opacity:0; transform:translateY(10px); pointer-events:auto;';
     toast.innerText = message;
 
     container.appendChild(toast);
@@ -4660,9 +4660,9 @@ const AppState = {
 
       const hud = document.getElementById('garmin-hud-card');
       if (hud) {
-        hud.style.boxShadow = '0 0 35px rgba(0, 240, 255, 0.6)';
+        hud.style.boxShadow = '0 0 35px rgba(10, 132, 255, 0.6)';
         setTimeout(() => {
-          hud.style.boxShadow = '0 0 20px rgba(0, 240, 255, 0.15)';
+          hud.style.boxShadow = '0 0 20px rgba(10, 132, 255, 0.15)';
         }, 1200);
       }
 
@@ -5581,7 +5581,7 @@ const AppState = {
 
           <div class="cal-detail-box">
             <div class="cal-detail-box-title"><span>💧</span> מאזן מים</div>
-            <div class="cal-detail-box-val" style="color:#38bdf8;">
+            <div class="cal-detail-box-val" style="color:#0A84FF;">
               ${data.total_water_ml || 0} ml
             </div>
             <div class="cal-detail-box-sub">
@@ -6306,7 +6306,7 @@ const AppState = {
           <div class="debrief-item-desc">
             <strong>ממצא מפתח:</strong> ${c.finding}
           </div>
-          <div style="font-size:11px; color:#38bdf8; margin-top:4px;">
+          <div style="font-size:11px; color:#0A84FF; margin-top:4px;">
             <strong>יישום במערכת:</strong> ${c.system_application}
           </div>
         </div>
@@ -6802,7 +6802,7 @@ const AppState = {
         <div class="weekly-day-row">
           <span style="font-weight:700; color:#94a3b8; font-size:11px;">${r.date.slice(5)}</span>
           <span style="color:#e2e8f0; font-size:11px;">🔥 ${Math.round(r.calories)} קק״ל</span>
-          <span style="color:#38bdf8; font-weight:700; font-size:11px;">🥩 ${Math.round(r.protein)}g חלבון</span>
+          <span style="color:#0A84FF; font-weight:700; font-size:11px;">🥩 ${Math.round(r.protein)}g חלבון</span>
           <span style="color:#60a5fa; font-size:11px;">💧 ${r.water_ml}ml</span>
           <span style="color:#64748b; font-size:10px;">${r.meal_count} ארוחות</span>
         </div>

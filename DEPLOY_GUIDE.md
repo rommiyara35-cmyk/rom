@@ -34,6 +34,20 @@ git push -u origin main
 
 ---
 
+## 🔑 הגדרת מפתח Gemini (חובה לתכונות AI)
+
+השרת קורא את המפתח ממשתנה הסביבה `GEMINI_API_KEY` (לא שומרים מפתחות בקוד!).
+
+- **לוקאלית:** צור קובץ `.env` בתיקיית הפרויקט עם השורה:
+  ```
+  GEMINI_API_KEY=your-key-here
+  ```
+  (הקובץ `.env` כבר מופיע ב־`.gitignore` ולא עולה לגיט.)
+- **ב־Render:** בלשונית **Environment** של ה־Web Service הוסף משתנה:
+  - Key: `GEMINI_API_KEY` | Value: המפתח שלך מ־[Google AI Studio](https://aistudio.google.com/app/apikey)
+
+---
+
 ## 🎉 זהו!
 תוך כדקה המערכת באוויר!  
 רנדר תציג לך קישור ירוק: `https://<השם-שבחרת>.onrender.com`.
