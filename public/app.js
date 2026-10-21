@@ -142,6 +142,10 @@ const AppState = {
 
   loadLocalCache() {
     try {
+      // B3 fix: detect stale cache (yesterday's data shown as today's on cold start)
+      const cachedDate = localStorage.getItem('hunter_cache_date');
+      this.cacheIsStale = !!cachedDate && cachedDate !== this.getClientDateStr();
+
       const p = localStorage.getItem('hunter_profile');
       if (p) this.profile = JSON.parse(p);
 
@@ -180,6 +184,23 @@ const AppState = {
     } catch (e) {
       console.warn('Local cache save warning:', e);
     }
+  },
+
+  // B3: stale-cache badge — shown when cold-start renders yesterday's data
+  showStaleCacheBadge() {
+    if (document.getElementById('stale-cache-badge')) return;
+    const el = document.createElement('div');
+    el.id = 'stale-cache-badge';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.textContent = '🕰️ מציג נתונים שמורים — מסנכרן את נתוני היום…';
+    document.body.prepend(el);
+  },
+
+  hideStaleCacheBadge() {
+    const el = document.getElementById('stale-cache-badge');
+    if (el) el.remove();
+    this.cacheIsStale = false;
   },
 
   async init() {
@@ -223,6 +244,8 @@ const AppState = {
     // 1. FAST LOCAL HYDRATION: Immediately render cached data so screen is never blank
     this.loadLocalCache();
     this.renderAll();
+    // B3 fix: badge stale (yesterday's) cached data instead of presenting it as today's
+    if (this.cacheIsStale) this.showStaleCacheBadge();
 
     // 2. DISASTER RECOVERY: If server restarted fresh while browser has data, heal the server FIRST!
     await this.checkAndHealServerInstance();
@@ -243,6 +266,7 @@ const AppState = {
 
     // Save fresh local snapshot
     this.saveLocalCache();
+    this.hideStaleCacheBadge(); // B3: fresh data arrived — remove the stale badge
     this.saveLocalSnapshot();
     this.updateBackupUI();
 
@@ -280,22 +304,24 @@ const AppState = {
     try {
       const cDate = this.shiftDate || this.getClientDateStr();
       const res = await fetch(`/api/garmin/health?client_date=${encodeURIComponent(cDate)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.biometrics) {
-          const oldSync = this.healthAdvisor?.biometrics?.sync_timestamp;
-          const oldSteps = this.healthAdvisor?.biometrics?.steps;
-          const oldHr = this.healthAdvisor?.biometrics?.heart_rate;
-          const newSync = data.biometrics.sync_timestamp;
-          const newSteps = data.biometrics.steps;
-          const newHr = data.biometrics.heart_rate;
-          this.healthAdvisor = data;
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.biometrics) {
+        const oldBioStr = JSON.stringify(this.healthAdvisor?.biometrics ?? null);
+        const newBioStr = JSON.stringify(data.biometrics);
+        const bioChanged = oldBioStr !== newBioStr;
+        const oldSync = this.healthAdvisor?.biometrics?.sync_timestamp;
+        const newSync = data.biometrics.sync_timestamp;
+        this.healthAdvisor = data;
+        // B2 fix: only re-render (innerHTML wipes) when data actually changed —
+        // previously every 3s tick wiped transient UI state (open details, selections).
+        if (bioChanged) {
           this.saveLocalCache();
           this.renderGarminBiometrics();
           if (typeof this.renderDailyDebrief === 'function') this.renderDailyDebrief();
           if (typeof this.renderCalorieGauge === 'function') this.renderCalorieGauge();
           if (typeof this.renderAIInsights === 'function') this.renderAIInsights();
-          if ((oldSync && newSync && oldSync !== newSync) || oldSteps !== newSteps || oldHr !== newHr) {
+          if (oldSync && newSync && oldSync !== newSync) {
             sfx.playTone(880, 0.1, 'sine', 0.08);
           }
         }
@@ -306,6 +332,7 @@ const AppState = {
   async fetchNetworkInfo() {
     try {
       const res = await fetch('/api/network-ip');
+      if (!res.ok) return; // B5 fix: don't parse error pages as JSON
       const data = await res.json();
       this.networkIp = data.ip;
       this.port = data.port;
@@ -1075,7 +1102,7 @@ const AppState = {
       this.addWater(val, bevType, bevName, bevIcon, caffeineMg);
       if (inp) inp.value = '';
     } else {
-      alert('אנא הזן כמות תקינה (במ״ל)');
+      this.showToast('אנא הזן כמות תקינה (במ״ל)');
     }
   },
 
@@ -1589,7 +1616,7 @@ const AppState = {
     const inputEl = document.getElementById('ai-goal-input');
     const text = inputEl ? inputEl.value.trim() : '';
     if (!text) {
-      alert('אנא תאר במילים שלך מה אתה רוצה להשיג (למשל: חיטוב לקראת הקיץ, עלייה נקייה במסה, שמירה על שריר ועבודה בלילות וכו\')');
+      this.showToast('אנא תאר במילים שלך מה אתה רוצה להשיג (למשל: חיטוב לקראת הקיץ, עלייה נקייה במסה, שמירה על שריר ועבודה בלילות וכו\')');
       return;
     }
     sfx.playClick();
@@ -1677,7 +1704,7 @@ const AppState = {
       this.showToast('✨ היעדים חושבו בהצלחה לפי המטרה שלך!');
     } catch (err) {
       console.error('AI Goal calculation error:', err);
-      alert('שגיאה בחישוב היעדים: ' + err.message);
+      this.showToast('שגיאה בחישוב היעדים: ' + err.message, 'error');
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -1716,13 +1743,13 @@ const AppState = {
       const data = await res.json();
       this.closeModal('awakening-modal');
       sfx.playLevelUp();
-      alert('ההתעוררות הושלמה בהצלחה! יעדי התזונה המדעיים עודכנו.');
+      this.showToast('ההתעוררות הושלמה בהצלחה! יעדי התזונה המדעיים עודכנו.');
       if (data.newly_unlocked_achievements && data.newly_unlocked_achievements.length > 0) {
         this.checkNewlyUnlocked(data.newly_unlocked_achievements);
       }
       await this.fetchTodayData();
     } catch (e) {
-      alert('שגיאה בחישוב ההתעוררות');
+      this.showToast('שגיאה בחישוב ההתעוררות', 'error');
     }
   },
 
@@ -2244,7 +2271,7 @@ const AppState = {
       if (typeof this.fetchDailyDebrief === 'function') this.fetchDailyDebrief();
     } catch (err) {
       console.error('Awakening submit error:', err);
-      alert('שגיאה בשמירת נתוני ההתעוררות: ' + err.message);
+      this.showToast('שגיאה בשמירת נתוני ההתעוררות: ' + err.message, 'error');
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -2554,7 +2581,7 @@ const AppState = {
       this.showToast('🎯 היעדים עודכנו בהצלחה ונשמרו במערכת!');
       this.saveLocalSnapshot();
     } catch (err) {
-      alert('שגיאה בעדכון יעדים: ' + err.message);
+      this.showToast('שגיאה בעדכון יעדים: ' + err.message, 'error');
     }
   },
 
@@ -3156,13 +3183,21 @@ const AppState = {
     if (!container) {
       container = document.createElement('div');
       container.id = 'system-toast-container';
+      container.setAttribute('role', 'status');
+      container.setAttribute('aria-live', 'polite');
       container.style.cssText = 'position:fixed; bottom:calc(76px + env(safe-area-inset-bottom, 16px)); left:50%; transform:translateX(-50%); z-index:99999; display:flex; flex-direction:column; gap:8px; pointer-events:none; width:90%; max-width:380px; align-items:center;';
       document.body.appendChild(container);
     }
 
     const toast = document.createElement('div');
     toast.className = `system-toast ${type}`;
-    toast.style.cssText = 'background:rgba(9,19,38,0.95); border:1.5px solid var(--hud-cyan); border-radius:10px; padding:10px 16px; color:#ffffff; font-size:12px; font-weight:800; box-shadow:0 0 20px rgba(10, 132, 255,0.4); text-align:center; backdrop-filter:blur(8px); transition:all 0.3s ease; opacity:0; transform:translateY(10px); pointer-events:auto;';
+    const borderColor = type === 'error' ? 'rgba(239,68,68,0.9)'
+      : type === 'success' ? 'rgba(16,185,129,0.9)'
+      : 'rgba(10,132,255,0.9)';
+    const glowColor = type === 'error' ? 'rgba(239,68,68,0.4)'
+      : type === 'success' ? 'rgba(16,185,129,0.4)'
+      : 'rgba(10,132,255,0.4)';
+    toast.style.cssText = `background:rgba(9,19,38,0.95); border:1.5px solid ${borderColor}; border-radius:10px; padding:10px 16px; color:#ffffff; font-size:12px; font-weight:800; box-shadow:0 0 20px ${glowColor}; text-align:center; backdrop-filter:blur(8px); transition:all 0.3s ease; opacity:0; transform:translateY(10px); pointer-events:auto;`;
     toast.innerText = message;
 
     container.appendChild(toast);
@@ -3334,7 +3369,7 @@ const AppState = {
     try {
       const rawSnapshot = localStorage.getItem('SOLO_HUNTER_SYSTEM_SNAPSHOT');
       if (!rawSnapshot) {
-        if (!silent) alert('לא נמצא גיבוי מקומי שמור בדפדפן.');
+        if (!silent) this.showToast('לא נמצא גיבוי מקומי שמור בדפדפן.');
         return false;
       }
       const snapshot = JSON.parse(rawSnapshot);
@@ -3363,7 +3398,7 @@ const AppState = {
       }
       return true;
     } catch (err) {
-      if (!silent) alert('שגיאה בשחזור מגיבוי מקומי: ' + err.message);
+      if (!silent) this.showToast('שגיאה בשחזור מגיבוי מקומי: ' + err.message, 'error');
       console.warn('Restore error:', err);
       return false;
     }
@@ -3442,7 +3477,7 @@ const AppState = {
       this.showToast('✨ כל הנתונים, הסקילים והיומנים שוחזרו בהצלחה!');
       setTimeout(() => window.location.reload(), 700);
     } catch (err) {
-      alert('שגיאה בשחזור קובץ הגיבוי: ' + err.message);
+      this.showToast('שגיאה בשחזור קובץ הגיבוי: ' + err.message, 'error');
     } finally {
       event.target.value = '';
     }
@@ -3522,7 +3557,7 @@ const AppState = {
     } catch (err) {
       this.closeModal('reset-modal');
       this.forceUnlockBody();
-      alert('שגיאה באיפוס היום: ' + err.message);
+      this.showToast('שגיאה באיפוס היום: ' + err.message, 'error');
     }
   },
 
@@ -3530,7 +3565,7 @@ const AppState = {
     const input = document.getElementById('rebirth-confirm-input');
     const val = input ? input.value.trim().toLowerCase() : '';
     if (val !== 'אישור' && val !== 'rebirth') {
-      alert('לאישור לידה מחדש, עליך להקליד "אישור" או "REBIRTH" בשדה המתאים.');
+      this.showToast('לאישור לידה מחדש, עליך להקליד "אישור" או "REBIRTH" בשדה המתאים.');
       if (input) input.focus();
       return;
     }
@@ -3655,7 +3690,7 @@ const AppState = {
       this._isPerformingReset = false;
       try { localStorage.removeItem('SOLO_HUNTER_INTENTIONAL_RESET'); } catch(e) {}
       this.forceUnlockBody();
-      alert('שגיאה בתהליך הלידה מחדש: ' + err.message);
+      this.showToast('שגיאה בתהליך הלידה מחדש: ' + err.message, 'error');
     }
   },
 
@@ -4100,7 +4135,7 @@ const AppState = {
     sfx.playClick();
     const name_he = document.getElementById('new-prod-name').value.trim();
     if (!name_he) {
-      alert('נא להזין את שם המוצר');
+      this.showToast('נא להזין את שם המוצר');
       return;
     }
     const cal = parseFloat(document.getElementById('new-prod-cal').value) || 0;
@@ -4137,10 +4172,10 @@ const AppState = {
       staging.style.border = '2px solid var(--neon-green)';
       staging.scrollIntoView({ behavior: 'smooth', block: 'center' });
       sfx.playSystemNotification();
-      alert(`[✓ המוצר "${name_he}" נלמד ונשמר בהצלחה! בפעם הבאה שתסרוק אותו, הוא יזוהה מיידית]`);
+      this.showToast(`[✓ המוצר "${name_he}" נלמד ונשמר בהצלחה! בפעם הבאה שתסרוק אותו, הוא יזוהה מיידית]`);
       await this.fetchFoods();
     } catch (e) {
-      alert('שגיאה בשמירת המוצר');
+      this.showToast('שגיאה בשמירת המוצר', 'error');
     }
   },
 
@@ -4167,12 +4202,12 @@ const AppState = {
       this.renderAll();
       sfx.playSystemNotification();
       if (newMode === 'night') {
-        alert('[SYSTEM: הופעל מצב משמרת לילה! האיפוס היומי נדחה לשעה 08:00 בבוקר. כל הארוחות מרוכזות כיום רציף אחד ללא איפוס בחצות]');
+        this.showToast('[SYSTEM: הופעל מצב משמרת לילה! האיפוס היומי נדחה לשעה 08:00 בבוקר. כל הארוחות מרוכזות כיום רציף אחד ללא איפוס בחצות]');
       } else {
-        alert('[SYSTEM: חזרה למשמרת יום רגילה (איפוס בחצות)]');
+        this.showToast('[SYSTEM: חזרה למשמרת יום רגילה (איפוס בחצות)]');
       }
     } catch (e) {
-      alert('שגיאה בעדכון מצב המשמרת');
+      this.showToast('שגיאה בעדכון מצב המשמרת', 'error');
     }
   },
 
@@ -4291,6 +4326,8 @@ const AppState = {
     if (timeEl) {
       timeEl.innerText = b.sync_timestamp ? `סונכרן: היום ב-${b.sync_timestamp}` : 'סונכרן היום';
     }
+    // B4: honest data-age pill (green/yellow/red by staleness)
+    if (typeof this.updateSyncAgePill === 'function') this.updateSyncAgePill();
     const sourceEl = document.getElementById('garmin-source-badge');
     const statusTextEl = document.getElementById('garmin-status-text');
     const statusInd = document.getElementById('garmin-status-indicator');
@@ -4391,10 +4428,10 @@ const AppState = {
           </div>
           <div class="attent-badges-row">
             <span class="attent-badge-chip ${pConsumed < (pTarget * 0.5) ? 'alert' : 'success'}">
-              🛡️ מגן שריר: ${pConsumed}g / ${pTarget}g חלבון
+              🛡️ מגן שריר: <bdi>${pConsumed}g / ${pTarget}g</bdi> חלבון
             </span>
             <span class="attent-badge-chip cyan">
-              💧 יעד מים מוגבר (+500ml)
+              💧 יעד מים מוגבר <bdi>(+500ml)</bdi>
             </span>
             <span class="attent-badge-chip success">
               ${isAct ? '⚡ סטרס Garmin מנוטרל' : '💤 התאוששות טבעית'}
@@ -4547,11 +4584,11 @@ const AppState = {
         this.healthAdvisor = data.data;
         this.renderAll();
         sfx.playLevelUp();
-        alert('✓ דגימת Webhook התקבלה בהצלחה בשרת! המדדים ב-HUD עודכנו.');
+        this.showToast('✓ דגימת Webhook התקבלה בהצלחה בשרת! המדדים ב-HUD עודכנו.');
         this.closeModal('garmin-modal');
       }
     } catch (e) {
-      alert('שגיאה בבדיקת Webhook: ' + e.message);
+      this.showToast('שגיאה בבדיקת Webhook: ' + e.message, 'error');
     }
   },
 
@@ -4630,10 +4667,10 @@ const AppState = {
             this.closeModal('garmin-modal');
           }, 1500);
         } else {
-          alert(data.error || 'שגיאה בפיענוח קובץ');
+          this.showToast(data.error || 'שגיאה בפיענוח קובץ');
         }
       } catch (err) {
-        alert('שגיאה בהעלאת קובץ: ' + err.message);
+        this.showToast('שגיאה בהעלאת קובץ: ' + err.message, 'error');
       }
     };
 
@@ -4644,9 +4681,38 @@ const AppState = {
     }
   },
 
+  // B4: compute honest data-age text from sync_timestamp ("HH:MM", Israel time)
+  syncAgeInfo() {
+    const ts = this.healthAdvisor?.biometrics?.sync_timestamp;
+    const none = { text: '🔴 לא מסונכרן', cls: 'stale' };
+    if (!ts || ts === '--:--') return none;
+    const m = String(ts).match(/(\d{1,2}):(\d{2})/);
+    if (!m) return none;
+    const now = new Date();
+    const syncDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), +m[1], +m[2]);
+    let diffMin = Math.round((now - syncDate) / 60000);
+    if (diffMin < 0) diffMin += 1440; // crossed midnight → yesterday's sync
+    if (diffMin < 2) return { text: '🟢 מעודכן · עכשיו', cls: 'fresh' };
+    if (diffMin < 60) return { text: `🟢 מעודכן · לפני ${diffMin} דק׳`, cls: 'fresh' };
+    const h = Math.floor(diffMin / 60);
+    if (h < 6) return { text: `🟡 נתונים מלפני ${h} שע׳`, cls: 'aging' };
+    return { text: `🔴 נתונים מלפני ${h} שע׳`, cls: 'stale' };
+  },
+
+  updateSyncAgePill() {
+    const pill = document.getElementById('garmin-sync-age-pill');
+    if (!pill) return;
+    const info = this.syncAgeInfo();
+    pill.textContent = info.text;
+    pill.className = `garmin-sync-age-pill ${info.cls}`;
+  },
+
   async triggerSmartGarminSync() {
     this.triggerHaptic('medium');
     sfx.playClick();
+
+    // B4 fix: capture sync state BEFORE refresh — only claim success if new data arrived
+    const beforeSync = this.healthAdvisor?.biometrics?.sync_timestamp || '';
 
     const topBtn = document.getElementById('garmin-top-sync-btn-text');
     const stripBtn = document.getElementById('garmin-strip-sync-btn');
@@ -4666,11 +4732,18 @@ const AppState = {
         }, 1200);
       }
 
-      const syncTime = this.healthAdvisor?.biometrics?.sync_timestamp || '';
+      const afterSync = this.healthAdvisor?.biometrics?.sync_timestamp || '';
       const steps = this.healthAdvisor?.biometrics?.steps ?? 0;
-      this.showToast(`⚡ מדדים עודכנו בהצלחה: ${steps.toLocaleString()} צעדים!`);
-      if (topBtn) topBtn.innerText = `✅ עודכן (${syncTime})`;
-      if (stripBtn) stripBtn.innerHTML = `✅ עודכן (${syncTime})`;
+      this.updateSyncAgePill();
+      // B4 fix: honest toast — success only when the watch actually pushed new data
+      if (afterSync && afterSync !== beforeSync) {
+        this.showToast(`⚡ מדדים עודכנו מהשעון: ${steps.toLocaleString()} צעדים!`);
+      } else {
+        this.showToast('ℹ️ אין נתונים חדשים מהשעון — מוצגים הנתונים האחרונים');
+      }
+      const ageInfo = this.syncAgeInfo();
+      if (topBtn) topBtn.innerText = `✅ ${ageInfo.text.replace(/^[🟢🟡🔴]\s*/, '')}`;
+      if (stripBtn) stripBtn.innerHTML = `✅ ${ageInfo.text.replace(/^[🟢🟡🔴]\s*/, '')}`;
       setTimeout(() => {
         if (topBtn) topBtn.innerText = '✏️ עדכן מהשעון';
         if (stripBtn) stripBtn.innerHTML = '<span class="spin-icon">🔄</span> רענן מדדים';
@@ -4690,7 +4763,7 @@ const AppState = {
 
   async connectBluetoothGarmin() {
     if (!navigator.bluetooth) {
-      alert('דפדפן זה אינו תומך ישירות ב-Web Bluetooth.\nבאייפון/iOS מומלץ להשתמש בדפדפן Bluefy (התומך ב-Web Bluetooth) או באוטומציית קיצורי דרך (Shortcuts) בלשונית Webhook.');
+      this.showToast('דפדפן זה אינו תומך ישירות ב-Web Bluetooth.\nבאייפון/iOS מומלץ להשתמש בדפדפן Bluefy (התומך ב-Web Bluetooth) או באוטומציית קיצורי דרך (Shortcuts) בלשונית Webhook.');
       return;
     }
     this.triggerHaptic('medium');
@@ -4731,7 +4804,7 @@ const AppState = {
     } catch (err) {
       if (err.name !== 'NotFoundError') {
         console.warn('Bluetooth connection error:', err);
-        alert('שגיאת חיבור בלוטות\': ' + (err.message || err));
+        this.showToast('שגיאת חיבור בלוטות\': ' + (err.message || err));
       }
     }
   },
@@ -4875,7 +4948,7 @@ const AppState = {
         this.showToast('✅ מדדי השעון עודכנו בהצלחה!');
       }
     } catch (e) {
-      alert('שגיאה בסנכרון מדדי גרמין');
+      this.showToast('שגיאה בסנכרון מדדי גרמין', 'error');
     }
   },
 
@@ -5093,7 +5166,7 @@ const AppState = {
       }
     } catch (e) {
       console.error('Error in deleteAttentDose:', e);
-      alert('שגיאה במחיקת מנת אטנט: ' + (e.message || e));
+      this.showToast('שגיאה במחיקת מנת אטנט: ' + (e.message || e), 'error');
     }
   },
 
@@ -5374,7 +5447,7 @@ const AppState = {
       }
     } catch (e) {
       console.error('Error in cancelAttent:', e);
-      alert('שגיאה בביטול רישום אטנט: ' + (e.message || e));
+      this.showToast('שגיאה בביטול רישום אטנט: ' + (e.message || e), 'error');
     }
   },
 
@@ -6133,7 +6206,7 @@ const AppState = {
     sfx.playClick();
     const name = document.getElementById('custom-supp-name').value.trim();
     if (!name) {
-      alert('נא להזין שם תוסף או ויטמין');
+      this.showToast('נא להזין שם תוסף או ויטמין');
       return;
     }
     const dose = document.getElementById('custom-supp-dose').value.trim() || '1 מנה';
@@ -6168,7 +6241,7 @@ const AppState = {
       await this.fetchTodayData();
     } catch (e) {
       console.error('Error in saveCustomSupplement:', e);
-      alert('שגיאה ברישום התוסף: ' + (e.message || e));
+      this.showToast('שגיאה ברישום התוסף: ' + (e.message || e), 'error');
     }
   },
 
@@ -6180,7 +6253,7 @@ const AppState = {
       await this.fetchSupplements();
       await this.fetchDailyDebrief();
     } catch (e) {
-      alert('שגיאה במחיקת התוסף');
+      this.showToast('שגיאה במחיקת התוסף', 'error');
     }
   },
 
@@ -6526,10 +6599,10 @@ const AppState = {
       }).catch(() => {});
     } else if (navigator.clipboard) {
       navigator.clipboard.writeText(text).then(() => {
-        alert('📋 כרטיס הצייד הועתק ללוח!');
+        this.showToast('📋 כרטיס הצייד הועתק ללוח!');
       });
     } else {
-      alert(text);
+      this.showToast(text);
     }
   },
 
@@ -6836,7 +6909,7 @@ const AppState = {
       }, 2500);
     }).catch(err => {
       console.error('Clipboard copy failed:', err);
-      alert('לא ניתן היה להעתיק ישירות. אנא העתק ידנית.');
+      this.showToast('לא ניתן היה להעתיק ישירות. אנא העתק ידנית.');
     });
   },
 

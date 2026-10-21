@@ -50,10 +50,10 @@
           <span class="offline-dot"></span>
           <span id="offline-badge-text">אופליין (<span id="offline-queue-count">0</span>)</span>
         </div>
-        <button id="shift-toggle-btn" class="hud-btn-icon" onclick="AppState.toggleShiftMode()" title="החלף בין משמרת יום למשמרת לילה">☀️</button>
-        <button id="calendar-toggle-btn" class="hud-btn-icon" onclick="AppState.openCalendarModal()" title="לוח שנה ומעקב היסטורי כרוני" style="border-color:rgba(10, 132, 255,0.4); color:#0A84FF;">📅</button>
-        <button id="awakening-hud-btn" class="hud-btn-icon" onclick="AppState.openFirstTimeAwakening(true)" title="מבדק התעוררות וצ'אט יעדים עם AI" style="border-color:rgba(10, 132, 255,0.5); color:#0A84FF;">⚡</button>
-        <button id="settings-hud-btn" class="hud-btn-icon" onclick="AppState.openModal('settings-modal')" title="הגדרות, סנכרון וגיבוי">⚙️</button>
+        <button aria-label="החלף בין משמרת יום למשמרת לילה" id="shift-toggle-btn" class="hud-btn-icon" onclick="AppState.toggleShiftMode()" title="החלף בין משמרת יום למשמרת לילה">☀️</button>
+        <button aria-label="לוח שנה ומעקב היסטורי כרוני" id="calendar-toggle-btn" class="hud-btn-icon" onclick="AppState.openCalendarModal()" title="לוח שנה ומעקב היסטורי כרוני" style="border-color:rgba(10, 132, 255,0.4); color:#0A84FF;">📅</button>
+        <button aria-label="מבדק התעוררות וצ'אט יעדים עם AI" id="awakening-hud-btn" class="hud-btn-icon" onclick="AppState.openFirstTimeAwakening(true)" title="מבדק התעוררות וצ'אט יעדים עם AI" style="border-color:rgba(10, 132, 255,0.5); color:#0A84FF;">⚡</button>
+        <button aria-label="הגדרות, סנכרון וגיבוי" id="settings-hud-btn" class="hud-btn-icon" onclick="AppState.openModal('settings-modal')" title="הגדרות, סנכרון וגיבוי">⚙️</button>
       </div>
     </header>
 
@@ -66,7 +66,7 @@
           <span id="disaster-banner-sub">שרת הענן אותחל, אך כל הרמות והרשומות שלך שמורות במכשיר.</span>
         </div>
         <button class="disaster-restore-btn" onclick="AppState.restoreFromLocalSnapshot()">⚡ שחזר עכשיו</button>
-        <button class="disaster-dismiss-btn" onclick="document.getElementById('disaster-recovery-banner').style.display='none'">✕</button>
+        <button class="disaster-dismiss-btn" aria-label="סגור התראת גיבוי" onclick="document.getElementById('disaster-recovery-banner').style.display='none'">✕</button>
       </div>
     </div>
 
@@ -172,7 +172,7 @@
             <div style="display:flex; align-items:center; gap:6px;">
               <span class="char-id-label">ID:</span>
               <span id="hunter-system-id" class="char-id-code">HNT-77492</span>
-              <button type="button" class="copy-id-btn" onclick="AppState.copyHunterId()" title="העתק מזהה צייד">📋</button>
+              <button aria-label="העתק מזהה צייד" type="button" class="copy-id-btn" onclick="AppState.copyHunterId()" title="העתק מזהה צייד">📋</button>
             </div>
             <div style="display:flex; align-items:center; gap:6px;">
               <button type="button" class="re-awaken-bio-btn" onclick="AppState.openQuickEditBiometrics('height')" title="עריכת גובה ומדדי גוף ישירות">✏️ ערוך מדדים</button>
@@ -270,7 +270,7 @@
                 <span class="skills-title-sub">מתחילות ברמה 1 • צבירת XP מאימונים, ריצה, שינה ודיוק קלורי</span>
               </div>
             </div>
-            <button class="skill-log-workout-btn" onclick="AppState.openWorkoutModal()" title="רשום אימון כוח או ריצה לצבירת XP">
+            <button aria-label="רשום אימון כוח או ריצה לצבירת XP" class="skill-log-workout-btn" onclick="AppState.openWorkoutModal()" title="רשום אימון כוח או ריצה לצבירת XP">
               <span>⚡ רשום אימון</span>
             </button>
           </div>
@@ -428,32 +428,32 @@
             <!-- Quick Add Water & Beverages Controls -->
             <div class="water-controls-card">
               <div class="water-buttons-grid water-beverages-grid">
-                <button type="button" class="water-quick-btn" onclick="AppState.addBeverage('water', 250, 'מים', '💧', 0)" title="+250 מ״ל כוס מים">
+                <button aria-label="+250 מ״ל כוס מים" type="button" class="water-quick-btn" onclick="AppState.addBeverage('water', 250, 'מים', '💧', 0)" title="+250 מ״ל כוס מים">
                   <span class="water-btn-icon">💧</span>
                   <span class="water-btn-amt">+250ml</span>
                   <span class="water-btn-sub">כוס מים</span>
                 </button>
-                <button type="button" class="water-quick-btn" onclick="AppState.addBeverage('water', 500, 'מים', '💧', 0)" title="+500 מ״ל בקבוק מים">
+                <button aria-label="+500 מ״ל בקבוק מים" type="button" class="water-quick-btn" onclick="AppState.addBeverage('water', 500, 'מים', '💧', 0)" title="+500 מ״ל בקבוק מים">
                   <span class="water-btn-icon">🍶</span>
                   <span class="water-btn-amt">+500ml</span>
                   <span class="water-btn-sub">בקבוק מים</span>
                 </button>
-                <button type="button" class="water-quick-btn bev-btn-coffee" onclick="AppState.addBeverage('coffee', 200, 'קפה', '☕', 75)" title="+200 מ״ל כוס קפה (תורם נוזלים + קפאין)">
+                <button aria-label="+200 מ״ל כוס קפה (תורם נוזלים + קפאין)" type="button" class="water-quick-btn bev-btn-coffee" onclick="AppState.addBeverage('coffee', 200, 'קפה', '☕', 75)" title="+200 מ״ל כוס קפה (תורם נוזלים + קפאין)">
                   <span class="water-btn-icon">☕</span>
                   <span class="water-btn-amt">+200ml</span>
                   <span class="water-btn-sub">כוס קפה</span>
                 </button>
-                <button type="button" class="water-quick-btn bev-btn-juice" onclick="AppState.addBeverage('juice', 250, 'מיץ טבעי', '🧃', 0)" title="+250 מ״ל כוס מיץ (90% מים נטו)">
+                <button aria-label="+250 מ״ל כוס מיץ (90% מים נטו)" type="button" class="water-quick-btn bev-btn-juice" onclick="AppState.addBeverage('juice', 250, 'מיץ טבעי', '🧃', 0)" title="+250 מ״ל כוס מיץ (90% מים נטו)">
                   <span class="water-btn-icon">🧃</span>
                   <span class="water-btn-amt">+250ml</span>
                   <span class="water-btn-sub">כוס מיץ</span>
                 </button>
-                <button type="button" class="water-quick-btn bev-btn-tea" onclick="AppState.addBeverage('tea', 250, 'תה / חליטה', '🍵', 25)" title="+250 מ״ל כוס תה או חליטה">
+                <button aria-label="+250 מ״ל כוס תה או חליטה" type="button" class="water-quick-btn bev-btn-tea" onclick="AppState.addBeverage('tea', 250, 'תה / חליטה', '🍵', 25)" title="+250 מ״ל כוס תה או חליטה">
                   <span class="water-btn-icon">🍵</span>
                   <span class="water-btn-amt">+250ml</span>
                   <span class="water-btn-sub">תה / חליטה</span>
                 </button>
-                <button type="button" class="water-quick-btn bev-btn-elec" onclick="AppState.addBeverage('electrolyte', 500, 'אלקטרוליטים', '⚡', 0)" title="+500 מ״ל משקה אלקטרוליטים או שייק">
+                <button aria-label="+500 מ״ל משקה אלקטרוליטים או שייק" type="button" class="water-quick-btn bev-btn-elec" onclick="AppState.addBeverage('electrolyte', 500, 'אלקטרוליטים', '⚡', 0)" title="+500 מ״ל משקה אלקטרוליטים או שייק">
                   <span class="water-btn-icon">⚡</span>
                   <span class="water-btn-amt">+500ml</span>
                   <span class="water-btn-sub">אלקטרוליטים</span>
@@ -510,7 +510,7 @@
           </div>
 
           <!-- Prominent Barcode Hero Button -->
-          <button class="barcode-big-hero-btn" onclick="AppState.openBarcodeScanner()" title="סרוק מוצר במצלמת האייפון">
+          <button aria-label="סרוק מוצר במצלמת האייפון" class="barcode-big-hero-btn" onclick="AppState.openBarcodeScanner()" title="סרוק מוצר במצלמת האייפון">
             <span class="barcode-btn-icon">📷</span>
             <div class="barcode-btn-content">
               <span class="barcode-btn-title">סריקת ברקוד מוצר (Scanner)</span>
@@ -525,7 +525,7 @@
               <input type="text" id="food-search-input" class="search-input" placeholder="חפש לפי שם (חזה עוף, ביצים, קוטג'...)">
             </div>
             <!-- Camera / AI recognition button -->
-            <button id="food-camera-btn" onclick="AppState.openFoodCamera()" title="זיהוי מזון מתמונה" style="
+            <button aria-label="זיהוי מזון מתמונה" id="food-camera-btn" onclick="AppState.openFoodCamera()" title="זיהוי מזון מתמונה" style="
               background: #7c3aed;
               border: 1px solid #7c3aed;
               border-radius: 10px;
@@ -556,7 +556,7 @@
                 onkeydown="if(event.key==='Enter') AppState.sendFoodChat()"
               >
             </div>
-            <button onclick="AppState.sendFoodChat()" title="שלח לניתוח AI" style="
+            <button aria-label="שלח לניתוח AI" onclick="AppState.sendFoodChat()" title="שלח לניתוח AI" style="
               background: #7c3aed;
               border: none; border-radius: 12px; color: #fff;
               font-size: 18px; width: 44px; height: 44px;
@@ -659,10 +659,10 @@
               </div>
             </div>
             <div style="display:flex; gap:6px; align-items:center;">
-              <button class="garmin-sync-btn" id="garmin-top-sync-btn" onclick="AppState.openGarminModal('quick')" title="עדכן לפי נתוני השעון שלך או אפליקציית הבריאות">
+              <button aria-label="עדכן לפי נתוני השעון שלך או אפליקציית הבריאות" class="garmin-sync-btn" id="garmin-top-sync-btn" onclick="AppState.openGarminModal('quick')" title="עדכן לפי נתוני השעון שלך או אפליקציית הבריאות">
                 <span id="garmin-top-sync-btn-text">✏️ עדכן לפי השעון</span>
               </button>
-              <button class="garmin-gear-btn" onclick="AppState.openGarminModal()" title="הגדרות שעון, בלוטות' ואוטומציה באייפון" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:6px 10px; cursor:pointer; color:#fff; font-size:14px;">
+              <button aria-label="הגדרות שעון, בלוטות' ואוטומציה באייפון" class="garmin-gear-btn" onclick="AppState.openGarminModal()" title="הגדרות שעון, בלוטות' ואוטומציה באייפון" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:6px 10px; cursor:pointer; color:#fff; font-size:14px;">
                 ⚙️
               </button>
             </div>
@@ -674,6 +674,7 @@
               <span class="garmin-status-indicator warning" id="garmin-status-indicator">●</span>
               <span class="garmin-status-label" id="garmin-status-text">מודל ביולוגי (לחץ לעדכון מהשעון)</span>
               <span class="garmin-sync-time-badge" id="garmin-sync-time-badge">סונכרן היום</span>
+              <span class="garmin-sync-age-pill fresh" id="garmin-sync-age-pill" role="status" aria-live="polite">🟢 מעודכן</span>
               <span class="garmin-source-badge" id="garmin-source-badge">הערכת מודל</span>
             </div>
             <div class="garmin-status-actions">
@@ -683,7 +684,7 @@
               <button class="garmin-strip-btn" onclick="AppState.openGarminModal('webhook')" title="חיבור אוטומטי לאפליקציית הבריאות באייפון (Apple Health)">
                 🍎 סנכרון מאפל Health
               </button>
-              <button class="garmin-strip-btn smart-btn" id="garmin-strip-sync-btn" onclick="AppState.triggerSmartGarminSync()" title="סנכרון חכם בזמן אמת לפי שעת היום">
+              <button aria-label="סנכרון חכם בזמן אמת לפי שעת היום" class="garmin-strip-btn smart-btn" id="garmin-strip-sync-btn" onclick="AppState.triggerSmartGarminSync()" title="סנכרון חכם בזמן אמת לפי שעת היום">
                 <span class="spin-icon">🔄</span> רענן מודל
               </button>
             </div>
@@ -860,7 +861,7 @@
                 <span class="supplements-title-sub">ויטמינים ומינרלים קריטיים לתמיכה במערכת העצבים</span>
               </div>
             </div>
-            <button class="add-custom-supp-btn" onclick="AppState.openSupplementModal()" title="הוסף תוסף אישי">
+            <button aria-label="הוסף תוסף אישי" class="add-custom-supp-btn" onclick="AppState.openSupplementModal()" title="הוסף תוסף אישי">
               <span>+ תוסף אישי</span>
             </button>
           </div>
@@ -959,7 +960,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <span class="modal-title">⚡ מבדק התעוררות צייד מדעי (Awakening)</span>
-        <button class="close-modal-btn" onclick="AppState.closeModal('awakening-modal')">✕</button>
+        <button class="close-modal-btn" aria-label="סגור" onclick="AppState.closeModal('awakening-modal')">✕</button>
       </div>
 
       <p style="font-size:12px; color:var(--text-secondary); line-height:1.5;">
@@ -1015,7 +1016,7 @@
         </div>
         <div class="ai-goal-input-wrap">
           <textarea id="ai-goal-input" class="ai-goal-textarea" rows="2" placeholder="לדוגמה: אני רוצה חיטוב לקראת הקיץ, מתאמן 4 פעמים כוח, עובד משמרות לילה ורוצה לשמור על מסת שריר..."></textarea>
-          <button id="ai-calc-goals-btn" class="ai-calc-goals-btn" onclick="AppState.calculateGoalsWithAI()" title="נתח וחשב יעדים מותאמים אישית">
+          <button aria-label="נתח וחשב יעדים מותאמים אישית" id="ai-calc-goals-btn" class="ai-calc-goals-btn" onclick="AppState.calculateGoalsWithAI()" title="נתח וחשב יעדים מותאמים אישית">
             <span>✨ נתח וחשב יעדים אישיים עם AI</span>
           </button>
         </div>
@@ -1080,7 +1081,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <span class="modal-title">⚙️ הגדרות, סנכרון ו-Garmin</span>
-        <button class="close-modal-btn" onclick="AppState.closeModal('settings-modal')">✕</button>
+        <button class="close-modal-btn" aria-label="סגור" onclick="AppState.closeModal('settings-modal')">✕</button>
       </div>
 
       <div class="form-group">
@@ -1195,7 +1196,7 @@
     <div class="modal-content" style="max-width: 440px;">
       <div class="modal-header">
         <span class="modal-title">📷 סורק ברקודים (Hunter Artifact Scan)</span>
-        <button class="close-modal-btn" onclick="AppState.closeBarcodeScanner()">✕</button>
+        <button class="close-modal-btn" aria-label="סגור" onclick="AppState.closeBarcodeScanner()">✕</button>
       </div>
 
       <!-- Live Video Viewport with Laser Reticle -->
@@ -1260,7 +1261,7 @@
     <div class="modal-content" style="max-width: 440px;">
       <div class="modal-header">
         <span class="modal-title">💾 לימוד מוצר חדש (Hunter Food Registry)</span>
-        <button class="close-modal-btn" onclick="AppState.closeModal('new-product-modal')">✕</button>
+        <button class="close-modal-btn" aria-label="סגור" onclick="AppState.closeModal('new-product-modal')">✕</button>
       </div>
       <p style="font-size:12px; color:var(--text-secondary);">
         הזן את ערכי המוצר (ל-100 גרם). המערכת תשמור אותו לתמיד ותזהה אותו אוטומטית בכל סריקה עתידית!
@@ -1309,7 +1310,7 @@
     <div class="modal-content" style="max-width: 520px;">
       <div class="modal-header">
         <span class="modal-title">⌚ סנכרון מדדי שעון ואפליקציית בריאות (Health / Garmin)</span>
-        <button class="close-modal-btn" onclick="AppState.closeModal('garmin-modal')">✕</button>
+        <button class="close-modal-btn" aria-label="סגור" onclick="AppState.closeModal('garmin-modal')">✕</button>
       </div>
 
       <!-- Modal Tab Switcher -->
@@ -1520,7 +1521,7 @@
     <div class="modal-content" style="max-width:480px; max-height:90vh; overflow-y:auto; border:1px solid #1e2433; box-shadow: 0 10px 35px rgba(0,0,0,0.8); background:#0c0e14;">
       <div class="modal-header" style="background: #11141d; border-bottom: 1px solid #1a202c;">
         <span class="modal-title">🔍 AI זיהוי מזון מתמונה</span>
-        <button class="close-modal-btn" onclick="AppState.closeVisionModal()">✕</button>
+        <button class="close-modal-btn" aria-label="סגור" onclick="AppState.closeVisionModal()">✕</button>
       </div>
       <div id="vision-loading" style="text-align:center; padding:30px 20px; display:none;">
         <div style="font-size:40px; animation: spin 1s linear infinite; display:inline-block;">⚙️</div>
@@ -1562,7 +1563,7 @@
     <div class="modal-content" style="max-width: 440px; max-height: 90vh; overflow-y: auto;">
       <div class="modal-header">
         <span class="modal-title">💊 ניהול מנות פוקוס (אטנט / Attent)</span>
-        <button class="close-modal-btn" onclick="AppState.closeModal('attent-modal')">✕</button>
+        <button class="close-modal-btn" aria-label="סגור" onclick="AppState.closeModal('attent-modal')">✕</button>
       </div>
       <p style="font-size:12px; color:var(--text-secondary); line-height:1.5;">
         מעקב חכם אחר נטילת מנות אטנט ובוסטרים: המערכת מנרמלת אוטומטית את מדדי הסטרס וה-HRV ב-Garmin ומחשבת את ההשפעה הפרמקוקינטית המשולבת.
@@ -1648,7 +1649,7 @@
     <div class="modal-content" style="max-width: 440px;">
       <div class="modal-header">
         <span class="modal-title">⚔️ רישום אימון ועליית סקילים (Workout Log)</span>
-        <button class="close-modal-btn" onclick="AppState.closeModal('workout-modal')">✕</button>
+        <button class="close-modal-btn" aria-label="סגור" onclick="AppState.closeModal('workout-modal')">✕</button>
       </div>
       <p style="font-size:12px; color:var(--text-secondary); line-height:1.5;">
         השלמת אימון כוח מקדמת את יכולת <strong>כוח ענקים</strong> ומעלה נקודות STR! ריצה או אירובי מקדמים את <strong>צעדי צללים</strong> ומעלים AGI וסיבולת!
@@ -1696,7 +1697,7 @@
     <div class="modal-content" style="max-width: 440px;">
       <div class="modal-header">
         <span class="modal-title">🧪 הוספת תוסף מותאם (Custom Elixir)</span>
-        <button class="close-modal-btn" onclick="AppState.closeModal('supplement-modal')">✕</button>
+        <button class="close-modal-btn" aria-label="סגור" onclick="AppState.closeModal('supplement-modal')">✕</button>
       </div>
       <div class="form-group">
         <label class="form-label">שם התוסף / ויטמין</label>
@@ -1728,7 +1729,7 @@
     <div class="modal-content" style="max-width: 480px;">
       <div class="modal-header">
         <span class="modal-title">💊 מנוע ניטרול הטיית אטנט במדדי Garmin</span>
-        <button class="close-modal-btn" onclick="AppState.closeModal('attent-norm-modal')">✕</button>
+        <button class="close-modal-btn" aria-label="סגור" onclick="AppState.closeModal('attent-norm-modal')">✕</button>
       </div>
 
       <div class="norm-modal-body">
@@ -1784,7 +1785,7 @@
     <div class="modal-content" style="max-width: 470px;">
       <div class="modal-header">
         <span class="modal-title" style="color:#f87171;">⚠️ איפוס מערכת והתחלה מחדש</span>
-        <button class="close-modal-btn" onclick="AppState.closeModal('reset-modal')">✕</button>
+        <button class="close-modal-btn" aria-label="סגור" onclick="AppState.closeModal('reset-modal')">✕</button>
       </div>
 
       <!-- Option A: Daily Reset -->
@@ -1884,92 +1885,13 @@
     </div>
   </div>
 
-  <!-- RANK CONSTELLATION MODAL (Matching Image 4) -->
-  <div id="rank-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('rank-modal')" style="display:none;">
-    <div class="modal-content rank-modal-content">
-      <div class="modal-header rank-header">
-        <div class="rank-header-titles">
-          <div class="rank-modal-tag">HUNTER ASSOCIATION SYSTEM</div>
-          <h2 class="rank-modal-main-title">מערכת דרגות ורנקים</h2>
-          <div class="rank-modal-sub">התקדמות מ-E-Rank ועד לדרגת SSS • Shadow Monarch</div>
-        </div>
-        <button class="close-modal-btn" onclick="AppState.closeModal('rank-modal')">✕</button>
-      </div>
-
-      <!-- Hero Center Badge for Current Rank -->
-      <div class="rank-hero-center">
-        <div class="rank-hex-hero-wrapper">
-          <div id="rank-hero-hex" class="rank-hex-hero rank-e">
-            <span id="rank-hero-letter" class="rank-hero-letter">E</span>
-          </div>
-          <div class="rank-hex-glow-pulse"></div>
-        </div>
-        <div class="rank-hero-info">
-          <div id="rank-hero-title-text" class="rank-hero-title-text">צייד שהתעורר</div>
-          <div id="rank-hero-level-range" class="rank-hero-level-range">רמות 1 - 9</div>
-          <div class="rank-hero-progression-bar-box">
-            <div class="rank-prog-label">
-              <span>התקדמות לרנק הבא</span>
-              <span id="rank-hero-next-label">D-Rank (רמה 10)</span>
-            </div>
-            <div class="rank-bar-bg">
-              <div id="rank-hero-bar-fill" class="rank-bar-fill" style="width: 10%;"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Constellation Grid of all 8 Ranks -->
-      <div class="rank-constellation-container">
-        <div class="rank-constellation-title">מפת הרנקים של המערכת</div>
-        <div class="rank-constellation-grid" id="rank-constellation-grid">
-          <!-- Injected dynamically by AppState.renderRankModal() -->
-        </div>
-      </div>
-
-      <!-- ARISE Aesthetic Footer -->
-      <div class="arise-footer-banner">
-        <div class="arise-glow-text">A R I S E</div>
-        <div class="arise-subtext">BECOME THE SHADOW MONARCH</div>
-        <button class="share-rank-btn" onclick="AppState.shareRank()">
-          <span>📤 שתף כרטיס צייד</span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ACHIEVEMENTS & TROPHIES MODAL (Matching Image 2) -->
-  <div id="achievements-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('achievements-modal')" style="display:none;">
-    <div class="modal-content achievements-modal-content">
-      <div class="modal-header">
-        <div class="ach-header-titles">
-          <div class="ach-tag">ACHIEVEMENTS SYSTEM</div>
-          <h2 class="modal-title" style="color:#fbbf24;">🏆 גביעים והישגים</h2>
-          <div class="ach-header-stats">
-            <span id="ach-unlocked-count-text">0 / 13 פתוחים</span>
-            <div class="ach-mini-prog-bg">
-              <div id="ach-mini-prog-fill" class="ach-mini-prog-fill" style="width:0%;"></div>
-            </div>
-          </div>
-        </div>
-        <button class="close-modal-btn" onclick="AppState.closeModal('achievements-modal')">✕</button>
-      </div>
-
-      <div class="achievements-body">
-        <p class="ach-intro-subtitle">עמוד ביעדי אימונים, תזונה, סטרייק ורמות כדי לפתוח גביעים ולהתעורר:</p>
-        <div id="achievements-hex-grid" class="achievements-hex-grid">
-          <!-- Dynamic rendering via AppState.renderAchievements() -->
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- ACTIVITY & PROGRESSION CALENDAR MODAL (לוח שנה היסטורי) -->
   <div id="calendar-modal" class="modal-overlay" onclick="if(event.target===this) AppState.closeModal('calendar-modal')" style="display:none;">
     <div class="modal-content calendar-modal-content" style="max-width: 540px;">
       <div class="modal-header">
         <span class="modal-title">📅 יומן פעילות והתקדמות צייד כרונית</span>
-        <button class="close-modal-btn" onclick="AppState.closeModal('calendar-modal')">✕</button>
+        <button class="close-modal-btn" aria-label="סגור" onclick="AppState.closeModal('calendar-modal')">✕</button>
       </div>
 
       <!-- Month Navigation Bar -->
@@ -2042,7 +1964,7 @@
             <span id="weekly-date-range-sub" style="display:block; font-size:11px; color:var(--text-secondary); margin-top:2px;">7 ימים אחרונים</span>
           </div>
         </div>
-        <button class="close-modal-btn" onclick="AppState.closeModal('weekly-report-modal')">✕</button>
+        <button class="close-modal-btn" aria-label="סגור" onclick="AppState.closeModal('weekly-report-modal')">✕</button>
       </div>
 
       <!-- SHIFT & ACTIVITY STATUS CHIP -->
@@ -2123,7 +2045,7 @@
           <span class="penalty-system-alert">[ אזהרת מערכת • SYSTEM WARNING ]</span>
           <span class="penalty-system-main" id="penalty-modal-title">הופעלה משימת עונש!</span>
         </div>
-        <button type="button" class="close-modal-btn" onclick="AppState.closePenaltyModal()" title="סגור חלון">✕</button>
+        <button aria-label="סגור חלון" type="button" class="close-modal-btn" onclick="AppState.closePenaltyModal()" title="סגור חלון">✕</button>
       </div>
       
       <div class="penalty-modal-body">
@@ -2159,27 +2081,27 @@
 
   <!-- FIXED BOTTOM NAVIGATION BAR (6 Clean Tab Panels) -->
   <nav class="bottom-nav-bar" id="bottom-nav-bar">
-    <button type="button" class="bottom-nav-item active" id="nav-item-profile" onclick="AppState.navTo('profile')" title="פרופיל ראשי">
+    <button aria-label="פרופיל ראשי" type="button" class="bottom-nav-item active" id="nav-item-profile" onclick="AppState.navTo('profile')" title="פרופיל ראשי">
       <span class="nav-icon">👤</span>
       <span class="nav-text">פרופיל</span>
     </button>
-    <button type="button" class="bottom-nav-item" id="nav-item-workouts" onclick="AppState.navTo('workouts')" title="אימונים">
+    <button aria-label="אימונים" type="button" class="bottom-nav-item" id="nav-item-workouts" onclick="AppState.navTo('workouts')" title="אימונים">
       <span class="nav-icon">🏋️</span>
       <span class="nav-text">אימונים</span>
     </button>
-    <button type="button" class="bottom-nav-item" id="nav-item-quests" onclick="AppState.navTo('quests')" title="משימות יומיות">
+    <button aria-label="משימות יומיות" type="button" class="bottom-nav-item" id="nav-item-quests" onclick="AppState.navTo('quests')" title="משימות יומיות">
       <span class="nav-icon">📜</span>
       <span class="nav-text">משימות</span>
     </button>
-    <button type="button" class="bottom-nav-item" id="nav-item-nutrition" onclick="AppState.navTo('nutrition')" title="תזונה וקלוריות">
+    <button aria-label="תזונה וקלוריות" type="button" class="bottom-nav-item" id="nav-item-nutrition" onclick="AppState.navTo('nutrition')" title="תזונה וקלוריות">
       <span class="nav-icon">🍏</span>
       <span class="nav-text">תזונה</span>
     </button>
-    <button type="button" class="bottom-nav-item" id="nav-item-health" onclick="AppState.navTo('health')" title="מדדי Garmin & בריאות">
+    <button aria-label="מדדי Garmin & בריאות" type="button" class="bottom-nav-item" id="nav-item-health" onclick="AppState.navTo('health')" title="מדדי Garmin & בריאות">
       <span class="nav-icon">📊</span>
       <span class="nav-text">בריאות</span>
     </button>
-    <button type="button" class="bottom-nav-item" id="nav-item-badges" onclick="AppState.navTo('badges')" title="גביעים והישגים">
+    <button aria-label="גביעים והישגים" type="button" class="bottom-nav-item" id="nav-item-badges" onclick="AppState.navTo('badges')" title="גביעים והישגים">
       <span class="nav-icon">🏆</span>
       <span class="nav-text">הישגים</span>
       <span id="nav-badge-pill" class="nav-badge-pill">1</span>
@@ -2187,7 +2109,7 @@
   </nav>
 
   <!-- FLOATING AI CONSULTATION BUTTON -->
-  <button id="floating-ai-consult-btn" class="floating-ai-consult-btn" onclick="AppState.openAIConsultationModal()" title="התייעצות עם יועץ המערכת">
+  <button aria-label="התייעצות עם יועץ המערכת" id="floating-ai-consult-btn" class="floating-ai-consult-btn" onclick="AppState.openAIConsultationModal()" title="התייעצות עם יועץ המערכת">
     <span class="ai-dot"></span>
     <span>💬 יועץ AI</span>
   </button>
@@ -2205,7 +2127,7 @@
               <span class="ai-consult-subtitle">מחובר ישירות לפרופיל הצייד שלך בזמן אמת</span>
             </div>
           </div>
-          <button type="button" class="ai-consult-close-btn" onclick="AppState.closeAIConsultationModal()" title="סגור חלון">✕</button>
+          <button aria-label="סגור חלון" type="button" class="ai-consult-close-btn" onclick="AppState.closeAIConsultationModal()" title="סגור חלון">✕</button>
         </div>
         <!-- Live Hunter Status Strip -->
         <div class="ai-consult-hunter-strip">
@@ -2293,7 +2215,7 @@
       <div class="awakening-screen-header">
         <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:8px;">
           <div class="awakening-badge-tag">[ SYSTEM PROTOCOL: HUNTER AWAKENING ]</div>
-          <button class="awakening-close-top-btn" onclick="AppState.closeFirstTimeAwakening()" title="סגור חלון">✕</button>
+          <button aria-label="סגור חלון" class="awakening-close-top-btn" onclick="AppState.closeFirstTimeAwakening()" title="סגור חלון">✕</button>
         </div>
         <div class="awakening-gate-rune">⚡</div>
         <h1 class="awakening-main-title">טקס ההתעוררות של הצייד</h1>
@@ -2351,7 +2273,7 @@
         <!-- Chat Input Bar -->
         <div class="awakening-chat-input-row">
           <textarea id="awakening-chat-input" class="awakening-chat-textarea" placeholder="רשום ל-AI כאן: מה המטרה, משקל, גובה, אימונים ושגרה..." rows="2" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();AppState.sendAwakeningChat();}"></textarea>
-          <button id="awakening-chat-send-btn" class="awakening-chat-send-btn" onclick="AppState.sendAwakeningChat()" title="שלח ל-AI">
+          <button aria-label="שלח ל-AI" id="awakening-chat-send-btn" class="awakening-chat-send-btn" onclick="AppState.sendAwakeningChat()" title="שלח ל-AI">
             <span>שלח</span>
             <span style="font-size:16px;">⚡</span>
           </button>

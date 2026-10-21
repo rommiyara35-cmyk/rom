@@ -16,7 +16,7 @@
   --neon-red: #ef4444;
   --text-primary: #f8fafc;
   --text-secondary: #8E8E93;
-  --text-dim: #636366;
+  --text-dim: #9C9CA3;
   --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --font-mono: "SF Mono", Menlo, Monaco, Consolas, monospace;
 }
@@ -2210,8 +2210,9 @@ button:active, .btn:active, .potion-btn:active, .dose-pill-btn:active, .bottom-n
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: #e2e8f0;
-  font-size: 10px;
+  font-size: 13px;
   padding: 3px 8px;
+  min-height: 44px;
   border-radius: 6px;
   cursor: pointer;
   display: flex;
@@ -5089,10 +5090,10 @@ textarea {
 }
 
 .hud-btn-icon {
-  width: 38px;
-  height: 38px;
-  min-width: 38px;
-  min-height: 38px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 10px;
   font-size: 17px;
   display: flex;
@@ -7570,3 +7571,31 @@ input:focus, select:focus, textarea:focus {
 
 /* Links use the single accent */
 a { color: var(--ios-blue); }
+
+/* B3: stale-cache badge (yesterday's data shown on cold start) */
+#stale-cache-badge {
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+  background: rgba(255, 149, 0, 0.14);
+  color: #ffb340;
+  border-bottom: 1px solid rgba(255, 149, 0, 0.35);
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* B4: sync-age honesty pill */
+.garmin-sync-age-pill {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.garmin-sync-age-pill.fresh { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+.garmin-sync-age-pill.aging { background: rgba(255, 149, 0, 0.15); color: #ffb340; }
+.garmin-sync-age-pill.stale { background: rgba(239, 68, 68, 0.15); color: #f87171; }
