@@ -10,6 +10,7 @@ import os
 import sys
 import json
 import math
+import re
 import sqlite3
 import datetime
 import socket
@@ -17,7 +18,7 @@ import calendar
 import base64
 import ssl
 import urllib.request
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import HTTPServer, SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 def _get_ssl_context():
@@ -165,6 +166,11 @@ def get_israel_now():
         import zoneinfo
         return datetime.datetime.now(zoneinfo.ZoneInfo("Asia/Jerusalem"))
     except Exception:
+        # L3: defensive fallback only (zoneinfo ships with Python 3.9+).
+        # Fixed UTC+3 is wrong in winter (IST = UTC+2); warn loudly.
+        import traceback
+        print("WARNING: zoneinfo unavailable, falling back to fixed UTC+3 "
+              "(wrong during winter IST=UTC+2):", traceback.format_exc(limit=1))
         tz = datetime.timezone(datetime.timedelta(hours=3))
         return datetime.datetime.now(tz)
 
@@ -406,11 +412,231 @@ def infer_food_micronutrients(food_name, serving_size_g, serving_count=1.0):
 # -------------------------------------------------------------
 # Database Manager
 # -------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Database compatibility layer (C1 fix)
+# ---------------------------------------------------------------------------
+# Local dev uses SQLite (fitness_system.db). Production should set
+# DATABASE_URL to a hosted Postgres (Supabase / Neon / Render Postgres —
+# see POSTGRES_SETUP_HE.md), otherwise every Render redeploy wipes the DB
+# because Render's free filesystem is ephemeral.
+#
+# All SQL in this file keeps using `?` placeholders and SQLite idioms;
+# they are translated to Postgres dialect automatically when DATABASE_URL
+# is set. SQLite connections get WAL mode + busy timeout so the threaded
+# server (H5) doesn't hit "database is locked".
+# ---------------------------------------------------------------------------
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+USE_POSTGRES = bool(DATABASE_URL)
+
+# sync_source values that mean "simulated / estimated", never a real sensor.
+SIMULATED_SYNC_SOURCES = {"smart_diurnal", "attent_log", "simulated", "file_fallback", "smart_sync"}
+
+
+def _pg_translate_sql(sql):
+    """Translate SQLite-dialect SQL to Postgres. Only used in PG mode."""
+    # DDL: AUTOINCREMENT -> SERIAL
+    sql = re.sub(r"\bINTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT\b",
+                 "SERIAL PRIMARY KEY", sql, flags=re.IGNORECASE)
+    # date('now') -> CURRENT_DATE  (multi-arg date('now','localtime') is NOT
+    # translated on purpose: call sites were fixed to bind Python dates - M1)
+    sql = re.sub(r"\bdate\s*\(\s*'now'\s*\)", "CURRENT_DATE", sql, flags=re.IGNORECASE)
+    # LIKE -> ILIKE (SQLite LIKE is case-insensitive; PG LIKE is not)
+    sql = re.sub(r"\bLIKE\b", "ILIKE", sql, flags=re.IGNORECASE)
+    # INSERT OR IGNORE -> INSERT ... ON CONFLICT DO NOTHING
+    if re.match(r"\s*INSERT\s+OR\s+IGNORE\s+INTO\b", sql, flags=re.IGNORECASE):
+        sql = re.sub(r"\bINSERT\s+OR\s+IGNORE\s+INTO\b", "INSERT INTO",
+                     sql, count=1, flags=re.IGNORECASE)
+        sql = sql.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING"
+    # ? placeholders -> %s, skipping string literals, quoted identifiers
+    # and comments so a literal '?' is never rewritten.
+    out = []
+    i, n = 0, len(sql)
+    while i < n:
+        ch = sql[i]
+        if ch == "'":
+            out.append(ch)
+            i += 1
+            while i < n:
+                out.append(sql[i])
+                if sql[i] == "'":
+                    i += 1
+                    if i < n and sql[i] == "'":
+                        out.append(sql[i])
+                        i += 1
+                        continue
+                    break
+                i += 1
+        elif ch == '"':
+            out.append(ch)
+            i += 1
+            while i < n and sql[i] != '"':
+                out.append(sql[i])
+                i += 1
+            if i < n:
+                out.append(sql[i])
+                i += 1
+        elif ch == "-" and i + 1 < n and sql[i + 1] == "-":
+            j = sql.find("\n", i)
+            j = n if j == -1 else j
+            out.append(sql[i:j])
+            i = j
+        elif ch == "/" and i + 1 < n and sql[i + 1] == "*":
+            j = sql.find("*/", i + 2)
+            j = n if j == -1 else j + 2
+            out.append(sql[i:j])
+            i = j
+        elif ch == "?":
+            out.append("%s")
+            i += 1
+        else:
+            out.append(ch)
+            i += 1
+    return "".join(out)
+
+
+class _CompatRow:
+    """sqlite3.Row-compatible row for Postgres results.
+
+    Supports row["col"], row[0], dict(row), len(row), iteration and `in`.
+    """
+    __slots__ = ("_cols", "_vals", "_map")
+
+    def __init__(self, cols, vals):
+        self._cols = list(cols)
+        self._vals = tuple(vals)
+        self._map = {c: i for i, c in enumerate(self._cols)}
+
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            return self._vals[self._map[key]]
+        return self._vals[key]
+
+    def __iter__(self):
+        return iter(self._vals)
+
+    def __len__(self):
+        return len(self._vals)
+
+    def keys(self):
+        return list(self._cols)
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except (KeyError, IndexError):
+            return default
+
+    def __contains__(self, key):
+        return key in self._map
+
+
+class _PGCursor:
+    """Cursor wrapper: translates SQL dialect, returns _CompatRow rows,
+    and emulates sqlite3's `lastrowid` via RETURNING id."""
+
+    def __init__(self, cur):
+        self._cur = cur
+        self._lastrowid = None
+
+    def execute(self, sql, params=()):
+        tsql = _pg_translate_sql(sql)
+        stripped = tsql.lstrip().upper()
+        is_insert = stripped.startswith("INSERT")
+        if is_insert and "RETURNING" not in stripped:
+            tsql = tsql.rstrip().rstrip(";") + " RETURNING id"
+        self._cur.execute(tsql, params)
+        if is_insert:
+            try:
+                r = self._cur.fetchone()
+                self._lastrowid = r[0] if r else None
+            except Exception:
+                self._lastrowid = None
+        return self
+
+    def executemany(self, sql, seq):
+        return self._cur.executemany(_pg_translate_sql(sql), seq)
+
+    def _wrap(self, row):
+        if row is None:
+            return None
+        cols = [d[0] for d in (self._cur.description or [])]
+        return _CompatRow(cols, row)
+
+    def fetchone(self):
+        return self._wrap(self._cur.fetchone())
+
+    def fetchall(self):
+        cols = [d[0] for d in (self._cur.description or [])]
+        return [_CompatRow(cols, r) for r in self._cur.fetchall()]
+
+    def fetchmany(self, size=None):
+        cols = [d[0] for d in (self._cur.description or [])]
+        rows = self._cur.fetchmany(size) if size else self._cur.fetchmany()
+        return [_CompatRow(cols, r) for r in rows]
+
+    @property
+    def lastrowid(self):
+        return self._lastrowid
+
+    @property
+    def rowcount(self):
+        return self._cur.rowcount
+
+    @property
+    def description(self):
+        return self._cur.description
+
+    def close(self):
+        return self._cur.close()
+
+
+class _PGConnection:
+    """Connection wrapper delegating to psycopg2 (context-manager = commit)."""
+
+    def __init__(self, raw):
+        self._raw = raw
+
+    def cursor(self):
+        return _PGCursor(self._raw.cursor())
+
+    def commit(self):
+        return self._raw.commit()
+
+    def rollback(self):
+        return self._raw.rollback()
+
+    def close(self):
+        return self._raw.close()
+
+    def __enter__(self):
+        self._raw.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        return self._raw.__exit__(*args)
+
+
 class Database:
     @staticmethod
     def get_connection():
+        if USE_POSTGRES:
+            try:
+                import psycopg2
+            except ImportError:
+                raise RuntimeError(
+                    "DATABASE_URL is set but psycopg2 is not installed. "
+                    "Add psycopg2-binary to requirements.txt and redeploy.")
+            raw = psycopg2.connect(DATABASE_URL)
+            return _PGConnection(raw)
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
+        try:
+            # WAL + busy timeout: lets the threaded server survive concurrent
+            # readers/writers instead of raising "database is locked".
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=5000")
+        except Exception:
+            pass
         return conn
 
     @classmethod
@@ -1343,22 +1569,13 @@ class GarminDataEngine:
             clean = GarminDataEngine.clean_biometric_number(sleep_score_val, mode="latest")
             if clean is not None:
                 val = float(clean)
-                if val <= 14.0 and "sleep_hours" not in bio:
-                    bio["sleep_hours"] = round(val, 1)
-                elif val > 14.0 and val <= 100.0:
+                # M2 fix: a field explicitly named *score* is a score (0-100).
+                # A terrible night can legitimately score 12/100 - never
+                # reinterpret that as 12 hours slept, and never invent the
+                # missing field from it. Ambiguous out-of-range values are
+                # dropped rather than guessed.
+                if 0.0 <= val <= 100.0:
                     bio["sleep_score"] = int(val)
-
-        # If sleep hours was provided but not sleep score, infer a realistic scientific sleep score
-        if "sleep_hours" in bio and "sleep_score" not in bio:
-            sh = bio["sleep_hours"]
-            if sh >= 8.0:
-                bio["sleep_score"] = min(98, int(85 + (sh - 8.0) * 5))
-            elif sh >= 7.0:
-                bio["sleep_score"] = int(80 + (sh - 7.0) * 10)
-            elif sh >= 6.0:
-                bio["sleep_score"] = int(68 + (sh - 6.0) * 12)
-            elif sh > 0:
-                bio["sleep_score"] = max(35, int(sh * 11))
 
         # Stress
         stress_val = get_val(["stress_level", "stressScore", "stress", "stress_score", "stresslevel", "לחץ", "סטרס", "רמת לחץ", "רמת_לחץ", "מדד סטרס"])
@@ -1410,9 +1627,9 @@ class GarminDataEngine:
         if hrv_val is not None:
             clean_hrv = GarminDataEngine.clean_biometric_number(hrv_val, mode="latest")
             if clean_hrv is not None and isinstance(clean_hrv, (int, float)) and clean_hrv > 5:
-                if "stress_level" not in bio:
-                    derived_stress = max(12, min(88, int(105 - (clean_hrv * 1.35))))
-                    bio["stress_level"] = derived_stress
+                # M3 fix: HRV is stored as a categorical status only. A stress
+                # number must come from a real sensor - never fabricate one
+                # from HRV with a magic formula.
                 bio["hrv_status"] = "balanced" if clean_hrv >= 40 else ("unbalanced" if clean_hrv >= 25 else "low")
             else:
                 bio["hrv_status"] = str(hrv_val)
@@ -1764,7 +1981,9 @@ class AttentBiometricNormalizer:
 
         # 1. Stress Offset (Garmin Firstbeat inflation compensation)
         base_stress_offset = 24.0 * effective_potency
-        stress_offset = int(round(base_stress_offset))
+        # L1: product spec caps the stress compensation at 24 points,
+        # even for stacked doses (superposition scales potency above 1.0).
+        stress_offset = min(24, int(round(base_stress_offset)))
         norm_stress = max(12, raw_stress - stress_offset)
 
         # 2. Resting Heart Rate Offset (sympathomimetic chronotropic compensation)
@@ -1933,14 +2152,20 @@ class HunterHealthAIAdvisor:
         c = conn.cursor()
         now = get_israel_now()
 
-        # 1. Fetch candidate medication logs for today, current local calendar date, or previous date (supporting night shifts)
+        # 1. Fetch candidate medication logs for the shift date and the Israel
+        #    calendar dates around it (supporting night shifts).
+        #    M1 fix: compute the dates in Python from Asia/Jerusalem instead of
+        #    SQLite date('now','localtime'), which follows the server OS
+        #    timezone (UTC on Render) and pulled in wrong-day doses.
+        il_today = now.date().isoformat()
+        il_yesterday = (now.date() - datetime.timedelta(days=1)).isoformat()
         c.execute("""
-            SELECT * FROM medication_logs 
-            WHERE date = ? 
-               OR date = date('now', 'localtime') 
-               OR date = date('now', 'localtime', '-1 day')
+            SELECT * FROM medication_logs
+            WHERE date = ?
+               OR date = ?
+               OR date = ?
             ORDER BY id DESC
-        """, (today,))
+        """, (today, il_today, il_yesterday))
         raw_meds = [dict(r) for r in c.fetchall()]
         seen_med_ids = set()
         meds = []
@@ -1952,6 +2177,21 @@ class HunterHealthAIAdvisor:
         # 2. Check for active Attent (supporting night shift crossovers, boosters, and multiple doses)
         attent_info = None
         attent_doses = []
+        # H4 fix: resolve each dose to its TRUE calendar datetime. Doses are
+        # stored under the *shift* date; a timestamp before the day-reset hour
+        # belongs to the next calendar day. The old fuzzy "18-30h crossover"
+        # hack is gone - it resurrected day-old doses as active.
+        try:
+            c.execute("SELECT day_reset_hour, shift_mode FROM hunter_profile WHERE id=1")
+            _pr = c.fetchone()
+            if _pr and _pr["day_reset_hour"] is not None:
+                reset_hour = int(_pr["day_reset_hour"])
+            elif _pr and _pr["shift_mode"] == "night":
+                reset_hour = 8
+            else:
+                reset_hour = 0
+        except Exception:
+            reset_hour = 0
         for m in meds:
             if (m.get("med_name") or "").lower() == "attent":
                 med_date_str = m.get("date") or today
@@ -1961,15 +2201,18 @@ class HunterHealthAIAdvisor:
                     dose_hour = int(time_parts[0])
                     dose_min = int(time_parts[1]) if len(time_parts) > 1 else 0
                     d_parts = [int(p) for p in med_date_str.split("-")]
-                    dose_dt = datetime.datetime(d_parts[0], d_parts[1], d_parts[2], dose_hour, dose_min, 0)
-                    now_dt = datetime.datetime(now.year, now.month, now.day, now.hour, now.minute, now.second)
-                    diff_sec = (now_dt - dose_dt).total_seconds()
-
-                    # Shift worker night crossover:
-                    # If dose was logged under shift date (e.g. yesterday) but taken post-midnight (00:00-08:00)
-                    if 18 * 3600 <= diff_sec <= 30 * 3600 and now.hour < 12 and dose_hour < 12:
-                        dose_dt += datetime.timedelta(days=1)
-                        diff_sec = (now_dt - dose_dt).total_seconds()
+                    dose_cal_date = datetime.date(d_parts[0], d_parts[1], d_parts[2])
+                    if dose_hour < reset_hour:
+                        dose_cal_date += datetime.timedelta(days=1)
+                    # M5 fix: compare in UTC. (Naive datetimes, and even aware
+                    # datetimes sharing the *same* tzinfo object, are compared
+                    # as wall-clock by CPython - both get DST transitions
+                    # wrong by exactly one hour.)
+                    dose_dt = datetime.datetime(
+                        dose_cal_date.year, dose_cal_date.month, dose_cal_date.day,
+                        dose_hour, dose_min, 0, tzinfo=now.tzinfo)
+                    diff_sec = (now.astimezone(datetime.timezone.utc)
+                                - dose_dt.astimezone(datetime.timezone.utc)).total_seconds()
 
                     # Grace period for clock skew / future 30 mins
                     if -1800 <= diff_sec < 0:
@@ -2043,33 +2286,35 @@ class HunterHealthAIAdvisor:
                 "doses": attent_doses
             }
 
-        # 3. Fetch or Seed Garmin biometrics row
+        # 3. Fetch Garmin biometrics row - READ ONLY (H3 fix).
+        #    Simulations are computed in-memory for display and NEVER persisted.
+        #    Rows left behind by the old simulated seeding (sync_source in
+        #    SIMULATED_SYNC_SOURCES) are treated as fully simulated, so the next
+        #    real sync reclaims every field instead of inheriting fake numbers.
         c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
         g_row = c.fetchone()
-        if not g_row:
-            seed_bio = GarminDataEngine.generate_smart_diurnal_biometrics(now, attent_info)
-            now_time = now.strftime("%H:%M")
-            c.execute("""
-            INSERT OR IGNORE INTO garmin_health_logs 
-            (date, timestamp, heart_rate, resting_hr, sleep_score, sleep_hours, stress_level, body_battery, steps, active_calories, sync_source)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                today, now_time,
-                seed_bio["heart_rate"], seed_bio["resting_hr"],
-                seed_bio["sleep_score"], seed_bio["sleep_hours"],
-                seed_bio["stress_level"], seed_bio["body_battery"],
-                seed_bio["steps"], seed_bio["active_calories"],
-                seed_bio.get("sync_source", "smart_diurnal")
-            ))
-            conn.commit()
-            c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (today,))
-            g_row = c.fetchone()
+        real = dict(g_row) if g_row else {}
+        stored_source = real.get("sync_source")
+        row_is_simulated = (not real) or (stored_source in SIMULATED_SYNC_SOURCES)
 
-        garmin = dict(g_row) if g_row else {
-            "heart_rate": 68, "resting_hr": 58, "sleep_score": 82, "sleep_hours": 7.2,
-            "stress_level": 28, "body_battery": 75, "steps": 8500, "active_calories": 450,
-            "spo2_pct": 98, "respiration_rpm": 14
-        }
+        seed_bio = GarminDataEngine.generate_smart_diurnal_biometrics(now, attent_info)
+        metric_fields = ("heart_rate", "resting_hr", "sleep_score", "sleep_hours",
+                         "stress_level", "body_battery", "steps", "active_calories",
+                         "spo2_pct", "respiration_rpm", "vo2_max", "hrv_status")
+        garmin = {}
+        simulated_fields = []
+        for k in metric_fields:
+            v = real.get(k)
+            if v is None or row_is_simulated:
+                garmin[k] = seed_bio.get(k)
+                simulated_fields.append(k)
+            else:
+                garmin[k] = v
+        garmin["timestamp"] = real.get("timestamp") or now.strftime("%H:%M")
+        garmin["date"] = today
+        garmin["sync_source"] = stored_source or "simulated"
+        # Transparency marker: which displayed values are estimates, not measurements.
+        garmin["_simulated_fields"] = simulated_fields
 
         return garmin, attent_info, meds
 
@@ -2167,8 +2412,8 @@ class HunterHealthAIAdvisor:
                 "action_text": "הוסף שיקוי חיים (+250ml)"
             })
 
-            # (D) Crash Buffer Timing
-            if rem <= 2.5 and rem > 0:
+            # (D) Crash Buffer Timing - L2: product spec defines a 1.5h window
+            if rem <= 1.5 and rem > 0:
                 insights.append({
                     "id": "attent_crash_buffer",
                     "category": "timing",
@@ -4901,20 +5146,27 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 self._set_headers(400)
                 self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
         elif path == "/api/medication/attent" or path.startswith("/api/medication/attent/"):
-            dose_id = None
-            if path.startswith("/api/medication/attent/"):
-                try:
-                    dose_id = int(path.split("/")[-1])
-                except Exception:
-                    pass
-            else:
-                if "id" in parsed_query:
+            # H1 fix: parsed_query was referenced unbound here (NameError) and
+            # the branch had no try/except, killing the connection silently.
+            try:
+                parsed_query = parse_qs(parsed.query)
+                dose_id = None
+                if path.startswith("/api/medication/attent/"):
                     try:
-                        dose_id = int(parsed_query["id"][0])
+                        dose_id = int(path.split("/")[-1])
                     except Exception:
                         pass
-            date_param = parsed_query.get("date", [None])[0] or parsed_query.get("client_date", [None])[0]
-            self.handle_delete_attent(dose_id, date_param)
+                else:
+                    if "id" in parsed_query:
+                        try:
+                            dose_id = int(parsed_query["id"][0])
+                        except Exception:
+                            pass
+                date_param = parsed_query.get("date", [None])[0] or parsed_query.get("client_date", [None])[0]
+                self.handle_delete_attent(dose_id, date_param)
+            except Exception as e:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
         elif path.startswith("/api/supplements/log/"):
             try:
                 supp_id = int(path.split("/")[-1])
@@ -6982,28 +7234,42 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 c = conn.cursor()
                 now_time = get_israel_now().strftime("%H:%M")
 
-                # Atomically ensure today's record exists without ANY UNIQUE constraint race conditions
+                # H2 fix: ensure today's row exists with NULL metrics - never plant
+                # plausible-looking fake defaults (68/58/80/7.0/...). Only fields
+                # actually present in the payload are UPDATEed below, so a
+                # partial watch push (steps+HR) can no longer leave invented
+                # sleep/stress/battery numbers behind.
                 c.execute("""
                 INSERT OR IGNORE INTO garmin_health_logs (
                     date, timestamp, heart_rate, resting_hr, sleep_score, sleep_hours,
                     stress_level, body_battery, steps, active_calories, spo2_pct,
                     respiration_rpm, vo2_max, hrv_status, sync_source
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    today, now_time,
-                    68, 58, 80, 7.0, 25, 75, 0, 0, 98, 14, 48, "balanced",
-                    merged.get("sync_source", "manual")
-                ))
+                ) VALUES (?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?)
+                """, (today, now_time, merged.get("sync_source", "manual")))
 
+                # H3: simulated payloads (smart sync / file fallback) must never
+                # persist invented biometrics. Only explicitly provided metrics
+                # are stored; the rest stay NULL and are simulated in-memory
+                # at read time. Never overwrite a real sync_source with a
+                # simulated one.
+                incoming_source = merged.get("sync_source", "manual")
+                incoming_is_simulated = incoming_source in SIMULATED_SYNC_SOURCES
+                explicit_keys = set(body.get("_explicit_keys") or ())
                 fields = ["heart_rate", "resting_hr", "sleep_score", "sleep_hours",
                           "stress_level", "body_battery", "steps", "active_calories",
                           "spo2_pct", "respiration_rpm", "vo2_max", "hrv_status", "sync_source"]
                 updates = []
                 vals = []
                 for f in fields:
-                    if f in merged and merged[f] is not None and merged[f] != "":
-                        updates.append(f"{f} = ?")
-                        vals.append(merged[f])
+                    if f not in merged or merged[f] is None or merged[f] == "":
+                        continue
+                    if incoming_is_simulated:
+                        if f == "sync_source":
+                            continue
+                        if f not in explicit_keys:
+                            continue
+                    updates.append(f"{f} = ?")
+                    vals.append(merged[f])
 
                 if updates:
                     updates.append("timestamp = ?")
@@ -7061,12 +7327,24 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
             if "sleep_hours" in merged and merged["sleep_hours"] is not None:
                 summary_parts.append(f"{merged['sleep_hours']}h שינה")
             summary_str = " | ".join(summary_parts) if summary_parts else "עודכן"
+            # B4/honesty: don't claim a successful sync when a simulated payload
+            # stored no real metrics.
+            stored_metric_fields = [u.split(" = ")[0] for u in updates
+                                    if not u.startswith(("timestamp", "updated_at"))]
+            nothing_new = incoming_is_simulated and not stored_metric_fields
+            if nothing_new:
+                resp_message = "[SYSTEM: לא התקבלו מדדים חדשים מהשעון - מוצגים נתוני הערכה בלבד]"
+                resp_summary = "⏳ אין נתונים חדשים"
+            else:
+                resp_message = f"[SYSTEM: מדדי Garmin Venu 4 סונכרנו בהצלחה! {summary_str}]"
+                resp_summary = f"✅ {summary_str}"
 
             self._set_headers()
             self.wfile.write(json.dumps({
                 "status": "synced",
-                "message": f"[SYSTEM: מדדי Garmin Venu 4 סונכרנו בהצלחה! {summary_str}]",
-                "summary": f"✅ {summary_str}",
+                "simulated": nothing_new,
+                "message": resp_message,
+                "summary": resp_summary,
                 "sync_source": merged["sync_source"],
                 "activity_logged": workout_logged,
                 "data": health_data
@@ -7121,9 +7399,9 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
 
                 _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, shift_date)
                 smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(now_israel, attent_info)
-                smart_bio["sync_source"] = body.get("source", "smart_sync")
 
                 # Merge explicit sensor metrics if passed (from simulator sliders, Shortcuts, etc.)
+                explicit_keys = []
                 for k in ["heart_rate", "resting_hr", "sleep_score", "sleep_hours",
                           "stress_level", "body_battery", "steps", "active_calories",
                           "spo2_pct", "respiration_rpm", "vo2_max"]:
@@ -7131,6 +7409,14 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                         clean = GarminDataEngine.clean_biometric_number(body[k])
                         if clean is not None:
                             smart_bio[k] = clean
+                            explicit_keys.append(k)
+                # H3: explicit user-provided metrics are real input; a pure
+                # simulated push must never persist invented biometrics.
+                smart_bio["_explicit_keys"] = explicit_keys
+                if explicit_keys:
+                    smart_bio["sync_source"] = body.get("source") or "manual"
+                else:
+                    smart_bio["sync_source"] = "smart_sync"
 
                 if row:
                     row_dict = dict(row)
@@ -7205,9 +7491,6 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 # Immediately apply Attent stimulation to garmin biometrics and normalize
                 now_israel = get_israel_now()
                 now_time = now_israel.strftime("%H:%M")
-                _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, shift_date)
-                smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(now_israel, attent_info)
-
                 c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (shift_date,))
                 g_row = c.fetchone()
                 if g_row:
@@ -7219,48 +7502,24 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                         # Attent normalization runs dynamically on read via AttentBiometricNormalizer.
                         pass
                     else:
-                        prev_steps = g_row["steps"] or 0
-                        prev_cals = g_row["active_calories"] or 0
-                        prev_sleep = g_row["sleep_score"]
-                        prev_sleep_h = g_row["sleep_hours"]
+                        # H3: never persist simulated biometrics over the row -
+                        # get_health_state merges the Attent-aware simulation
+                        # in-memory for display. Just mark the row as touched.
                         c.execute("""
                         UPDATE garmin_health_logs SET
                             timestamp = ?,
-                            heart_rate = ?,
-                            resting_hr = ?,
-                            stress_level = ?,
-                            body_battery = ?,
-                            steps = ?,
-                            active_calories = ?,
-                            sleep_score = ?,
-                            sleep_hours = ?,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE date = ?
-                        """, (
-                            now_time,
-                            smart_bio["heart_rate"],
-                            smart_bio["resting_hr"],
-                            smart_bio["stress_level"],
-                            smart_bio["body_battery"],
-                            max(prev_steps, smart_bio["steps"]),
-                            max(prev_cals, smart_bio["active_calories"]),
-                            prev_sleep if prev_sleep is not None else smart_bio["sleep_score"],
-                            prev_sleep_h if prev_sleep_h is not None else smart_bio["sleep_hours"],
-                            shift_date
-                        ))
+                        """, (now_time, shift_date))
                 else:
+                    # H3: never persist simulated biometrics - the in-memory
+                    # merge in get_health_state covers display.
                     c.execute("""
                     INSERT OR IGNORE INTO garmin_health_logs (
                         date, timestamp, heart_rate, resting_hr, sleep_score, sleep_hours,
                         stress_level, body_battery, steps, active_calories, sync_source
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'attent_log')
-                    """, (
-                        shift_date, now_time,
-                        smart_bio["heart_rate"], smart_bio["resting_hr"],
-                        smart_bio["sleep_score"], smart_bio["sleep_hours"],
-                        smart_bio["stress_level"], smart_bio["body_battery"],
-                        smart_bio["steps"], smart_bio["active_calories"]
-                    ))
+                    ) VALUES (?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'attent_log')
+                    """, (shift_date, now_time))
                 conn.commit()
 
                 health_data = HunterHealthAIAdvisor.analyze_and_generate_insights(conn, shift_date)
@@ -7296,11 +7555,10 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                 if not shift_date:
                     shift_date = get_hunter_shift_date(conn, client_date)
 
-                # Revert garmin biometrics back to normal baseline without Attent (only if not real sensor data)
-                now_israel = get_israel_now()
-                now_time = now_israel.strftime("%H:%M")
-                _, attent_info, _ = HunterHealthAIAdvisor.get_health_state(conn, shift_date)
-                smart_bio = GarminDataEngine.generate_smart_diurnal_biometrics(now_israel, attent_info)
+                # H3: the biometrics baseline is recomputed in-memory by
+                # get_health_state (attent_info already reflects the deletion);
+                # nothing simulated is persisted anymore. Touch only.
+                now_time = get_israel_now().strftime("%H:%M")
 
                 c.execute("SELECT * FROM garmin_health_logs WHERE date = ?", (shift_date,))
                 g_row = c.fetchone()
@@ -7311,23 +7569,15 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
                         # Preserve authentic sensor data
                         pass
                     else:
+                        # H3: never persist simulated biometrics - the in-memory
+                        # merge in get_health_state now recomputes the baseline
+                        # (attent_info already reflects the deletion). Touch only.
                         c.execute("""
                         UPDATE garmin_health_logs SET
                             timestamp = ?,
-                            heart_rate = ?,
-                            resting_hr = ?,
-                            stress_level = ?,
-                            body_battery = ?,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE date = ?
-                        """, (
-                            now_time,
-                            smart_bio["heart_rate"],
-                            smart_bio["resting_hr"],
-                            smart_bio["stress_level"],
-                            smart_bio["body_battery"],
-                            shift_date
-                        ))
+                        """, (now_time, shift_date))
                         conn.commit()
 
                 health_data = HunterHealthAIAdvisor.analyze_and_generate_insights(conn, shift_date)
@@ -7398,7 +7648,13 @@ def run_server(port=8080):
             print(f"Notice: Background local HTTPS server not started: {e}")
 
     server_address = ("0.0.0.0", port)
-    httpd = HTTPServer(server_address, SystemApiHandler)
+    # H5 fix: ThreadingHTTPServer so one slow request (e.g. a 10-30s Gemini
+    # call) no longer blocks Garmin webhooks, /api/ping and UI requests.
+    # Each request gets its own DB connection via Database.get_connection(),
+    # so no shared connection state crosses threads.
+    ThreadingHTTPServer.daemon_threads = True
+    ThreadingHTTPServer.allow_reuse_address = True
+    httpd = ThreadingHTTPServer(server_address, SystemApiHandler)
     print(f"==================================================")
     print(f"  SOLO LEVELING FITNESS SYSTEM - SYSTEM ONLINE")
     print(f"==================================================")
