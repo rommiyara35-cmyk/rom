@@ -4688,6 +4688,15 @@ class SystemApiHandler(SimpleHTTPRequestHandler):
         elif path == "/api/network-ip":
             self._set_headers()
             self.wfile.write(json.dumps({"ip": get_local_ip(), "port": 8080}).encode("utf-8"))
+        elif path == "/api/ping":
+            # Lightweight keep-alive endpoint (used by UptimeRobot/cron to
+            # prevent Render cold starts). No DB access, instant response.
+            self._set_headers()
+            self.wfile.write(json.dumps({
+                "ok": True,
+                "service": "solo-leveling",
+                "time": get_israel_now().strftime("%Y-%m-%d %H:%M:%S"),
+            }).encode("utf-8"))
         elif path == "/api/garmin/status":
             self.handle_garmin_status(query)
         elif path == "/api/garmin/debug":

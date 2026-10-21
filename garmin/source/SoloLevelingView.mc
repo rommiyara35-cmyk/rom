@@ -4,6 +4,8 @@ import Toybox.Communications;
 import Toybox.Lang;
 import Toybox.Timer;
 import Toybox.ActivityMonitor;
+import Toybox.Application;
+import Toybox.SensorHistory;
 
 class SoloLevelingView extends WatchUi.View {
     // 416x416 AMOLED Venu 4 Constants
@@ -24,9 +26,19 @@ class SoloLevelingView extends WatchUi.View {
     public var water as Number = 0;
     public var waterTarget as Number = 3000;
 
-    // Local Server URL (Configurable in Connect IQ App Settings)
-    public var serverUrl as String = "http://192.168.1.50:8080/api/garmin/status";
     private var _timer as Timer.Timer?;
+
+    // Resolve the shared server base URL from the application object.
+    private function baseUrl() as String {
+        try {
+            var app = Application.getApp() as SoloLevelingApp;
+            if (app != null && app.serverBaseUrl != null) {
+                return app.serverBaseUrl;
+            }
+        } catch (e) {
+        }
+        return "https://rom-z019.onrender.com";
+    }
 
     function initialize() {
         View.initialize();
@@ -62,12 +74,14 @@ class SoloLevelingView extends WatchUi.View {
         var steps = (info != null && info.steps != null) ? info.steps : 0;
         var activeCals = (info != null && info.calories != null) ? info.calories : 0;
 
-        var syncUrl = "http://192.168.1.50:8080/api/garmin/health-sync";
+        var syncUrl = baseUrl() + "/api/garmin/webhook";
         var params = {
             "steps" => steps,
             "active_calories" => activeCals,
-            "source" => "connect_iq_venu4"
+            "source" => "connect_iq"
         };
+        var hr = latestHeartRate();
+        if (hr != null) { params["heart_rate"] = hr; }
         var options = {
             :method => Communications.HTTP_REQUEST_METHOD_POST,
             :headers => { "Content-Type" => Communications.REQUEST_CONTENT_TYPE_JSON },
@@ -80,13 +94,32 @@ class SoloLevelingView extends WatchUi.View {
         // Biometrics pushed successfully
     }
 
+    // Newest heart-rate sample from the on-device history (null if none).
+    private function latestHeartRate() as Number or Null {
+        try {
+            var iter = SensorHistory.getHeartRateHistory({
+                :period => 1,
+                :order => SensorHistory.ORDER_NEWEST_FIRST
+            });
+            if (iter != null) {
+                var sample = iter.next();
+                if (sample != null && sample.heartRate != null
+                    && sample.heartRate != SensorHistory.INVALID_HR_SAMPLE) {
+                    return sample.heartRate;
+                }
+            }
+        } catch (e) {
+        }
+        return null;
+    }
+
     function fetchStatus() as Void {
         var options = {
             :method => Communications.HTTP_REQUEST_METHOD_GET,
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON
         };
         Communications.makeWebRequest(
-            serverUrl,
+            baseUrl() + "/api/garmin/status",
             null,
             options,
             method(:onReceiveStatus)

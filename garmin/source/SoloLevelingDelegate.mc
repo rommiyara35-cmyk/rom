@@ -1,6 +1,7 @@
 import Toybox.WatchUi;
 import Toybox.Communications;
 import Toybox.Lang;
+import Toybox.Application;
 
 class SoloLevelingDelegate extends WatchUi.BehaviorDelegate {
     private var _view as SoloLevelingView;
@@ -25,7 +26,15 @@ class SoloLevelingDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function logWater() as Void {
-        var url = "http://192.168.1.50:8080/api/garmin/quick-water";
+        var base = "https://rom-z019.onrender.com";
+        try {
+            var app = Application.getApp() as SoloLevelingApp;
+            if (app != null && app.serverBaseUrl != null) {
+                base = app.serverBaseUrl;
+            }
+        } catch (e) {
+        }
+        var url = base + "/api/garmin/quick-water";
         var options = {
             :method => Communications.HTTP_REQUEST_METHOD_POST,
             :headers => { "Content-Type" => Communications.REQUEST_CONTENT_TYPE_JSON },
